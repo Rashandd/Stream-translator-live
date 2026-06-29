@@ -1,7 +1,6 @@
 ---
 name: test-pipeline
 description: STT + çeviri pipeline'ını uçtan uca test et
-disable-model-invocation: true
 ---
 
 Ses pipeline'ını uçtan uca test et:

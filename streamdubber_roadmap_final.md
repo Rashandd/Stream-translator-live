@@ -302,17 +302,18 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 
 ---
 
-## Güvenlik ve Şifreleme — AES-256
+## Güvenlik ve Şifreleme
 
 ### Şifreleme Katmanları
 
 | Katman | Yöntem | Ne korur |
 |---|---|---|
-| **Veri aktarımı (transit)** | TLS 1.3 | SDK ↔ bulut, web panel ↔ bulut |
-| **Ses akışı** | AES-256-GCM | Canlı ses verisi (transit içinde ikinci kat) |
+| **Veri aktarımı (transit)** | TLS 1.3 | SDK ↔ bulut, web panel ↔ bulut — ses akışı dahil |
 | **Saklanan veri (at rest)** | AES-256 | Ses modelleri, kullanıcı verisi, DB |
-| **Stream key'ler** | AES-256 + Vault | Platform stream key'leri, OAuth token'ları |
+| **Stream key'ler** | AES-256 + Vault | Platform stream key'leri, OAuth token'ları (lokal) |
 | **API key'ler** | Vault / KMS | Deepgram, DeepL, ElevenLabs key'leri |
+
+> Ses akışı transit şifreleme için TLS 1.3 yeterli. Üstüne AES ekleme — double encryption gereksiz CPU demek.
 
 ### Key Yönetimi
 
@@ -489,7 +490,6 @@ Yayıncı  → Aylık abonelik
 
 ## Faz 1 — MVP: Restream Entegrasyonlu Altyazı
 
-**Süre:** 1–2 ay  
 **Hedef:** Ücretsiz plan ile kitle çek, rakipten daha iyi altyazı sun  
 **Mesaj:** "StreamTranslate'ten daha iyi, üstelik ücretsiz başlayabilirsin"  
 **Stack:** Deepgram + DeepL + Restream/Castr API
@@ -504,13 +504,13 @@ Yayıncı  → Aylık abonelik
 - [ ] PostgreSQL şeması
 - [ ] Admin / yayıncı yetkilendirme katmanı
 
-#### 1.2 Güvenlik Altyapısı — AES-256
-- [ ] TLS 1.3 tüm bağlantılarda
-- [ ] AES-256-GCM ses akışı şifreleme
+#### 1.2 Güvenlik Altyapısı
+- [ ] TLS 1.3 tüm bağlantılarda (ses akışı transit şifreleme — üstüne AES yok)
 - [ ] HashiCorp Vault kurulumu (key yönetimi)
 - [ ] API key'leri Vault'a taşı (koda gömme)
-- [ ] Veritabanı şifreleme (at-rest)
-- [ ] Ses modeli şifreleme (kullanıcı bazlı izolasyon)
+- [ ] Veritabanı şifreleme at-rest (AES-256)
+- [ ] Ses modeli şifreleme (kullanıcı bazlı izolasyon, AES-256)
+- [ ] Stream key'ler AES-256 şifreli lokal saklanır
 - [ ] mTLS SDK ↔ bulut doğrulaması
 
 #### 1.3 Lokal SDK — Tauri + Rust (çok platformlu temel)
@@ -519,7 +519,7 @@ Yayıncı  → Aylık abonelik
 - [ ] VAD (konuşma tespiti) — boş ses göndermeyi engelle
 - [ ] Gürültü temizleme / ön-işleme
 - [ ] Video + ses birleştirme (lokal)
-- [ ] Gömülü RTMP relay (yayıncı internetinden multistream — Mod B temeli)
+- [ ] Bulut WebSocket bağlantısı (sadece ses, video lokal kalır)
 - [ ] OBS WebSocket entegrasyonu (altyazı + ses kanalı)
 - [ ] Web panel ile eşleşme (hesap bağlama)
 - [ ] AES-256 şifreli sadece-ses akışı → bulut (video lokal kalır)
@@ -537,6 +537,7 @@ Yayıncı  → Aylık abonelik
 - [ ] Stream key yönetimi (SDK'ya senkronize)
 
 #### 1.5 Admin Dashboard — Faz 1 Temeli
+<!-- NOT: 1.7 ve 1.8 STT/Çeviri görevleri; 1.5/1.6 numaraları Admin/Multistream için ayrılmıştır -->
 - [ ] Admin giriş (2FA — email)
 - [ ] Kullanıcı listesi ve detay
 - [ ] Sistem durumu izleme
@@ -552,26 +553,26 @@ Yayıncı  → Aylık abonelik
 - [ ] Admin: hangi planda hangi yöntemin açılacağı
 > SDK gömülü RTMP relay (Mod B) Faz 2'de gelir. Faz 1'de yayıncı kendi Restream/Castr hesabını bağlar.
 
-#### 1.5 STT — Deepgram API
+#### 1.7 STT — Deepgram API
 - [ ] Deepgram Nova-2 WebSocket
 - [ ] Türkçe kalite testi
 - [ ] AssemblyAI fallback
 
-#### 1.6 Çeviri — DeepL API
+#### 1.8 Çeviri — DeepL API
 - [ ] DeepL API (TR → EN, ES, DE, FR başlangıç)
 - [ ] Google fallback
 
-#### 1.7 OBS Browser Source Altyazı
+#### 1.9 OBS Browser Source Altyazı
 - [ ] Gerçek zamanlı altyazı render
 - [ ] Özelleştirilebilir görünüm
 - [ ] 2 sn altı latency
 - [ ] 3 platformda test
 
-#### 1.8 YouTube Native CC
+#### 1.10 YouTube Native CC
 - [ ] YouTube Live CC API
 - [ ] OAuth bağlantısı
 
-#### 1.9 Ücretsiz Plan + Stripe
+#### 1.11 Ücretsiz Plan + Stripe
 - [ ] Free plan (watermark, 5 saat limit)
 - [ ] Starter / Pro / Streamer planları
 - [ ] Kullanım takibi
@@ -583,7 +584,6 @@ Yayıncı ücretsiz hesap açar → Restream veya direkt OBS ile bağlar → Tü
 
 ## Faz 2 — Ses Klonlama + İzleyici Dil Seçimi
 
-**Süre:** 2–3 ay  
 **Hedef:** Rakipte olmayan özellikleri devreye al, ücretli plana geçişi tetikle  
 **Mesaj:** "Artık izleyicin kendi dilini seçiyor ve senin sesinle duyuyor"  
 **Stack:** ElevenLabs + Twitch Extension + Chrome Extension + faster-whisper geçiş başlıyor
@@ -634,7 +634,6 @@ Yayıncı ücretsiz hesap açar → Restream veya direkt OBS ile bağlar → Tü
 
 ## Faz 3 — Tam Bağımsızlık: Local AI + Premium Bulut Multistream
 
-**Süre:** 3–5 ay  
 **Hedef:** API bağımlılığını kır, tek paket sun, maliyet %82 düşür  
 **Mesaj:** "Artık ElevenLabs'a da, DeepL'e de, harici servise de ihtiyacın yok"  
 **Stack:** XTTS-v2 + HY-MT1.5 local + premium bulut multistream (opsiyonel)
@@ -678,8 +677,6 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 ---
 
 ## Faz 4 — Büyüme
-
-**Süre:** 5+ ay
 
 ### Görevler
 

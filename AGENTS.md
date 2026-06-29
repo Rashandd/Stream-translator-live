@@ -44,6 +44,7 @@ docker compose up    # local dev ortamı
 
 ### Kod Kalitesi
 - Önce test yaz, sonra implement et (TDD — red → green → refactor)
+- Kritik path'ler (ses pipeline, auth, şifreleme) için minimum %80 test coverage
 - Her PR tek bir sorumluluğu değiştirir
 - `unwrap()` kullanma — `?` veya explicit `match`/`if let`
 - `console.log` / `println!` commit etme — tracing/logger kullan
@@ -51,6 +52,7 @@ docker compose up    # local dev ortamı
 
 ### Güvenlik
 - Ses akışı TLS 1.3 ile taşınır — üstüne AES ekleme (double encryption, gereksiz CPU)
+- AES-256 sadece at-rest için: DB, ses modelleri, stream key'ler (lokal)
 - API key, stream key, JWT secret → Vault veya env var, koda asla gömme
 - `.env` commit'e girmez — `.env.example` girer
 - SDK ↔ bulut mTLS doğrulaması zorunlu
@@ -78,6 +80,53 @@ docker compose up    # local dev ortamı
 - `sdk/src/audio/coreaudio.rs` → macOS (iskelet, devre dışı — Faz 4)
 - `sdk/src/audio/pipewire.rs` → Linux (iskelet, devre dışı — Faz 4)
 - Video lokal kalır, buluta sadece ses gider
+
+## Paralel Görev Stratejisi
+
+Aşağıdaki görev grupları birbirinden bağımsız — aynı anda paralel yürütülebilir:
+
+| Grup A | Grup B | Grup C |
+|---|---|---|
+| Backend (Rust/Axum) | Frontend (Next.js) | SDK (Tauri/Rust) |
+| WebSocket, JWT, API gateway | Dashboard sayfaları, UI | Ses yakalama, VAD |
+| Deepgram/DeepL entegrasyonu | Stripe entegrasyonu | OBS WebSocket |
+
+**Bağımlılıklar (sıralı olmak zorunda):**
+- Backend WebSocket API tamamlanmadan → SDK ses akışı test edilemez
+- Auth (JWT) tamamlanmadan → Dashboard login çalışmaz
+- Vault kurulumu → API key'ler koda gömülmeden önce
+
+## Error Recovery
+
+Komut başarısız olursa ne yapılır:
+
+| Hata | Aksiyon |
+|---|---|
+| `cargo clippy` hata verir | Clippy hatalarını düzelt, commit etme |
+| `cargo test` başarısız | Testi geçir, workaround yazma |
+| `npm run lint` başarısız | Lint hatalarını düzelt |
+| Vault bağlantısı yok | Local dev için `.env` kullan, prod'a asla gömme |
+| Deepgram timeout | AssemblyAI fallback'e geç, log'a yaz |
+
+## Agent Handoff Protokolü
+
+Her çalışma sonunda `docs/SESSION.md`'yi güncelle:
+
+```
+## Neredeyim?
+[hangi görev, hangi adım]
+
+## Son Kararlar
+[bu session'da alınan teknik kararlar]
+
+## Sonraki Adım
+[tam olarak ne yapılacak — belirsiz bırakma]
+
+## Blokerlar / Dikkat
+[çözülmemiş sorunlar, dikkat edilmesi gerekenler]
+```
+
+Bir sonraki agent SESSION.md'yi okuyarak bağlamı sıfırdan kurar — "sonraki adım" satırı somut olmalı.
 
 ## Faz 1 Sınırları — Bu Fazda Yok
 - Ses klonlama → Faz 2

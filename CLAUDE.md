@@ -10,7 +10,7 @@ Faz 1 hedefi: Deepgram + DeepL + Restream/Castr entegrasyonuyla ücretsiz altyaz
 - Frontend: Next.js 15 + Tailwind + shadcn/ui
 - SDK: Tauri 2 + Rust (Windows önce, Mac/Linux adaptör iskeleti hazır)
 - DB: PostgreSQL + Redis
-- Şifreleme: AES-256-GCM + TLS 1.3
+- Şifreleme: TLS 1.3 (transit) + AES-256 (at-rest: DB, ses modelleri, stream key'ler)
 - Key yönetimi: HashiCorp Vault
 - STT: Deepgram Nova-2 → (Faz 2: faster-whisper)
 - Çeviri: DeepL → (Faz 2: HY-MT1.5)

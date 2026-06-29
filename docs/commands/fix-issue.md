@@ -1,7 +1,6 @@
 ---
 name: fix-issue
 description: GitHub issue'yu analiz et ve düzelt
-disable-model-invocation: true
 ---
 
 Şu issue'yu düzelt: $ARGUMENTS
