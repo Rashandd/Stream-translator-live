@@ -1,0 +1,71 @@
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.Spotlight-V100/
+.Trashes/
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+!.env.example.*
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.der
+
+# --- Logs / temp ---
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# --- Rust / Cargo ---
+target/
+**/target/
+**/debug/
+**/release/
+**/*.rlib
+**/*.d
+
+# --- Next.js / frontend ---
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+coverage/
+*.tsbuildinfo
+
+# --- Tauri / desktop app ---
+.tauri/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/build/
+
+# --- Docker / local infra ---
+docker-compose.override.yml
+.docker/
+
+# --- Tool caches ---
+.cache/
+.eslintcache
+.stylelintcache
+
+# --- Project-specific generated files ---
+*.sqlite
+*.sqlite3
+*.db
+*.pid

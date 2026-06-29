@@ -1,5 +1,17 @@
 # StreamDubber — Agent Kuralları (Faz 1 MVP)
 
+## BAŞLARKEN — İlk Komut (Başka Hiçbir Şey Yapmadan Önce)
+
+```bash
+bash scripts/session-start.sh
+```
+
+## BİTERKEN — Son Komut (Çalışmayı Bitirmeden Önce)
+
+```bash
+bash scripts/session-end.sh
+```
+
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
 Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
@@ -39,6 +51,41 @@ docker compose up    # local dev ortamı
 /infra          → Dockerfile'lar, docker-compose, Vault config
 /docs           → mimari kararlar ve referans dökümanlar
 ```
+
+## Task Tamamlama Protokolü
+
+Bir task bittiğinde şu sırayı takip et — atlamadan:
+
+**1. Roadmap'te tiki at**
+`streamdubber_roadmap_final.md` içinde ilgili satırı bul:
+```
+- [ ] Task adı   →   - [x] Task adı
+```
+
+**2. Hemen commit et**
+```bash
+bash scripts/commit-task.sh "task kısa açıklaması"
+```
+
+Script otomatik olarak:
+- Roadmap değişikliğini commit eder
+- Push etmeye çalışır
+- Çakışma varsa `RETRY_WAIT` (5sn) bekler, `git pull --rebase` yapar, tekrar dener (max 3 kez)
+- Otomatik çözülemeyen çakışmada ne yapacağını açıklar
+
+**3. Çakışma elle çözme (script başaramazsa)**
+```bash
+git status                         # çakışan dosyaya bak
+# roadmap'i aç, <<<<< işaretlerini bul
+# her iki tiki de [x] yap, çakışma satırlarını sil
+git add streamdubber_roadmap_final.md
+git rebase --continue
+git push
+```
+
+**Kural:** Task commit edilmeden bir sonraki taska geçme.
+
+---
 
 ## Genel Kurallar
 
@@ -161,14 +208,15 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | PostgreSQL şeması (tüm tablolar, migration stratejisi) | `docs/schema.md` |
 
 ## Session Sürekliliği
-Her calisma basinda once oku:
+
+Her yeni session'da ilk iş:
 ```bash
-cat docs/SESSION.md
-cat docs/sessions/codex.md    # Codex isen
-cat docs/sessions/claude.md   # Claude isen
+bash scripts/session-start.sh
 ```
 
-Birakmadan once sadece kendi agent session dosyani guncelle: neredesin, son kararlar, sonraki adim, blokerlar.
+Script şunları otomatik yapar: nerede kaldık (SESSION.md özeti), son commitler, git durumu, test sonuçları (geçti/kaldı).
+
+Bırakmadan önce sadece kendi agent session dosyasını güncelle: neredesin, son kararlar, sonraki adım, blokerlar.
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:

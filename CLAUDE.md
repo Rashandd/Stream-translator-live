@@ -1,5 +1,17 @@
 # StreamDubber — Claude Code Kuralları (Faz 1 MVP)
 
+## BAŞLARKEN — İlk Komut (Başka Hiçbir Şey Yapmadan Önce)
+
+```bash
+bash scripts/session-start.sh
+```
+
+## BİTERKEN — Son Komut (Kullanıcıya Cevap Vermeden Önce)
+
+```bash
+bash scripts/session-end.sh
+```
+
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
 Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
@@ -86,11 +98,16 @@ tauri build          # SDK release build
 - Twitch Extension / Chrome Extension YOK (Faz 2)
 - Faz 1 dışı özellik sormadan implement etme
 
+## Task Tamamlama
+Bir task bittiğinde:
+1. `streamdubber_roadmap_final.md` içinde `[ ]` → `[x]` yap
+2. `bash scripts/commit-task.sh "kısa açıklama"` çalıştır
+   - Çakışma varsa script bekler, rebase yapar, tekrar dener
+   - Elle çözüm gerekirse script adımları açıklar
+3. Bir sonraki taska geç
+
 ## Context Sıfırlarken
-Yeni session açmadan önce şunu çalıştır:
-```bash
-cat docs/SESSION.md   # mevcut plan ve kararlar
-```
+Yukarıdaki BAŞLARKEN ve BİTERKEN komutlarını uygula.
 
 ## Daha Fazla Bağlam Gerekirse
 - Güvenlik detayları: `@docs/security.md`
