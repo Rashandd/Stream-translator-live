@@ -1,0 +1,114 @@
+# StreamDubber — Agent Kuralları (Faz 1 MVP)
+
+## Proje
+Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
+Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
+Faz 1 hedefi: Deepgram + DeepL + Restream/Castr entegrasyonuyla ücretsiz altyazı.
+
+## Stack
+- Backend: Rust + Axum + Tokio (WebSocket ses pipeline)
+- Frontend: Next.js 15 + Tailwind + shadcn/ui
+- SDK: Tauri 2 + Rust (Windows önce, Mac/Linux adaptör iskeleti hazır)
+- DB: PostgreSQL + Redis
+- Şifreleme: TLS 1.3 (ses akışı için yeterli, üstüne AES ekleme)
+- Key yönetimi: HashiCorp Vault
+- STT: Deepgram Nova-2 → (Faz 2: faster-whisper)
+- Çeviri: DeepL → (Faz 2: HY-MT1.5)
+- Altyapı: Railway (MVP) → Hetzner GPU (Faz 2)
+
+## Komutlar
+```bash
+cargo build          # backend derle
+cargo test           # backend testleri
+cargo clippy         # lint — hata varsa commit etme
+npm run dev          # frontend geliştirme
+npm run lint         # frontend lint
+npm run test         # frontend testleri
+tauri dev            # SDK geliştirme
+tauri build          # SDK release build
+docker compose up    # local dev ortamı
+```
+
+## Klasör Yapısı
+```
+/backend        → Rust/Axum (WebSocket, API gateway, auth)
+/frontend       → Next.js (yayıncı + admin dashboard)
+/sdk            → Tauri/Rust (yayıncı agent)
+/sdk/src/core   → platform-bağımsız çekirdek (VAD, RTMP, şifreleme, WebSocket)
+/sdk/src/audio  → platform adaptörleri (wasapi / coreaudio / pipewire)
+/infra          → Dockerfile'lar, docker-compose, Vault config
+/docs           → mimari kararlar ve referans dökümanlar
+```
+
+## Genel Kurallar
+
+### Kod Kalitesi
+- Önce test yaz, sonra implement et (TDD — red → green → refactor)
+- Her PR tek bir sorumluluğu değiştirir
+- `unwrap()` kullanma — `?` veya explicit `match`/`if let`
+- `console.log` / `println!` commit etme — tracing/logger kullan
+- Commit mesajı: `feat:`, `fix:`, `chore:`, `test:` prefix zorunlu
+
+### Güvenlik
+- Ses akışı TLS 1.3 ile taşınır — üstüne AES ekleme (double encryption, gereksiz CPU)
+- API key, stream key, JWT secret → Vault veya env var, koda asla gömme
+- `.env` commit'e girmez — `.env.example` girer
+- SDK ↔ bulut mTLS doğrulaması zorunlu
+
+### Rust Kuralları
+- `async fn` handler'larda `?` ile error propagation
+- `cfg(target_os)` sadece `/sdk/src/audio/` altında kullanılır
+- Ses pipeline'ında lifetime hatası görürsen borrow checker'a uy, workaround yazma
+
+### Docker
+- Her servis kendi Dockerfile'ına sahip (multi-stage: builder → runtime)
+- Tüm servisler env var ile konfigüre edilir, image içine değer gömülmez
+- Health check her container'da zorunlu
+- Local dev: `docker compose up` ile backend + frontend + postgres + redis + vault
+
+### Konfigürasyon — Hiçbir Şey Hard-coded Olmaz
+- STT, çeviri, TTS sağlayıcıları admin panelden toggle edilebilir (restart yok)
+- Her ayar DB'de saklanır: `config::get("stt.provider")` pattern kullan
+- Fiyat planları, limitler, özellikler de DB'den — koda gömme
+- Fallback kuralları admin panelden: örn. "ElevenLabs meşgulse → Cartesia"
+
+### SDK Mimarisi
+- `sdk/src/core/` → platform-bağımsız (her şey burada)
+- `sdk/src/audio/wasapi.rs` → Windows (aktif)
+- `sdk/src/audio/coreaudio.rs` → macOS (iskelet, devre dışı — Faz 4)
+- `sdk/src/audio/pipewire.rs` → Linux (iskelet, devre dışı — Faz 4)
+- Video lokal kalır, buluta sadece ses gider
+
+## Faz 1 Sınırları — Bu Fazda Yok
+- Ses klonlama → Faz 2
+- SDK gömülü RTMP relay → Faz 2
+- faster-whisper / HY-MT1.5 / XTTS → Faz 2-3
+- Twitch Extension / Chrome Extension → Faz 2
+- Mac/Linux ses adaptörü aktivasyonu → Faz 4
+
+Faz 1 dışı özellik sormadan implement etme.
+
+## Referans Dökümanlar
+Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
+
+| Konu | Dosya |
+|---|---|
+| Ses pipeline, STT/TTS/çeviri seçenekleri | `docs/audio-pipeline.md` |
+| Güvenlik kararları, Vault yapısı | `docs/security.md` |
+| Multistream modları (A/B/C) | `docs/multistream.md` |
+| Dashboard sayfaları ve admin spec | `docs/dashboard.md` |
+| Docker yapısı, env var listesi | `docs/docker-config.md` |
+
+## Session Sürekliliği
+Her çalışma başında önce oku:
+```bash
+cat docs/SESSION.md
+```
+Bırakmadan önce SESSION.md'yi güncelle: neredesin, son kararlar, sonraki adım.
+
+## Tekrarlayan Görevler
+Bu görevler için hazır iş akışları var — kullanmadan önce oku:
+
+- GitHub issue düzeltme: `docs/commands/fix-issue.md`
+- Deploy öncesi güvenlik kontrolü: `docs/commands/security-check.md`
+- Pipeline uçtan uca test: `docs/commands/test-pipeline.md`

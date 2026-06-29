@@ -285,17 +285,7 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 - Web panel komut gönderir → SDK lokalde uygular
 - Yayıncı SDK arayüzüne neredeyse hiç dokunmaz
 
-### Neden Tauri + Rust?
 
-| Özellik | Tauri + Rust | Electron | .NET |
-|---|---|---|---|
-| Boyut | ~10MB | ~150MB | ~60MB |
-| Backend ile ortak dil | ✅ Rust | ❌ | ❌ |
-| Çok platform | ✅ Win/Mac/Linux | ✅ | ⚠️ ağırlıklı Win |
-| RTMP relay performansı | ✅ Native hız | ⚠️ | ✅ |
-| Güvenlik (obfuscation) | ✅ Derlenmiş binary | ⚠️ JS açık | ✅ |
-
-**Sonuç:** Tauri + Rust — backend ile aynı dil, çok platform temelde gelir, RTMP relay native hızda çalışır.
 
 ### SDK Dağıtım ve Güvenlik
 - [ ] Code signing (Windows SmartScreen + macOS notarization)
