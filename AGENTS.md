@@ -108,9 +108,17 @@ Komut başarısız olursa ne yapılır:
 | Vault bağlantısı yok | Local dev için `.env` kullan, prod'a asla gömme |
 | Deepgram timeout | AssemblyAI fallback'e geç, log'a yaz |
 
-## Agent Handoff Protokolü
+## Multi-Agent Handoff Protokolü
 
-Her çalışma sonunda `docs/SESSION.md`'yi güncelle:
+Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Bu yuzden tek `docs/SESSION.md` dosyasina surekli yazmak yerine agent bazli session dosyalari kullanilir.
+
+Session dosyalari:
+- Ana koordinasyon ozeti: `docs/SESSION.md`
+- Codex notlari: `docs/sessions/codex.md`
+- Claude notlari: `docs/sessions/claude.md`
+- Ortak sablon: `docs/sessions/handoff-template.md`
+
+Her calisma sonunda sadece kendi agent dosyani guncelle:
 
 ```
 ## Neredeyim?
@@ -126,7 +134,9 @@ Her çalışma sonunda `docs/SESSION.md`'yi güncelle:
 [çözülmemiş sorunlar, dikkat edilmesi gerekenler]
 ```
 
-Bir sonraki agent SESSION.md'yi okuyarak bağlamı sıfırdan kurar — "sonraki adım" satırı somut olmalı.
+`docs/SESSION.md` yalnizca kisa koordinasyon panosudur. Kullanici acikca istemedikce veya aktif agent/alan paylasimi degismedikce bu dosyayi guncelleme.
+
+Bir sonraki agent once `docs/SESSION.md` dosyasini, sonra kendi agent dosyasini ve gerekiyorsa diger agent dosyasini okuyarak baglami kurar. "Sonraki adim" satiri somut olmali.
 
 ## Faz 1 Sınırları — Bu Fazda Yok
 - Ses klonlama → Faz 2
@@ -147,13 +157,18 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | Multistream modları (A/B/C) | `docs/multistream.md` |
 | Dashboard sayfaları ve admin spec | `docs/dashboard.md` |
 | Docker yapısı, env var listesi | `docs/docker-config.md` |
+| WebSocket protokol (SDK ↔ Backend mesaj formatları) | `docs/websocket-protocol.md` |
+| PostgreSQL şeması (tüm tablolar, migration stratejisi) | `docs/schema.md` |
 
 ## Session Sürekliliği
-Her çalışma başında önce oku:
+Her calisma basinda once oku:
 ```bash
 cat docs/SESSION.md
+cat docs/sessions/codex.md    # Codex isen
+cat docs/sessions/claude.md   # Claude isen
 ```
-Bırakmadan önce SESSION.md'yi güncelle: neredesin, son kararlar, sonraki adım.
+
+Birakmadan once sadece kendi agent session dosyani guncelle: neredesin, son kararlar, sonraki adim, blokerlar.
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
