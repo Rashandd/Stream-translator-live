@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import publicConfig from "@/src/config/public-config.json";
+import en from "@/src/i18n/dictionaries/en.json";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: publicConfig.brand.name,
-  description: publicConfig.brand.tagline,
+  title: en.brand.name,
+  description: en.brand.tagline,
 };
 
 export default function RootLayout({

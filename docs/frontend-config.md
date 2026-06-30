@@ -42,6 +42,8 @@ ui.brand.logo_asset
 ui.brand.site_url
 ui.theme.active
 ui.theme.tokens
+ui.i18n.locales
+ui.i18n.default_locale
 ui.public.home.hero
 ui.public.home.metrics
 ui.public.home.compatibility_logos
@@ -90,6 +92,7 @@ PATCH /api/admin/config/:key
 ## Frontend Rules
 
 - Every page loader must fetch config before rendering user-visible business content.
+- Every user-visible string must be locale-aware. Development can start with English only, but strings live in dictionaries/config and components accept already-localized values.
 - Components receive labels, descriptions, options, limits, and visibility as props from config-aware page loaders.
 - Empty states and errors may use safe fallback text, but product copy must still come from config when data loads.
 - Language selectors use configured language arrays, not local hard-coded lists.
@@ -98,6 +101,7 @@ PATCH /api/admin/config/:key
 - Pricing pages render from `plans` plus optional configured marketing copy.
 - Dashboard metric cards render from configured card definitions plus live API data.
 - Theme tokens can be exported from `DESIGN.md`, but active theme selection and public-facing brand values are admin-managed.
+- The first landing page stays short and direct; detailed product and solution content moves to route-level pages or dashboard flows.
 
 ## Admin Panel Requirements
 

@@ -208,6 +208,8 @@ StreamDubber should feel like a live broadcast control room made simple: fast to
 
 The Strovak logo is the visual anchor: deep navy wordmark, cyan-to-blue motion line, small violet audio accent, and generous white space. UI decisions should support that mark with dark navy text, clean white surfaces, precise SVG icons, and restrained blue/cyan/violet accents.
 
+Frontend must be internationalization-ready from the start. Development may ship with English copy only, but copy lives in locale dictionaries/config so Turkish and other languages can be added without rewriting components.
+
 ## Colors
 
 Use a mostly white and off-white foundation. The interface should breathe, but it must not become empty. Pair clean white surfaces with hairline borders, dark text, and a small number of vivid accents.
@@ -230,9 +232,9 @@ Use generous vertical rhythm on public and onboarding pages. Use denser grids in
 
 Preferred public-page pattern:
 
-- A centered hero with direct headline, short supporting copy, pill CTAs, proof metrics, and a soft full-width product visual or interactive scene below it.
-- A language or platform compatibility grid that uses pill cells and real integration names.
-- Alternating full-width sections for product capability, workflow, security, and setup speed.
+- A classic navbar with a large readable Strovak logo, direct text links, and one clear CTA.
+- A short first viewport: direct headline, one supporting sentence, two CTAs, and a clean product/animation placeholder.
+- Detailed product, platform, security, and solution explanations should move to later pages or dashboard flows, not the initial landing view.
 
 Preferred dashboard pattern:
 
@@ -271,6 +273,8 @@ Do:
 
 - Read this file before creating or changing frontend UI.
 - Use professional SVG icons and never use emoji.
+- Keep frontend copy locale-aware; English-only development is acceptable, hard-coded monolingual components are not.
+- Keep the landing page short, clear, and focused on what Strovak does.
 - Use real product surfaces on the first screen, not a generic landing page.
 - Keep StreamDubber's public pages close to Palabra's clarity: large promise, quick setup, visible compatibility, strong metrics.
 - Keep authenticated pages closer to an operations console: dense, restrained, fast to scan.
@@ -281,6 +285,7 @@ Don't:
 
 - Copy Palabra's exact copy, images, icons, logos, or brand-specific composition.
 - Use emoji as icons, decoration, bullets, status markers, or brand personality.
+- Put dense feature details, platform matrices, provider internals, or long explanations on the first landing viewport.
 - Hard-code prices, plans, limits, languages, provider names, integration availability, marketing claims, onboarding steps, download URLs, or feature visibility.
 - Use decorative orbs, bokeh, heavy shadows, nested cards, or one-note purple gradients.
 - Build Phase 2 features as active UI in Phase 1. Voice cloning can appear only as disabled, configured, or roadmap state when the backend config says so.

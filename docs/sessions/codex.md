@@ -4,7 +4,7 @@
 Codex
 
 ## Neredeyim?
-Frontend baslangic iskeleti kuruldu: Next.js 15 app, Tailwind tema, Strovak logo kullanimi, public home ve dashboard preview sayfalari calisir durumda.
+Frontend i18n-ready hale getirildi; landing kisa ve net ilk giris ekranina indirildi, klasik navbar ve daha buyuk logo uygulandi.
 
 ## Degistirdigim Alanlar
 - `DESIGN.md`
@@ -13,25 +13,22 @@ Frontend baslangic iskeleti kuruldu: Next.js 15 app, Tailwind tema, Strovak logo
 - `frontend/package-lock.json`
 - `frontend/app/`
 - `frontend/src/`
-- `frontend/public/logo-strovak.png`
-- `frontend/tailwind.config.ts`
-- `frontend/tsconfig.json`
-- `frontend/next.config.mjs`
-- `frontend/postcss.config.mjs`
-- `frontend/.eslintrc.json`
 - `docs/sessions/codex.md`
+- `docs/frontend-config.md`
 
 ## Son Kararlar
-- UI'da emoji kullanilmamasi `DESIGN.md` hafizasina eklendi; profesyonel SVG ikon icin lucide-react kullaniliyor.
-- Logo rengine uyum icin lacivert ana tipografi, cyan/mavi/violet vurgu paleti ve beyaz yuzeyler kullanildi.
-- Gorunen frontend icerigi component icine dagitilmadi; `frontend/src/config/public-config.json` seed config'inden render ediliyor.
+- Locale routing `/en` ve `/en/dashboard` ile baslatildi; `/` ve `/dashboard` default English route'a redirect ediyor.
+- Simdilik sadece `en` dictionary var; yeni diller `frontend/src/i18n/dictionaries/` ve `routing.ts` uzerinden eklenecek.
+- Landing page detaylardan arindirildi: kisa headline, tek summary, CTA'lar ve ileride animasyon konacak urun sahnesi.
+- Header klasik navbar oldu; logo daha buyuk kullaniliyor.
+- Gorunen frontend icerigi component icine dagitilmadi; `frontend/src/i18n/dictionaries/en.json` seed dictionary/config'inden render ediliyor.
 - Backend `/api/public-config` hazir oldugunda `getPublicConfig()` bu endpoint'e baglanacak.
 
 ## Sonraki Adim
-Frontend sonraki adim: auth/login akisi ve gercek `/api/public-config` endpoint baglantisi; ardindan dashboard ana sayfasi backend verisiyle tamamlanip roadmap taski tiklenebilir.
+Frontend sonraki adim: auth/login akisi, gercek `/api/public-config` endpoint baglantisi ve dictionary/config merge stratejisi.
 
 ## Blokerlar / Dikkat
 - `npm run lint`, `npm run build`, `npm run design:lint` gecti.
-- Dev server `http://127.0.0.1:3000` adresinde calisiyor; sandbox icinden curl icin dis izin gerekti.
+- Dev server `http://127.0.0.1:3000` adresinde calisiyor; `/` -> `/en`, `/en` ve `/en/dashboard` route'lari dogrulandi.
 - `npm audit` 2 moderate bulgu raporluyor; `npm audit fix --force` breaking change yapabilecegi icin calistirilmadi.
 - Tum workspace testi sandbox'ta backend integration testlerinin local socket bind izni nedeniyle basarisiz olabilir.

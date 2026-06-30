@@ -1,0 +1,69 @@
+{
+  "brand": {
+    "name": "Strovak.com",
+    "logoAsset": "/logo-strovak.png",
+    "tagline": "Live translation. Voice cloning. Multistreaming."
+  },
+  "nav": {
+    "ariaLabel": "Primary navigation",
+    "items": [
+      { "label": "Product", "href": "/" },
+      { "label": "Dashboard", "href": "/dashboard" },
+      { "label": "Solutions", "href": "/solutions" },
+      { "label": "Security", "href": "/security" }
+    ],
+    "cta": { "label": "Start setup", "href": "/dashboard" },
+    "languageLabel": "English"
+  },
+  "home": {
+    "hero": {
+      "eyebrow": "Live translation for creators",
+      "title": "Translate your live stream in real time.",
+      "summary": "Strovak adds captions, translation, and multistream control while keeping video on the broadcaster machine.",
+      "primaryCta": { "label": "Open dashboard", "href": "/dashboard" },
+      "secondaryCta": { "label": "See product direction", "href": "/dashboard" }
+    },
+    "scene": {
+      "label": "Realtime stream layer",
+      "title": "Audio in. Captions out.",
+      "subtitle": "Animation placeholder",
+      "items": [
+        "Local SDK captures speech audio.",
+        "Cloud pipeline translates in real time.",
+        "Captions return to the stream."
+      ]
+    }
+  },
+  "dashboard": {
+    "title": "Broadcaster dashboard",
+    "subtitle": "Configure the first live translation workflow without hard-coded provider, plan, language, or platform values.",
+    "previewLabel": "config-driven preview",
+    "quickStartTitle": "Quick start",
+    "pipelineTitle": "Live pipeline",
+    "pipelineSubtitle": "SDK to cloud audio to stream output",
+    "pipelineStatus": "setup needed",
+    "quickActions": [
+      { "label": "Pair SDK", "description": "Generate a pairing code for the local agent.", "icon": "MonitorCog" },
+      { "label": "Choose distribution", "description": "Start with Restream, Castr, or Streamlabs.", "icon": "Route" },
+      { "label": "Set languages", "description": "Select source speech and target captions.", "icon": "Languages" }
+    ],
+    "statusCards": [
+      { "label": "Stream state", "value": "Idle", "hint": "waiting for SDK" },
+      { "label": "Current latency", "value": "--", "hint": "available after stream start" },
+      { "label": "Monthly usage", "value": "0h / 5h", "hint": "from plan config" },
+      { "label": "Fallback", "value": "AssemblyAI", "hint": "service_config.stt.fallback" }
+    ],
+    "pipeline": [
+      { "title": "SDK capture", "body": "Windows-first local agent captures and preprocesses speech audio.", "icon": "Radio" },
+      { "title": "Cloud translation", "body": "STT and translation providers are selected from admin config.", "icon": "Languages" },
+      { "title": "Stream output", "body": "Captions and language outputs return to the broadcaster workflow.", "icon": "PanelsTopLeft" }
+    ]
+  },
+  "statusLabels": {
+    "enabled": "enabled",
+    "beta": "beta",
+    "waitlist": "waitlist",
+    "coming_soon": "coming soon",
+    "disabled": "disabled"
+  }
+}
