@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "design:lint": "designmd lint ../DESIGN.md"
+  },
   "devDependencies": {
     "@google/design.md": "^0.3.0"
   }

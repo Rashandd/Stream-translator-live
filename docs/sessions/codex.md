@@ -4,25 +4,24 @@
 Codex
 
 ## Neredeyim?
-1.3 Lokal SDK ilk maddesi tamamlandı: Tauri proje kabuğu ve platform-bağımsız Rust çekirdek mimarisi kuruldu.
+Frontend tasarım hafızası ve runtime config kontratı eklendi. Palabra'dan ilham alan ama StreamDubber'a ait görsel yön `DESIGN.md` içinde tanımlandı.
 
 ## Degistirdigim Alanlar
-- `sdk/package.json`
-- `sdk/src-tauri/`
-- `sdk/src/core/`
-- `sdk/src/audio/`
-- `Cargo.toml`
-- `streamdubber_roadmap_final.md`
+- `DESIGN.md`
+- `docs/frontend-config.md`
+- `docs/dashboard.md`
+- `frontend/package.json`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
-- Tauri shell standart `sdk/src-tauri` altinda baslatildi; test edilebilir SDK mantigi `sdk/src/` altindaki Rust library'de tutuldu.
-- Platform bagimsiz cekirdek `sdk/src/core/`; `cfg(target_os)` kullanimi yalnizca `sdk/src/audio/` altinda.
-- Faz 1 siniri korundu: gercek ses yakalama, VAD, RTMP relay ve Mac/Linux aktivasyonu sonraki tasklara birakildi.
+- Frontend gelistirmeden once `DESIGN.md` okunacak; Palabra'nin parlak, sakin, pill kontrollu, real-time ceviri odakli dili StreamDubber'a uyarlanacak.
+- Palabra'nin asset, logo, copy veya marka ogeleri kopyalanmayacak.
+- Frontend'de fiyat, plan, limit, dil, provider, platform, feature flag, marketing copy, onboarding step ve SDK download URL hard-coded olmayacak.
+- Runtime UI/config icin `docs/frontend-config.md` kaynak alinacak; admin panelden DB-backed config duzeni hedeflenecek.
 
 ## Sonraki Adim
-1.3 siradaki task: Ses yakalama — Windows WASAPI once, Mac/Linux adaptor iskeleti hazir kalacak.
+Frontend iskeleti baslarken once `DESIGN.md` ve `docs/frontend-config.md` okunacak; ardindan Next.js + Tailwind + shadcn/ui yapisi bu kontrata gore kurulacak.
 
 ## Blokerlar / Dikkat
-- Worktree'de benden once staged edilmis guvenlik/infra degisiklikleri var; SDK commit'i onlarla karistirilmamali.
-- Tum workspace testi sandbox'ta backend integration testlerinin local socket bind izni nedeniyle basarisiz olabilir; SDK icin `cargo test -p streamdubber-sdk` ve clippy gecti.
+- `npm run design:lint` sifir warning ile gecti.
+- Tum workspace testi sandbox'ta backend integration testlerinin local socket bind izni nedeniyle basarisiz olabilir.

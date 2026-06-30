@@ -15,6 +15,12 @@
 4. Fiyatlandırma Yönetimi: plan fiyatları, limitler, özellikler DB'den
 5. Maliyet Özeti: servis bazlı harcama
 
+## Design & Runtime Config
+- Frontend geliştirmeden önce repo kökündeki `DESIGN.md` okunur.
+- Görsel yön: Palabra benzeri parlak, sakin, pill kontrollü, canlı çeviri odaklı ürün dili; ama Palabra asset/copy/marka öğeleri kopyalanmaz.
+- Frontend'de fiyat, plan, limit, dil, sağlayıcı, platform, feature flag, marketing copy, onboarding step ve SDK download URL hard-coded olmaz.
+- Runtime UI/config kuralları için `docs/frontend-config.md` takip edilir.
+
 ## Auth
 - 2FA email (yayıncı + admin)
 - JWT + refresh token
