@@ -23,14 +23,15 @@ type DashboardNavProps = {
   groups: NavGroup[];
   statusLabels: Record<string, string>;
   locale: Locale;
+  rootHref?: string;
 };
 
-export function DashboardNav({ ariaLabel, groups, statusLabels, locale }: DashboardNavProps) {
+export function DashboardNav({ ariaLabel, groups, statusLabels, locale, rootHref = "/dashboard" }: DashboardNavProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
     const target = localizePath(locale, href);
-    if (href === "/dashboard") {
+    if (href === rootHref) {
       return pathname === target;
     }
     return pathname === target || pathname.startsWith(`${target}/`);

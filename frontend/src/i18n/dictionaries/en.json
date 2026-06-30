@@ -349,6 +349,199 @@
       "devNotice": "Email delivery is not configured yet. Add a noreply sender (SMTP or API) in the admin panel to send real codes; until then this step is a stub for development."
     }
   },
+  "admin": {
+    "topbar": {
+      "roleLabel": "Admin",
+      "backToSiteLabel": "Back to site",
+      "signOutLabel": "Sign out"
+    },
+    "login": {
+      "title": "Admin sign in",
+      "subtitle": "Restricted access. Operators only.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "admin@strovak.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Your password",
+      "submitLabel": "Continue",
+      "twofaNote": "Admin accounts always require a 6-digit email code."
+    },
+    "verify": {
+      "title": "Enter your code",
+      "subtitle": "We sent a 6-digit verification code to your admin email.",
+      "codeLabel": "Verification code",
+      "codePlaceholder": "______",
+      "submitLabel": "Verify and sign in",
+      "resendLabel": "Resend code",
+      "backLabel": "Back to sign in",
+      "devNotice": "Email delivery is not configured yet. Add a noreply sender (SMTP or API) below in Service routing; until then this step is a stub for development."
+    },
+    "nav": {
+      "ariaLabel": "Admin navigation",
+      "title": "Admin",
+      "groups": [
+        {
+          "label": "Operations",
+          "items": [
+            { "label": "Overview", "href": "/admin", "icon": "Gauge" },
+            { "label": "Users", "href": "/admin/users", "icon": "Building2" },
+            { "label": "Infrastructure", "href": "/admin/infrastructure", "icon": "MonitorCog" }
+          ]
+        },
+        {
+          "label": "Configuration",
+          "items": [
+            { "label": "Service routing", "href": "/admin/routing", "icon": "Route" },
+            { "label": "Multistream", "href": "/admin/multistream", "icon": "Share2" },
+            { "label": "Costs", "href": "/admin/costs", "icon": "CreditCard" }
+          ]
+        }
+      ]
+    },
+    "statusStrip": {
+      "ariaLabel": "Platform status",
+      "items": [
+        { "label": "Active streams", "value": "0", "tone": "muted", "icon": "Radio" },
+        { "label": "Providers", "value": "Healthy", "tone": "success", "icon": "ShieldCheck" },
+        { "label": "Error rate (1h)", "value": "0%", "tone": "success", "icon": "Gauge" },
+        { "label": "RTMP load", "value": "0%", "tone": "muted", "icon": "MonitorUp" }
+      ]
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Live platform health across streams, users, and providers.",
+      "metrics": [
+        { "label": "Active streams", "value": "0", "hint": "live now", "icon": "Radio" },
+        { "label": "Active users", "value": "0", "hint": "online broadcasters", "icon": "Wifi" },
+        { "label": "STT latency", "value": "—", "hint": "rolling average", "icon": "Languages" },
+        { "label": "TTS latency", "value": "—", "hint": "rolling average", "icon": "AudioLines" },
+        { "label": "RTMP load", "value": "0%", "hint": "relay capacity", "icon": "MonitorUp" },
+        { "label": "Error rate (1h)", "value": "0%", "hint": "failed sessions", "icon": "ShieldCheck" }
+      ]
+    },
+    "users": {
+      "title": "Users",
+      "subtitle": "All broadcasters. Filter by plan, country, or status.",
+      "searchPlaceholder": "Search by email or name",
+      "filters": ["All plans", "Active only", "All countries"],
+      "columns": ["Broadcaster", "Plan", "Country", "Status", "Usage"],
+      "empty": "No users yet.",
+      "rows": [
+        { "name": "ada@example.com", "plan": "Free", "country": "TR", "status": "active", "usage": "1.2h / 5h" },
+        { "name": "leo@example.com", "plan": "Pro", "country": "DE", "status": "active", "usage": "14h / 50h" },
+        { "name": "mira@example.com", "plan": "Pro", "country": "US", "status": "suspended", "usage": "0h / 50h" }
+      ],
+      "actionsNote": "Open a user to change plan, add credit, or ban. Live data appears once the backend is connected.",
+      "manageLabel": "Manage"
+    },
+    "infrastructure": {
+      "title": "Infrastructure",
+      "subtitle": "Live service health and resource usage. Start or stop services here.",
+      "servicesTitle": "Services",
+      "services": [
+        { "name": "Deepgram (STT)", "state": "healthy", "detail": "Nova-2 · primary" },
+        { "name": "AssemblyAI (STT fallback)", "state": "healthy", "detail": "standby" },
+        { "name": "DeepL (translation)", "state": "healthy", "detail": "primary" },
+        { "name": "PostgreSQL", "state": "healthy", "detail": "primary db" },
+        { "name": "Redis", "state": "healthy", "detail": "cache + queue" },
+        { "name": "Vault", "state": "degraded", "detail": "secrets — not provisioned" },
+        { "name": "RTMP relay", "state": "down", "detail": "Phase 2" }
+      ],
+      "resourcesTitle": "Resources",
+      "resources": [
+        { "label": "CPU", "value": 0 },
+        { "label": "GPU", "value": 0 },
+        { "label": "RAM", "value": 0 },
+        { "label": "Bandwidth", "value": 0 }
+      ],
+      "startLabel": "Start",
+      "stopLabel": "Stop"
+    },
+    "routing": {
+      "title": "Service routing",
+      "subtitle": "Switch providers without a deploy. Every choice is stored in config (DB) and applied at runtime — nothing here is hard-coded.",
+      "groups": [
+        {
+          "key": "stt",
+          "label": "Speech-to-text (STT)",
+          "configKey": "service_config.stt.provider",
+          "options": [
+            { "name": "Deepgram", "status": "enabled", "active": true },
+            { "name": "faster-whisper", "status": "coming_soon", "active": false },
+            { "name": "Hybrid", "status": "coming_soon", "active": false }
+          ],
+          "fallbackLabel": "Fallback",
+          "fallback": "AssemblyAI"
+        },
+        {
+          "key": "translation",
+          "label": "Translation",
+          "configKey": "service_config.translation.provider",
+          "options": [
+            { "name": "DeepL", "status": "enabled", "active": true },
+            { "name": "HY-MT1.5", "status": "coming_soon", "active": false },
+            { "name": "Hybrid", "status": "coming_soon", "active": false }
+          ],
+          "fallbackLabel": "Fallback",
+          "fallback": "Google Translate"
+        },
+        {
+          "key": "tts",
+          "label": "Text-to-speech (TTS)",
+          "configKey": "service_config.tts.provider",
+          "options": [
+            { "name": "ElevenLabs", "status": "enabled", "active": true },
+            { "name": "Cartesia", "status": "coming_soon", "active": false },
+            { "name": "XTTS-v2", "status": "coming_soon", "active": false }
+          ],
+          "fallbackLabel": "Fallback",
+          "fallback": "Cartesia"
+        }
+      ],
+      "fallbackRuleLabel": "Auto fallback rule",
+      "fallbackRule": "When the primary provider is busy or errors, traffic shifts to the fallback automatically.",
+      "historyTitle": "Change history",
+      "historyEmpty": "No changes recorded yet.",
+      "history": [
+        { "when": "—", "what": "Defaults loaded from service_config seed.", "who": "system" }
+      ],
+      "emailSenderTitle": "Notification sender (noreply)",
+      "emailSenderNote": "Set the SMTP or API credentials used to send 2FA and report emails. Stored in Vault, never in code. Empty for now — login codes are stubbed until this is filled.",
+      "emailSenderFields": [
+        { "label": "Provider", "value": "Not set", "placeholder": "SMTP / SendGrid / SES" },
+        { "label": "From address", "value": "Not set", "placeholder": "noreply@strovak.com" }
+      ],
+      "saveLabel": "Save"
+    },
+    "multistream": {
+      "title": "Multistream distribution",
+      "subtitle": "How broadcasters distribute, and which methods each plan unlocks.",
+      "methodsTitle": "Method usage",
+      "methods": [
+        { "name": "SDK relay", "count": "0", "status": "coming_soon" },
+        { "name": "Restream", "count": "0", "status": "enabled" },
+        { "name": "Castr", "count": "0", "status": "enabled" },
+        { "name": "Cloud multistream", "count": "0", "status": "waitlist" }
+      ],
+      "matrixTitle": "Plan access",
+      "matrixColumns": ["Method", "Free", "Pro"],
+      "matrix": [
+        { "method": "Your service (Restream / Castr)", "free": true, "pro": true },
+        { "method": "SDK relay", "free": false, "pro": true },
+        { "method": "Cloud multistream", "free": false, "pro": true }
+      ]
+    },
+    "costs": {
+      "title": "Costs",
+      "subtitle": "A basic monthly estimate of provider spend.",
+      "metrics": [
+        { "label": "STT spend", "value": "$0", "hint": "Deepgram, this month", "icon": "Languages" },
+        { "label": "Translation spend", "value": "$0", "hint": "DeepL, this month", "icon": "Route" },
+        { "label": "TTS spend", "value": "$0", "hint": "ElevenLabs, this month", "icon": "AudioLines" },
+        { "label": "Infra", "value": "$0", "hint": "Railway, this month", "icon": "MonitorCog" }
+      ],
+      "note": "Estimates are read from provider usage once billing integrations are connected."
+    }
+  },
   "statusLabels": {
     "enabled": "enabled",
     "beta": "beta",

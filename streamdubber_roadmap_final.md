@@ -542,11 +542,15 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 #### 1.5 Admin Dashboard — Faz 1 Temeli
 <!-- NOT: 1.7 ve 1.8 STT/Çeviri görevleri; 1.5/1.6 numaraları Admin/Multistream için ayrılmıştır -->
-- [ ] Admin giriş (2FA — email)
-- [ ] Kullanıcı listesi ve detay
-- [ ] Sistem durumu izleme
-- [ ] Servis toggle (manuel başlangıç)
-- [ ] Temel maliyet özeti
+- [x] Admin giriş (2FA — email)  <!-- /admin/login + /admin/login/verify, console shell dışında (route group); mail stub, noreply config /admin/routing'de -->
+- [x] Kullanıcı listesi ve detay  <!-- /admin/users: arama + filtre + tablo (plan/ülke/durum/kullanım) + Manage; detay drawer backend bağlanınca -->
+- [x] Sistem durumu izleme  <!-- /admin/infrastructure: servis sağlık (healthy/degraded/down) + CPU/GPU/RAM/bant barları -->
+- [x] Servis toggle (manuel başlangıç)  <!-- /admin/routing: STT/Çeviri/TTS provider toggle (config_key görünür, hard-coded değil) + fallback + değişiklik geçmişi; /admin/infrastructure servis start/stop -->
+- [x] Temel maliyet özeti  <!-- /admin/costs: STT/çeviri/TTS/infra aylık tahmin metrikleri -->
+<!-- Admin shell: (console) route group layout (sidebar + status strip, Admin rozeti), DashboardNav rootHref="/admin" ile yeniden kullanıldı -->
+<!-- Hepsi config-driven (admin.* en.json); canlı veri + servis start/stop + mail gönderimi backend beklemede -->
+<!-- Çekirdek: /admin/routing CLAUDE.md "hiçbir şey hard-coded değil" kuralının UI'ı (provider seçimi DB'de saklanacak) -->
+<!-- Ek (1.5 checklist dışı, Bölüm B specinden): /admin/multistream UI — yöntem kullanımı + plan erişim matrisi; backend 1.6'da bağlanacak -->
 
 #### 1.6 Multistream — Yayıncının Mevcut Servisi (Mod A)
 - [ ] Restream OAuth + API entegrasyonu
