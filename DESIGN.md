@@ -206,6 +206,8 @@ The visual direction is inspired by Palabra's current public site: calm bright s
 
 StreamDubber should feel like a live broadcast control room made simple: fast to scan, confident, private, and operational. The first viewport should always communicate "audio-only cloud pipeline, live captions, translation, and multistream setup" without marketing fog.
 
+The Strovak logo is the visual anchor: deep navy wordmark, cyan-to-blue motion line, small violet audio accent, and generous white space. UI decisions should support that mark with dark navy text, clean white surfaces, precise SVG icons, and restrained blue/cyan/violet accents.
+
 ## Colors
 
 Use a mostly white and off-white foundation. The interface should breathe, but it must not become empty. Pair clean white surfaces with hairline borders, dark text, and a small number of vivid accents.
@@ -251,6 +253,8 @@ Controls use pills when they are CTAs, filters, language chips, platform chips, 
 
 Icons should come from lucide when available. Do not invent manual SVG icons for common actions. Use icon-only buttons for familiar tools and add tooltips for less obvious controls.
 
+Never use emoji in the product UI, docs intended as frontend memory, marketing surfaces, dashboard cards, buttons, empty states, or status labels. Use professional SVG icons instead. Prefer lucide SVG icons for generic actions and carefully prepared brand SVG/logo assets only when usage rights and brand guidelines are clear.
+
 ## Components
 
 Buttons are compact, pill-shaped, and action-specific. Primary buttons are dark with white text. Secondary buttons are white with a border. Destructive actions use explicit confirmation and red only at the point of risk.
@@ -266,6 +270,7 @@ Tables are preferred for admin lists, users, pricing plans, provider config, aud
 Do:
 
 - Read this file before creating or changing frontend UI.
+- Use professional SVG icons and never use emoji.
 - Use real product surfaces on the first screen, not a generic landing page.
 - Keep StreamDubber's public pages close to Palabra's clarity: large promise, quick setup, visible compatibility, strong metrics.
 - Keep authenticated pages closer to an operations console: dense, restrained, fast to scan.
@@ -275,6 +280,7 @@ Do:
 Don't:
 
 - Copy Palabra's exact copy, images, icons, logos, or brand-specific composition.
+- Use emoji as icons, decoration, bullets, status markers, or brand personality.
 - Hard-code prices, plans, limits, languages, provider names, integration availability, marketing claims, onboarding steps, download URLs, or feature visibility.
 - Use decorative orbs, bokeh, heavy shadows, nested cards, or one-note purple gradients.
 - Build Phase 2 features as active UI in Phase 1. Voice cloning can appear only as disabled, configured, or roadmap state when the backend config says so.

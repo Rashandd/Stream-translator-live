@@ -4,21 +4,34 @@
 Codex
 
 ## Neredeyim?
-Palabra benzeri çözüm kataloğu roadmap sonuna coming-soon kapsamıyla ekleniyor; frontend config kontratı bu katalog için genişletildi.
+Frontend baslangic iskeleti kuruldu: Next.js 15 app, Tailwind tema, Strovak logo kullanimi, public home ve dashboard preview sayfalari calisir durumda.
 
 ## Degistirdigim Alanlar
-- `docs/frontend-config.md`
-- `streamdubber_roadmap_final.md`
+- `DESIGN.md`
+- `Logo-strovak.png`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/app/`
+- `frontend/src/`
+- `frontend/public/logo-strovak.png`
+- `frontend/tailwind.config.ts`
+- `frontend/tsconfig.json`
+- `frontend/next.config.mjs`
+- `frontend/postcss.config.mjs`
+- `frontend/.eslintrc.json`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
-- Palabra'daki Solutions menusu ve sektor sayfalari StreamDubber roadmap'ine aktif Faz 1 scope'u olarak degil, coming-soon katalog olarak eklendi.
-- Zoom, MS Teams, Google Meet logo/ikon referanslari frontend'e hard-coded gomulmeyecek; marka kullanim kurallari kontrol edilmeden asset commit edilmeyecek.
-- Coming soon kartlari `ui.public.solutions.catalog` config'inden render edilecek ve `status` alani ile acikca isaretlenecek.
+- UI'da emoji kullanilmamasi `DESIGN.md` hafizasina eklendi; profesyonel SVG ikon icin lucide-react kullaniliyor.
+- Logo rengine uyum icin lacivert ana tipografi, cyan/mavi/violet vurgu paleti ve beyaz yuzeyler kullanildi.
+- Gorunen frontend icerigi component icine dagitilmadi; `frontend/src/config/public-config.json` seed config'inden render ediliyor.
+- Backend `/api/public-config` hazir oldugunda `getPublicConfig()` bu endpoint'e baglanacak.
 
 ## Sonraki Adim
-Frontend iskeleti baslarken solution catalog seed/config yapisi kurulacak; Faz 1 disi cozumler `coming_soon` veya `waitlist` olarak gosterilecek.
+Frontend sonraki adim: auth/login akisi ve gercek `/api/public-config` endpoint baglantisi; ardindan dashboard ana sayfasi backend verisiyle tamamlanip roadmap taski tiklenebilir.
 
 ## Blokerlar / Dikkat
-- `npm run design:lint` onceki design memory icin sifir warning ile gecti.
+- `npm run lint`, `npm run build`, `npm run design:lint` gecti.
+- Dev server `http://127.0.0.1:3000` adresinde calisiyor; sandbox icinden curl icin dis izin gerekti.
+- `npm audit` 2 moderate bulgu raporluyor; `npm audit fix --force` breaking change yapabilecegi icin calistirilmadi.
 - Tum workspace testi sandbox'ta backend integration testlerinin local socket bind izni nedeniyle basarisiz olabilir.

@@ -1,0 +1,98 @@
+{
+  "brand": {
+    "name": "Strovak.com",
+    "logoAsset": "/logo-strovak.png",
+    "tagline": "Live translation. Voice cloning. Multistreaming."
+  },
+  "nav": [
+    { "label": "Product", "href": "#product" },
+    { "label": "Solutions", "href": "#solutions" },
+    { "label": "Security", "href": "#security" },
+    { "label": "Dashboard", "href": "/dashboard" }
+  ],
+  "home": {
+    "hero": {
+      "eyebrow": "Audio-only cloud pipeline for live creators",
+      "title": "Live captions and translation for every stream.",
+      "summary": "Strovak keeps video local, sends only optimized audio to the cloud, and returns captions, translated text, and stream-ready language outputs.",
+      "primaryCta": { "label": "Open dashboard", "href": "/dashboard" },
+      "secondaryCta": { "label": "View coming soon", "href": "#solutions" }
+    },
+    "metrics": [
+      { "label": "Audio bitrate", "value": "50-128 Kbps", "hint": "cloud path only" },
+      { "label": "Phase 1 providers", "value": "Deepgram + DeepL", "hint": "admin configurable" },
+      { "label": "Video path", "value": "Local", "hint": "never uploaded in Mod A" }
+    ],
+    "pipeline": [
+      { "title": "SDK capture", "body": "Windows-first local agent captures and preprocesses speech audio.", "icon": "Radio" },
+      { "title": "Cloud translation", "body": "STT and translation providers are selected from admin config.", "icon": "Languages" },
+      { "title": "Stream output", "body": "Captions and language outputs return to the broadcaster workflow.", "icon": "PanelsTopLeft" }
+    ],
+    "dashboardPreview": {
+      "title": "Stream control",
+      "status": "Ready for setup",
+      "rows": [
+        { "label": "SDK", "value": "Pairing required" },
+        { "label": "STT", "value": "Deepgram" },
+        { "label": "Translate", "value": "DeepL" },
+        { "label": "Mode", "value": "Restream / Castr" }
+      ]
+    },
+    "productSection": {
+      "id": "product"
+    },
+    "solutionsSection": {
+      "id": "solutions",
+      "eyebrow": "Solutions catalog",
+      "title": "Configured surfaces, clear availability.",
+      "summary": "Future solution pages are rendered from public config and marked as coming soon, waitlist, beta, enabled, or disabled."
+    }
+  },
+  "solutions": [
+    { "title": "Live Stream Translation", "summary": "The active broadcaster path for captions and translated overlays.", "status": "enabled", "icon": "Radio" },
+    { "title": "Online Meetings Translation", "summary": "Meeting translation for remote teams and calls.", "status": "coming_soon", "icon": "MonitorUp" },
+    { "title": "Zoom Translation", "summary": "Dedicated meeting flow for Zoom sessions.", "status": "coming_soon", "icon": "Video" },
+    { "title": "MS Teams Translation", "summary": "Live translation workflow for Microsoft Teams.", "status": "coming_soon", "icon": "MessagesSquare" },
+    { "title": "Google Meet Translation", "summary": "Live captions and translation for Google Meet.", "status": "coming_soon", "icon": "Video" },
+    { "title": "Webinar Translation", "summary": "Translated webinars and online classes.", "status": "waitlist", "icon": "Presentation" },
+    { "title": "Events and Conferences", "summary": "Hybrid and in-person event translation surfaces.", "status": "waitlist", "icon": "Building2" },
+    { "title": "API for Developers", "summary": "Realtime speech translation API for product teams.", "status": "coming_soon", "icon": "Code2" },
+    { "title": "Text-to-Speech", "summary": "Voice output surface for future cloning and TTS workflows.", "status": "coming_soon", "icon": "AudioLines" }
+  ],
+  "dashboard": {
+    "title": "Broadcaster dashboard",
+    "subtitle": "Configure the first live translation workflow without hard-coded provider, plan, language, or platform values.",
+    "previewLabel": "config-driven preview",
+    "quickStartTitle": "Quick start",
+    "pipelineTitle": "Live pipeline",
+    "pipelineSubtitle": "SDK to cloud audio to stream output",
+    "pipelineStatus": "setup needed",
+    "quickActions": [
+      { "label": "Pair SDK", "description": "Generate a pairing code for the local agent.", "icon": "MonitorCog" },
+      { "label": "Choose distribution", "description": "Start with Restream, Castr, or Streamlabs.", "icon": "Route" },
+      { "label": "Set languages", "description": "Select source speech and target captions.", "icon": "Languages" }
+    ],
+    "statusCards": [
+      { "label": "Stream state", "value": "Idle", "hint": "waiting for SDK" },
+      { "label": "Current latency", "value": "--", "hint": "available after stream start" },
+      { "label": "Monthly usage", "value": "0h / 5h", "hint": "from plan config" },
+      { "label": "Fallback", "value": "AssemblyAI", "hint": "service_config.stt.fallback" }
+    ]
+  },
+  "security": {
+    "id": "security",
+    "title": "Private by architecture",
+    "items": [
+      "Video stays on the broadcaster machine in Phase 1 Mod A.",
+      "Only optimized audio moves through the cloud path.",
+      "Secrets and provider keys are managed through runtime config and Vault."
+    ]
+  },
+  "statusLabels": {
+    "enabled": "enabled",
+    "beta": "beta",
+    "waitlist": "waitlist",
+    "coming_soon": "coming soon",
+    "disabled": "disabled"
+  }
+}
