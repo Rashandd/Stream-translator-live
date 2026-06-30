@@ -101,10 +101,9 @@ tauri build          # SDK release build
 ## Task Tamamlama
 Bir task bittiğinde:
 1. `streamdubber_roadmap_final.md` içinde `[ ]` → `[x]` yap
-2. `bash scripts/commit-task.sh "kısa açıklama"` çalıştır
-   - Çakışma varsa script bekler, rebase yapar, tekrar dener
-   - Elle çözüm gerekirse script adımları açıklar
-3. Bir sonraki taska geç
+2. **Otomatik commit YOK.** Değişiklikleri ÖZETLE ve `git diff` ile kullanıcıya göster, dur.
+   - Kullanıcı inceler ve commit'i kendisi onaylar/yapar
+   - Kullanıcı açıkça "commit et" demeden `git commit` çalıştırma
 
 ## Context Sıfırlarken
 Yukarıdaki BAŞLARKEN ve BİTERKEN komutlarını uygula.

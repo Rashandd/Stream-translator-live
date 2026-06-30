@@ -13,6 +13,7 @@ const config: Config = {
         ink: "#061A3D",
         text: "#273247",
         muted: "#68748A",
+        faint: "#98A2B3",
         hairline: "#E8EEF5",
         border: "#D7E0EA",
         cyan: "#36D8E4",

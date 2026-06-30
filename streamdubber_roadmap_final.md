@@ -529,13 +529,16 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 > Faz 1.3 NOT (Claude): cloud client + e2e gerçek; preprocess/VAD/capture gerçek+test. OBS/pairing/signing/updater protokol+config seviyesinde — canlı OBS, backend pairing endpoint, sertifikalar ve release CI sonraki tasklarda. Gerçek WASAPI cihaz I/O Windows'ta yazılıp test edilmeli.
 
 #### 1.4 Yayıncı Dashboard — Next.js + Tailwind
-- [ ] Yayıncı giriş (2FA — email)
-- [ ] Ana sayfa (durum, hızlı başlat)
-- [ ] SDK indirme ve eşleşme sayfası
-- [ ] Yayın kurulumu — dağıtım modu seçimi (Mod A/C)
-- [ ] Dil seçimi ve overlay URL
-- [ ] Platform hesapları (YouTube, Twitch, Kick OAuth)
-- [ ] Stream key yönetimi (SDK'ya senkronize)
+- [x] Yayıncı giriş (2FA — email)  <!-- login + 2FA verify UI akışı; mail gönderimi stub (noreply SMTP/API admin panelden ayarlanacak, şimdilik boş) -->
+- [x] Ana sayfa (durum, hızlı başlat)  <!-- overview: metrics, izleyici dil dağılımı, stream key kopyala, hızlı başlat -->
+- [x] SDK indirme ve eşleşme sayfası  <!-- /dashboard/sdk: Windows indir + 6 haneli pairing kod UI -->
+- [x] Yayın kurulumu — dağıtım modu seçimi (Mod A/C)  <!-- /dashboard/distribution: SDK relay/Restream-Castr-Streamlabs/bulut + servis bağlama UI -->
+- [x] Dil seçimi ve overlay URL  <!-- /dashboard/captions: konuşma dili, hedef diller, görünüm, overlay URL, canlı önizleme -->
+- [x] Platform hesapları (YouTube, Twitch, Kick OAuth)  <!-- /dashboard/platforms: connect/disconnect akışı, OAuth izin/scope notu, bağlı/bağsız durum UI; gerçek OAuth token exchange backend beklemede -->
+- [x] Stream key yönetimi (SDK'ya senkronize)  <!-- /dashboard/sdk: stream key görüntüle/kopyala/regenerate + SDK sync durum göstergesi UI; gerçek senkron backend beklemede -->
+<!-- Ek olarak UI tamamlandı (backend wiring beklemede): /dashboard/go-live (preflight + start), /dashboard/analytics, /dashboard/billing, /dashboard/voice (Faz 2 disabled state) -->
+<!-- Shell: dashboard layout (sidebar nav + status strip), mobil yatay-scroll nav; DESIGN.md Responsive bölümüne uygun -->
+<!-- Hepsi config-driven (en.json), i18n-ready; hard-coded sağlayıcı/plan/dil/platform yok -->
 
 #### 1.5 Admin Dashboard — Faz 1 Temeli
 <!-- NOT: 1.7 ve 1.8 STT/Çeviri görevleri; 1.5/1.6 numaraları Admin/Multistream için ayrılmıştır -->

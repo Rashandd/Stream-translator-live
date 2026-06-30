@@ -62,28 +62,16 @@ Bir task bittiğinde şu sırayı takip et — atlamadan:
 - [ ] Task adı   →   - [x] Task adı
 ```
 
-**2. Hemen commit et**
+**2. Değişiklikleri incelemeye sun — otomatik commit YOK**
 ```bash
-bash scripts/commit-task.sh "task kısa açıklaması"
+git status
+git diff
 ```
+- Yaptığın değişiklikleri kısaca özetle ve dur.
+- Commit'i kullanıcı inceler ve kendisi onaylar/yapar.
+- Kullanıcı açıkça "commit et" demeden `git commit` / `git push` çalıştırma.
 
-Script otomatik olarak:
-- Roadmap değişikliğini commit eder
-- Push etmeye çalışır
-- Çakışma varsa `RETRY_WAIT` (5sn) bekler, `git pull --rebase` yapar, tekrar dener (max 3 kez)
-- Otomatik çözülemeyen çakışmada ne yapacağını açıklar
-
-**3. Çakışma elle çözme (script başaramazsa)**
-```bash
-git status                         # çakışan dosyaya bak
-# roadmap'i aç, <<<<< işaretlerini bul
-# her iki tiki de [x] yap, çakışma satırlarını sil
-git add streamdubber_roadmap_final.md
-git rebase --continue
-git push
-```
-
-**Kural:** Task commit edilmeden bir sonraki taska geçme.
+**Kural:** Her commit kullanıcı incelemesinden geçer; otomatik commit atma.
 
 ---
 

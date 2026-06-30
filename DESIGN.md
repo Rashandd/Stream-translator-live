@@ -243,6 +243,27 @@ Preferred dashboard pattern:
 - Status strip near the top for stream state, SDK connection, latency, and current plan usage.
 - Configuration panels that map directly to backend/admin config keys.
 
+## Responsive & Mobile
+
+StreamDubber is mobile-aware from the first commit. English-only copy is acceptable during development, but every screen must stay usable from a 360px phone up to a wide desktop. Design mobile-first: start from the small layout, then add complexity at larger breakpoints, never the reverse.
+
+Use a single, consistent set of breakpoints aligned with Tailwind defaults: base (mobile, under 640px), `sm` (640px), `md` (768px), `lg` (1024px), `xl` (1280px). Do not invent custom per-component breakpoints. Type sizes step between fixed values at breakpoints — never scale type fluidly with viewport width.
+
+Full-bleed elements (the navbar background, gradient wash bands, section dividers) span the full width. Readable content — headings, body copy, cards, forms, tables — stays inside a centered max-width container (around 1280px) with horizontal padding of 16px on mobile, 24px at `sm`, and 32px at `lg`. Never let text run edge to edge on large screens.
+
+Navigation collapses on mobile. Below `md`, primary nav links and secondary controls move into a single hamburger menu or a compact sheet; only the logo and the primary CTA stay visible in the bar. Every navigation item reachable on desktop must remain reachable on mobile — never hide links with no mobile equivalent.
+
+Layout reflow rules:
+
+- Multi-column card grids collapse to one column on mobile, two at `sm`, three or four at `lg`. Use `gap` for rhythm, not nested cards.
+- The public hero stacks vertically on mobile: headline, one sentence, stacked full-width CTAs, then the product visual below — not side by side.
+- Dashboard side navigation collapses to a top bar or drawer on mobile; the status strip wraps to multiple rows instead of overflowing.
+- Tables that cannot fit become stacked key/value rows or horizontally scroll inside their own container — the page itself never scrolls sideways.
+
+Touch targets are at least 44px in the smallest dimension. Pills, icon buttons, toggles, and language chips must stay tappable. Hover-only affordances need a tap or focus equivalent; tooltips must not hide critical information on touch devices.
+
+Test every new frontend surface at 360px, 768px, and 1280px before considering it done. No horizontal overflow, no clipped controls, no unreadable shrunken type at any of those widths.
+
 ## Elevation & Depth
 
 Use almost no heavy shadow. Depth comes from spacing, borders, muted surfaces, and occasional soft gradient bands. Cards can have a subtle shadow only when they are repeated items, modals, or focused setup tools.

@@ -1,20 +1,19 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
-import { SiteHeader } from "@/src/components/site-header";
+import { MetricCard, PageHeader, SectionCard } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
-import { isLocale, locales, type Locale } from "@/src/i18n/routing";
+import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
 type DashboardPageProps = {
-  params: Promise<{
-    locale: string;
-  }>;
+  params: Promise<{ locale: string }>;
 };
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
 }
 
-export default async function DashboardPage({ params }: DashboardPageProps) {
+export default async function DashboardOverviewPage({ params }: DashboardPageProps) {
   const { locale: rawLocale } = await params;
 
   if (!isLocale(rawLocale)) {
@@ -23,74 +22,76 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
 
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
+  const { overview } = config.dashboard;
+  const totalViewers = overview.languageBreakdown.items.reduce((sum, item) => sum + item.viewers, 0);
 
   return (
-    <main className="min-h-screen">
-      <SiteHeader config={config} locale={locale} />
+    <div className="space-y-6">
+      <PageHeader subtitle={overview.subtitle} title={overview.title} />
 
-      <section className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div>
-            <p className="text-sm font-semibold uppercase text-blue">{config.brand.name}</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-normal text-ink">{config.dashboard.title}</h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-muted">{config.dashboard.subtitle}</p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {overview.metrics.map((metric) => (
+          <MetricCard hint={metric.hint} icon={metric.icon} key={metric.label} label={metric.label} value={metric.value} />
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+        <SectionCard subtitle={overview.languageBreakdown.subtitle} title={overview.languageBreakdown.title}>
+          {totalViewers === 0 ? (
+            <p className="rounded-lg border border-dashed border-border bg-canvas px-4 py-6 text-center text-sm text-muted">
+              {overview.languageBreakdown.empty}
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {overview.languageBreakdown.items.map((item) => {
+                const pct = Math.round((item.viewers / totalViewers) * 100);
+                return (
+                  <li key={item.code}>
+                    <div className="mb-1 flex items-center justify-between text-sm">
+                      <span className="font-semibold text-ink">{item.language}</span>
+                      <span className="font-mono text-muted">{item.viewers}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-hairline">
+                      <div className="h-full rounded-full bg-blue" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title={overview.quickStart.title}>
+          <div className="mb-4">
+            <p className="text-xs font-medium text-muted">{overview.quickStart.streamKeyLabel}</p>
+            <div className="mt-1 flex items-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2">
+              <code className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{overview.quickStart.streamKey}</code>
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-ink">
+                <Icon className="h-3.5 w-3.5" name="Copy" />
+                {overview.quickStart.copyLabel}
+              </span>
+            </div>
           </div>
-          <div className="rounded-full border border-cyan/25 bg-white px-4 py-2 font-mono text-sm font-semibold text-ink shadow-sm">
-            {config.dashboard.previewLabel}
+          <div className="space-y-2">
+            {overview.quickStart.actions.map((action) => (
+              <Link
+                className="flex items-center gap-3 rounded-lg border border-hairline bg-canvas p-3 text-left transition hover:border-cyan hover:bg-cyan/10"
+                href={localizePath(locale, action.href)}
+                key={action.label}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink">
+                  <Icon className="h-[18px] w-[18px]" name={action.icon} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-ink">{action.label}</span>
+                  <span className="mt-0.5 block text-sm leading-5 text-muted">{action.description}</span>
+                </span>
+              </Link>
+            ))}
           </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-4">
-          {config.dashboard.statusCards.map((card) => (
-            <article className="rounded-lg border border-border bg-white p-5 shadow-sm" key={card.label}>
-              <p className="text-sm font-medium text-muted">{card.label}</p>
-              <p className="mt-3 font-mono text-2xl font-semibold text-ink">{card.value}</p>
-              <p className="mt-2 text-sm leading-6 text-muted">{card.hint}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[0.72fr_1fr]">
-          <section className="rounded-xl border border-border bg-white p-5 shadow-sm">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-ink">{config.dashboard.quickStartTitle}</h2>
-              <Icon className="h-5 w-5 text-blue" name="Route" />
-            </div>
-            <div className="space-y-3">
-              {config.dashboard.quickActions.map((action) => (
-                <button className="flex w-full items-center gap-4 rounded-lg border border-hairline bg-canvas p-4 text-left transition hover:border-cyan hover:bg-cyan/10" key={action.label} type="button">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-ink">
-                    <Icon className="h-5 w-5" name={action.icon} />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-semibold text-ink">{action.label}</span>
-                    <span className="mt-1 block text-sm leading-6 text-muted">{action.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
-              <div>
-                <h2 className="text-xl font-semibold text-ink">{config.dashboard.pipelineTitle}</h2>
-                <p className="mt-1 text-sm text-muted">{config.dashboard.pipelineSubtitle}</p>
-              </div>
-              <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-ink">{config.dashboard.pipelineStatus}</span>
-            </div>
-            <div className="grid gap-px bg-hairline md:grid-cols-3">
-              {config.dashboard.pipeline.map((step) => (
-                <div className="bg-white p-6" key={step.title}>
-                  <Icon className="h-6 w-6 text-blue" name={step.icon} />
-                  <h3 className="mt-5 text-lg font-semibold text-ink">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-muted">{step.body}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </section>
-    </main>
+          <p className="mt-4 text-sm leading-6 text-muted">{overview.quickStart.note}</p>
+        </SectionCard>
+      </div>
+    </div>
   );
 }

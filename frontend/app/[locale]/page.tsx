@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { SiteHeader } from "@/src/components/site-header";
+import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -77,6 +78,53 @@ export default async function HomePage({ params }: HomePageProps) {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue">{config.home.now.eyebrow}</p>
+        <h2 className="mt-3 max-w-2xl text-3xl font-semibold text-ink sm:text-4xl">{config.home.now.title}</h2>
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {config.home.now.items.map((item) => (
+            <div className="rounded-xl border border-border bg-white p-6" key={item.title}>
+              <Icon className="h-6 w-6 text-blue" name={item.icon} />
+              <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
+              <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-hairline bg-canvas">
+        <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <p className="text-sm font-semibold uppercase tracking-wide text-violet">{config.home.next.eyebrow}</p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-semibold text-ink sm:text-4xl">{config.home.next.title}</h2>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {config.home.next.items.map((item) => (
+              <div className="rounded-xl border border-border bg-white p-6" key={item.title}>
+                <div className="flex items-center justify-between">
+                  <Icon className="h-6 w-6 text-violet" name={item.icon} />
+                  <StatusPill label={item.status} text={config.statusLabels[item.status as keyof typeof config.statusLabels]} />
+                </div>
+                <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
+                <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+        <p className="text-sm font-semibold uppercase tracking-wide text-coral">{config.home.audience.eyebrow}</p>
+        <h2 className="mt-3 max-w-2xl text-3xl font-semibold text-ink sm:text-4xl">{config.home.audience.title}</h2>
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {config.home.audience.items.map((item) => (
+            <div className="rounded-xl border border-border bg-white p-6" key={item.title}>
+              <Icon className="h-6 w-6 text-coral" name={item.icon} />
+              <h3 className="mt-4 text-lg font-semibold text-ink">{item.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-muted">{item.body}</p>
+            </div>
+          ))}
         </div>
       </section>
     </main>

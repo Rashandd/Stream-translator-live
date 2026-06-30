@@ -17,11 +17,11 @@
   },
   "home": {
     "hero": {
-      "eyebrow": "Live translation for creators",
-      "title": "Translate your live stream in real time.",
-      "summary": "Strovak adds captions, translation, and multistream control while keeping video on the broadcaster machine.",
+      "eyebrow": "Real-time translation for live streams",
+      "title": "Speak once. Reach every language.",
+      "summary": "Strovak adds live captions, translation, and multistream delivery to your broadcast — while your video never leaves your machine.",
       "primaryCta": { "label": "Open dashboard", "href": "/dashboard" },
-      "secondaryCta": { "label": "See product direction", "href": "/dashboard" }
+      "secondaryCta": { "label": "See how it works", "href": "/dashboard" }
     },
     "scene": {
       "label": "Realtime stream layer",
@@ -32,32 +32,322 @@
         "Cloud pipeline translates in real time.",
         "Captions return to the stream."
       ]
+    },
+    "now": {
+      "eyebrow": "What we do",
+      "title": "Live captions and translation, built for broadcasters.",
+      "items": [
+        { "title": "Live captions", "body": "Real-time speech-to-text on your stream as you talk.", "icon": "MessagesSquare" },
+        { "title": "Instant translation", "body": "Your audience reads what you say in their own language.", "icon": "Languages" },
+        { "title": "Multistream delivery", "body": "Send one broadcast to every platform through Restream or Castr.", "icon": "Route" }
+      ]
+    },
+    "next": {
+      "eyebrow": "What's next",
+      "title": "On the roadmap.",
+      "items": [
+        { "title": "Voice cloning", "body": "Dub your stream in your own voice, in any language.", "icon": "AudioLines", "status": "coming_soon" },
+        { "title": "On-device models", "body": "Self-hosted speech and translation for lower latency and cost.", "icon": "MonitorCog", "status": "coming_soon" },
+        { "title": "Built-in multistream", "body": "Native RTMP relay inside the SDK — no third-party router.", "icon": "MonitorUp", "status": "coming_soon" }
+      ]
+    },
+    "audience": {
+      "eyebrow": "Who it's for",
+      "title": "Made for people who go live.",
+      "items": [
+        { "title": "Streamers & creators", "body": "Grow a global audience without switching tools.", "icon": "Radio" },
+        { "title": "Esports & events", "body": "Caption and translate live events as they happen.", "icon": "Presentation" },
+        { "title": "Educators", "body": "Make lectures understandable in any language.", "icon": "Building2" },
+        { "title": "Businesses", "body": "Reach international viewers on every webinar.", "icon": "MonitorUp" }
+      ]
     }
   },
   "dashboard": {
-    "title": "Broadcaster dashboard",
-    "subtitle": "Configure the first live translation workflow without hard-coded provider, plan, language, or platform values.",
-    "previewLabel": "config-driven preview",
-    "quickStartTitle": "Quick start",
-    "pipelineTitle": "Live pipeline",
-    "pipelineSubtitle": "SDK to cloud audio to stream output",
-    "pipelineStatus": "setup needed",
-    "quickActions": [
-      { "label": "Pair SDK", "description": "Generate a pairing code for the local agent.", "icon": "MonitorCog" },
-      { "label": "Choose distribution", "description": "Start with Restream, Castr, or Streamlabs.", "icon": "Route" },
-      { "label": "Set languages", "description": "Select source speech and target captions.", "icon": "Languages" }
-    ],
-    "statusCards": [
-      { "label": "Stream state", "value": "Idle", "hint": "waiting for SDK" },
-      { "label": "Current latency", "value": "--", "hint": "available after stream start" },
-      { "label": "Monthly usage", "value": "0h / 5h", "hint": "from plan config" },
-      { "label": "Fallback", "value": "AssemblyAI", "hint": "service_config.stt.fallback" }
-    ],
-    "pipeline": [
-      { "title": "SDK capture", "body": "Windows-first local agent captures and preprocesses speech audio.", "icon": "Radio" },
-      { "title": "Cloud translation", "body": "STT and translation providers are selected from admin config.", "icon": "Languages" },
-      { "title": "Stream output", "body": "Captions and language outputs return to the broadcaster workflow.", "icon": "PanelsTopLeft" }
-    ]
+    "topbar": {
+      "accountLabel": "Account",
+      "signOutLabel": "Sign out",
+      "backToSiteLabel": "Back to site"
+    },
+    "nav": {
+      "ariaLabel": "Dashboard navigation",
+      "title": "Broadcaster",
+      "groups": [
+        {
+          "label": "Broadcast",
+          "items": [
+            { "label": "Overview", "href": "/dashboard", "icon": "LayoutDashboard" },
+            { "label": "Distribution", "href": "/dashboard/distribution", "icon": "Route" },
+            { "label": "Platforms", "href": "/dashboard/platforms", "icon": "Share2" },
+            { "label": "Go live", "href": "/dashboard/go-live", "icon": "Play" }
+          ]
+        },
+        {
+          "label": "Translation",
+          "items": [
+            { "label": "Languages & captions", "href": "/dashboard/captions", "icon": "Subtitles" },
+            { "label": "Voice studio", "href": "/dashboard/voice", "icon": "AudioLines", "status": "coming_soon" }
+          ]
+        },
+        {
+          "label": "Account",
+          "items": [
+            { "label": "SDK & pairing", "href": "/dashboard/sdk", "icon": "Download" },
+            { "label": "Analytics", "href": "/dashboard/analytics", "icon": "BarChart3" },
+            { "label": "Billing", "href": "/dashboard/billing", "icon": "CreditCard" }
+          ]
+        }
+      ]
+    },
+    "statusStrip": {
+      "ariaLabel": "Stream status",
+      "items": [
+        { "label": "Stream", "value": "Idle", "tone": "muted", "icon": "Radio" },
+        { "label": "SDK", "value": "Not paired", "tone": "warning", "icon": "MonitorCog" },
+        { "label": "Latency", "value": "—", "tone": "muted", "icon": "Gauge" },
+        { "label": "Plan", "value": "Free · 0h / 5h", "tone": "muted", "icon": "CreditCard" }
+      ]
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "Live stream state, audience languages, and quick start — all driven by config, nothing hard-coded.",
+      "metrics": [
+        { "label": "Stream state", "value": "Idle", "hint": "waiting for SDK", "icon": "Radio" },
+        { "label": "Live viewers", "value": "0", "hint": "across connected platforms", "icon": "Wifi" },
+        { "label": "Caption latency", "value": "—", "hint": "available after stream start", "icon": "Gauge" },
+        { "label": "Monthly usage", "value": "0h / 5h", "hint": "from plan config", "icon": "CreditCard" }
+      ],
+      "languageBreakdown": {
+        "title": "Audience languages",
+        "subtitle": "Live viewer distribution by caption language",
+        "empty": "No live viewers yet — start a stream to see language distribution.",
+        "items": [
+          { "language": "English", "code": "EN", "viewers": 0 },
+          { "language": "Turkish", "code": "TR", "viewers": 0 },
+          { "language": "Spanish", "code": "ES", "viewers": 0 }
+        ]
+      },
+      "quickStart": {
+        "title": "Quick start",
+        "streamKeyLabel": "Stream key",
+        "streamKey": "sd-live-•••••••••••••",
+        "copyLabel": "Copy",
+        "note": "Pair the SDK and choose a distribution method before going live.",
+        "actions": [
+          { "label": "Pair SDK", "description": "Generate a pairing code for the local agent.", "icon": "MonitorCog", "href": "/dashboard/sdk" },
+          { "label": "Choose distribution", "description": "Start with Restream, Castr, or Streamlabs.", "icon": "Route", "href": "/dashboard/distribution" },
+          { "label": "Set languages", "description": "Select source speech and target captions.", "icon": "Languages", "href": "/dashboard/captions" }
+        ]
+      }
+    },
+    "distribution": {
+      "title": "Distribution",
+      "subtitle": "Choose how your stream reaches platforms. Selected here, applied by the SDK. This choice drives what you do on the Go live page.",
+      "selectedMode": "service",
+      "selectedLabel": "Selected",
+      "modes": [
+        { "id": "relay", "title": "SDK relay", "body": "Distribute from your own internet — no extra service. Video never leaves your machine.", "icon": "MonitorUp", "status": "coming_soon", "recommended": true },
+        { "id": "service", "title": "Your service", "body": "Keep using OBS to your own Restream, Castr, or Streamlabs. Strovak only adds captions. Video stays local.", "icon": "Route", "status": "enabled", "recommended": false },
+        { "id": "cloud", "title": "Cloud multistream", "body": "We receive your video and distribute it for you when your upload is limited. Video leaves your machine.", "icon": "Share2", "status": "waitlist", "recommended": false }
+      ],
+      "servicesTitle": "Connected services",
+      "services": [
+        { "name": "Restream", "status": "Not connected", "tone": "muted", "icon": "Route", "action": "Connect" },
+        { "name": "Castr", "status": "Not connected", "tone": "muted", "icon": "Route", "action": "Connect" },
+        { "name": "Streamlabs", "status": "Not connected", "tone": "muted", "icon": "Route", "action": "Connect" }
+      ],
+      "bandwidthNotice": "Dual streaming needs at least 25 Mbps upload. We warn you before start if your connection is below that."
+    },
+    "platforms": {
+      "title": "Platform accounts",
+      "subtitle": "Connect the destinations your captions and audio are delivered to.",
+      "oauthNotice": "Connecting opens the platform's own secure sign-in. Strovak never sees your password — only an access token, stored encrypted. The token exchange completes on our server.",
+      "connectLabel": "Connect",
+      "disconnectLabel": "Disconnect",
+      "connectedLabel": "Connected",
+      "notConnectedLabel": "Not connected",
+      "scopesLabel": "Permissions",
+      "accounts": [
+        { "name": "YouTube", "provider": "youtube", "detail": "Native captions + multi-audio tracks", "scopes": "Manage live broadcasts and captions", "connected": false, "account": "", "icon": "Video" },
+        { "name": "Twitch · channel 1 (TR)", "provider": "twitch", "detail": "Turkish output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
+        { "name": "Twitch · channel 2 (EN)", "provider": "twitch", "detail": "English output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
+        { "name": "Kick · channel 1 (TR)", "provider": "kick", "detail": "Turkish output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
+        { "name": "Kick · channel 2 (EN)", "provider": "kick", "detail": "English output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" }
+      ]
+    },
+    "voice": {
+      "title": "Voice studio",
+      "subtitle": "Dub your stream in your own cloned voice.",
+      "status": "coming_soon",
+      "notice": "Voice cloning ships in Phase 2. The studio is visible so you know what's coming — it's disabled until your plan and the backend config enable it.",
+      "features": [
+        { "title": "Record a sample", "body": "Capture 1–2 minutes from your browser.", "icon": "Mic" },
+        { "title": "Upload a sample", "body": "Bring an existing MP3 or WAV.", "icon": "Download" },
+        { "title": "Voice profiles", "body": "Keep a separate profile per language.", "icon": "AudioLines" },
+        { "title": "Test it", "body": "Type text and hear your cloned voice.", "icon": "Play" }
+      ]
+    },
+    "captions": {
+      "title": "Languages & captions",
+      "subtitle": "Set the speech language, target translations, and how captions look on stream.",
+      "sourceLabel": "Speech language",
+      "sourceValue": "English",
+      "targetsLabel": "Target caption languages",
+      "targets": [
+        { "language": "Turkish", "code": "TR", "enabled": true },
+        { "language": "Spanish", "code": "ES", "enabled": true },
+        { "language": "German", "code": "DE", "enabled": false },
+        { "language": "French", "code": "FR", "enabled": false }
+      ],
+      "appearanceTitle": "Caption appearance",
+      "appearance": [
+        { "label": "Font", "value": "Inter" },
+        { "label": "Size", "value": "Medium" },
+        { "label": "Color", "value": "White on 60% black" },
+        { "label": "Position", "value": "Lower third" }
+      ],
+      "overlayLabel": "Overlay URL",
+      "overlayUrl": "https://overlay.strovak.com/o/•••••••",
+      "copyLabel": "Copy",
+      "previewLabel": "Live preview",
+      "previewCaption": "This is how your translated captions appear on stream."
+    },
+    "goLive": {
+      "title": "Go live",
+      "subtitle": "Set up your broadcast from zero. Strovak never replaces OBS — it adds captions and translation to the stream you already run.",
+      "activeMode": "service",
+      "modeLabel": "Your distribution mode",
+      "changeModeLabel": "Change mode",
+      "copyLabel": "Copy",
+      "stepsTitle": "Set up step by step",
+      "startTitle": "Go live",
+      "targetsLabel": "Send to platforms",
+      "targets": [
+        { "name": "YouTube", "enabled": false },
+        { "name": "Twitch (EN)", "enabled": false },
+        { "name": "Twitch (TR)", "enabled": false }
+      ],
+      "modes": {
+        "service": {
+          "badge": "Phase 1 · default",
+          "name": "Your own service (Restream / Castr / Streamlabs)",
+          "summary": "OBS sends your video straight to your own platform. Only your audio goes to Strovak's cloud for captions and translation — your video never leaves your machine.",
+          "steps": [
+            { "title": "Connect your platform", "body": "Link your Restream, Castr, or Streamlabs account under Platforms so captions are delivered to the right place.", "icon": "Route", "done": false },
+            { "title": "Install and pair the SDK", "body": "Download the local agent and enter the 6-digit pairing code. The SDK captures your speech audio on your machine.", "icon": "MonitorCog", "done": false },
+            { "title": "Add captions to OBS", "body": "Copy the overlay URL below and add it in OBS as a Browser source on top of your scene.", "icon": "Subtitles", "done": false },
+            { "title": "Pick your languages", "body": "Set the language you speak and the caption languages your audience reads.", "icon": "Languages", "done": false },
+            { "title": "Start in OBS, then arm translation here", "body": "Press Start Streaming in OBS as you always do, then start the translation session below.", "icon": "Play", "done": false }
+          ],
+          "connectLabel": "Caption overlay URL — add as a Browser source in OBS",
+          "connectValue": "https://overlay.strovak.com/o/•••••••",
+          "videoNote": "Video is encoded and sent by OBS to your own platform. Strovak only handles audio and captions — you start and stop the video stream in OBS, exactly as before.",
+          "startLabel": "Start translation session",
+          "startNote": "This starts captions and translation. Your video keeps flowing through OBS to your platform — it does not start or stop the video."
+        },
+        "cloud": {
+          "badge": "Premium · optional",
+          "name": "Cloud multistream",
+          "summary": "OBS sends your video to Strovak and we distribute it to every platform for you. Use this only when your upload can't handle several platforms at once — in this mode your video does leave your machine.",
+          "steps": [
+            { "title": "Choose target platforms", "body": "Pick which platforms Strovak should forward your stream to.", "icon": "Share2", "done": false },
+            { "title": "Install and pair the SDK", "body": "Download the local agent and pair it with the 6-digit code.", "icon": "MonitorCog", "done": false },
+            { "title": "Point OBS at Strovak", "body": "Paste the ingest URL and stream key below into OBS stream settings.", "icon": "MonitorUp", "done": false },
+            { "title": "Pick your languages", "body": "Set the language you speak and the caption languages your audience reads.", "icon": "Languages", "done": false },
+            { "title": "Start the stream here", "body": "Press Start below — Strovak receives your video, adds captions, and distributes to your platforms.", "icon": "Play", "done": false }
+          ],
+          "connectLabel": "Ingest URL and stream key — paste into OBS",
+          "connectValue": "rtmp://ingest.strovak.com/live",
+          "streamKeyLabel": "Stream key",
+          "streamKey": "sd-live-•••••••••••••",
+          "videoNote": "Your video is uploaded to Strovak once and we send it to every platform. Make sure your upload is at least 6 Mbps.",
+          "startLabel": "Start stream",
+          "startNote": "Starts the cloud broadcast: video ingest, captions, translation, and distribution to your selected platforms."
+        }
+      }
+    },
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "Audience languages, platform comparison, and total broadcast time.",
+      "metrics": [
+        { "label": "Total broadcast time", "value": "0h", "hint": "all streams", "icon": "Gauge" },
+        { "label": "Peak viewers", "value": "0", "hint": "best single stream", "icon": "Wifi" },
+        { "label": "Languages served", "value": "0", "hint": "distinct caption languages", "icon": "Languages" },
+        { "label": "Streams", "value": "0", "hint": "lifetime", "icon": "Radio" }
+      ],
+      "byStreamTitle": "Viewers by language",
+      "byStreamEmpty": "Analytics appear after your first stream.",
+      "emailNote": "A weekly summary is emailed to you when reports are enabled in your account."
+    },
+    "billing": {
+      "title": "Subscription & billing",
+      "subtitle": "Your current plan, usage, and invoice history.",
+      "plan": {
+        "name": "Free",
+        "price": "$0 / mo",
+        "usageLabel": "Usage this month",
+        "usage": "0h of 5h",
+        "features": [
+          "Live captions in one language",
+          "Connect your own multistream service",
+          "Community support"
+        ]
+      },
+      "upgradeLabel": "Upgrade plan",
+      "invoicesTitle": "Invoice history",
+      "invoicesEmpty": "No invoices yet.",
+      "invoices": []
+    },
+    "sdk": {
+      "title": "SDK & pairing",
+      "subtitle": "Install the local agent once, then manage everything from this panel. Video stays on your machine — only audio goes to the cloud.",
+      "downloadTitle": "Download the agent",
+      "downloadNote": "Windows is available now. macOS and Linux follow.",
+      "platforms": [
+        { "name": "Windows", "status": "enabled", "icon": "MonitorCog", "action": "Download" },
+        { "name": "macOS", "status": "coming_soon", "icon": "MonitorCog", "action": "Coming soon" },
+        { "name": "Linux", "status": "coming_soon", "icon": "MonitorCog", "action": "Coming soon" }
+      ],
+      "pairingTitle": "Pair this account",
+      "pairingNote": "Enter this 6-digit code in the SDK to link it to your account. The code expires in 10 minutes.",
+      "pairingCodeLabel": "Pairing code",
+      "pairingCode": "•• •• ••",
+      "generateLabel": "Generate code",
+      "streamKeyTitle": "Stream key",
+      "streamKeyNote": "Your stream key is delivered to the paired SDK automatically and kept in sync. In Mod A you never paste it anywhere — the SDK uses it for you.",
+      "streamKeyLabel": "Stream key",
+      "streamKey": "sd-live-•••••••••••••",
+      "copyLabel": "Copy",
+      "regenerateLabel": "Regenerate",
+      "regenerateNote": "Regenerating revokes the old key and pushes the new one to the SDK. Any active stream stops.",
+      "syncLabel": "SDK sync",
+      "syncValue": "Waiting for SDK",
+      "syncTone": "warning"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Access your broadcaster dashboard.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Your password",
+      "submitLabel": "Continue",
+      "twofaNote": "We'll email you a 6-digit code to confirm it's you.",
+      "forgotLabel": "Forgot password?",
+      "signupPrompt": "New to Strovak?",
+      "signupLabel": "Create an account"
+    },
+    "verify": {
+      "title": "Enter your code",
+      "subtitle": "We sent a 6-digit verification code to your email.",
+      "codeLabel": "Verification code",
+      "codePlaceholder": "______",
+      "submitLabel": "Verify and sign in",
+      "resendLabel": "Resend code",
+      "backLabel": "Back to sign in",
+      "devNotice": "Email delivery is not configured yet. Add a noreply sender (SMTP or API) in the admin panel to send real codes; until then this step is a stub for development."
+    }
   },
   "statusLabels": {
     "enabled": "enabled",
