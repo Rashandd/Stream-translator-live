@@ -10,13 +10,11 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::RwLock;
 
-/// Sunucu konfigürasyonu.
+/// Sunucu konfigürasyonu. Secret'lar burada DEĞİL — `secrets::SecretStore`'da.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// WebSocket/HTTP sunucusunun bağlanacağı adres.
     pub bind_addr: SocketAddr,
-    /// JWT imzalama secret'ı (env'den; üretimde Vault).
-    pub jwt_secret: String,
     /// PostgreSQL bağlantı dizesi (varsa migration/pool için).
     pub database_url: Option<String>,
 }
@@ -30,15 +28,12 @@ pub enum ConfigError {
         value: String,
         source: std::net::AddrParseError,
     },
-    #[error("missing required env var {0}")]
-    MissingEnv(&'static str),
 }
 
 impl Config {
     /// Konfigürasyonu ortam değişkenlerinden yükler.
     ///
     /// - `BIND_ADDR` — varsayılan `0.0.0.0:8080`
-    /// - `JWT_SECRET` — zorunlu (koda gömülmez)
     /// - `DATABASE_URL` — opsiyonel
     pub fn from_env() -> Result<Self, ConfigError> {
         const BIND_VAR: &str = "BIND_ADDR";
@@ -49,14 +44,10 @@ impl Config {
             source,
         })?;
 
-        let jwt_secret =
-            std::env::var("JWT_SECRET").map_err(|_| ConfigError::MissingEnv("JWT_SECRET"))?;
-
         let database_url = std::env::var("DATABASE_URL").ok();
 
         Ok(Config {
             bind_addr,
-            jwt_secret,
             database_url,
         })
     }

@@ -27,3 +27,13 @@ async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 sqlx.workspace = true
+aes-gcm.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+axum-server.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+
+[dev-dependencies]
+tokio-tungstenite.workspace = true
+futures-util.workspace = true

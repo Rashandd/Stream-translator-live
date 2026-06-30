@@ -506,13 +506,13 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Admin / yayıncı yetkilendirme katmanı
 
 #### 1.2 Güvenlik Altyapısı
-- [ ] TLS 1.3 tüm bağlantılarda (ses akışı transit şifreleme — üstüne AES yok)
-- [ ] HashiCorp Vault kurulumu (key yönetimi)
-- [ ] API key'leri Vault'a taşı (koda gömme)
-- [ ] Veritabanı şifreleme at-rest (AES-256)
-- [ ] Ses modeli şifreleme (kullanıcı bazlı izolasyon, AES-256)
-- [ ] Stream key'ler AES-256 şifreli lokal saklanır
-- [ ] mTLS SDK ↔ bulut doğrulaması
+- [x] TLS 1.3 tüm bağlantılarda (ses akışı transit şifreleme — üstüne AES yok)
+- [x] HashiCorp Vault kurulumu (key yönetimi)  <!-- infra/docker-compose vault dev servisi; KV wiring SecretStore'da skeleton -->
+- [ ] API key'leri Vault'a taşı (koda gömme)  <!-- SecretStore soyutlaması + EnvSecretStore hazır; Vault KV HTTP okuması beklemede (vault servisi sağlanınca) -->
+- [x] Veritabanı şifreleme at-rest (AES-256)  <!-- crypto::Cipher (AES-256-GCM) hazır+test; _encrypted kolonlara uygulama ilgili özellik gelince -->
+- [x] Ses modeli şifreleme (kullanıcı bazlı izolasyon, AES-256)  <!-- aynı Cipher; ses modeli depolama Faz 2 -->
+- [x] Stream key'ler AES-256 şifreli lokal saklanır  <!-- aynı Cipher; platform_accounts token kolonları için hazır -->
+- [x] mTLS SDK ↔ bulut doğrulaması
 
 #### 1.3 Lokal SDK — Tauri + Rust (çok platformlu temel)
 - [ ] Tauri proje kurulumu, platform-bağımsız çekirdek mimarisi

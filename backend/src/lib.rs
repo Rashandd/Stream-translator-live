@@ -6,8 +6,11 @@
 pub mod app;
 pub mod auth;
 pub mod config;
+pub mod crypto;
 pub mod db;
 pub mod gateway;
 pub mod pipeline;
+pub mod secrets;
 pub mod state;
+pub mod tls;
 pub mod ws;

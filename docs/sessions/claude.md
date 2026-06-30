@@ -4,8 +4,22 @@
 Claude (claude-sonnet-4-6)
 
 ## Neredeyim?
-Faz 1.1 Backend bloğunun TAMAMI bitti (6/6 madde). Cargo workspace + backend crate kuruldu;
-43 unit test geçiyor, `cargo clippy --all-targets -- -D warnings` temiz, sunucu ayağa kalkıyor.
+Faz 1.1 (6/6) + Faz 1.2 Güvenlik Altyapısı bitti. WS integration testleri eklendi.
+54 unit + 3 integration test geçiyor, `cargo clippy --all-targets -- -D warnings` temiz.
+TLS 1.3 ve mTLS uçtan uca curl ile doğrulandı (verify=0; mTLS sertifikasız reddediyor).
+
+## Faz 1.2 — Yapılan (bu oturum)
+- `crypto.rs` — AES-256-GCM at-rest (Cipher: encrypt/decrypt, nonce||ct base64), 6 test
+- `secrets/mod.rs` — SecretStore trait + EnvSecretStore + VaultSecretStore skeleton; JWT secret artık SecretStore'dan
+- `tls.rs` — rustls TLS 1.3-only ServerConfig + opsiyonel mTLS (WebPkiClientVerifier); explicit aws-lc-rs provider (ring+aws-lc-rs çakışması için)
+- `main.rs` — TLS/plain serve dallanması (axum-server bind_rustls), `--health-check` self-probe (distroless), JWT secret SecretStore'dan
+- `config.rs` — jwt_secret çıkarıldı (artık SecretStore'da); bind_addr + database_url kaldı
+- `tests/ws_integration.rs` — gerçek tokio-tungstenite client: full flow + bad auth + audio-before-start
+- Infra: `infra/docker-compose.yml` (backend+postgres+redis+vault), `backend/Dockerfile` (multi-stage distroless + healthcheck), `.env.example`, `infra/tls/gen-dev-certs.sh`
+
+## 1.2 Eksik / kısmi
+- "API key'leri Vault'a taşı": SecretStore + EnvSecretStore hazır, ama Vault KV v2 HTTP okuması yazılmadı (VaultSecretStore skeleton). Vault servisi compose'da var ama kod ondan okumuyor — env kullanıyor.
+- AES at-rest primitifi hazır; _encrypted kolonlara fiili uygulama (TOTP/OAuth token/ses modeli/stream key) ilgili özellikler gelince yapılacak.
 
 ## Faz 1.1 — Yapılan (bu oturum)
 - `Cargo.toml` (workspace) + `backend/` crate — Axum 0.8, Tokio, serde, sqlx, jsonwebtoken
