@@ -85,10 +85,7 @@ impl ServiceConfig {
 
     /// Bir anahtarın değerini okur.
     pub fn get(&self, key: &str) -> Option<String> {
-        self.values
-            .read()
-            .ok()
-            .and_then(|m| m.get(key).cloned())
+        self.values.read().ok().and_then(|m| m.get(key).cloned())
     }
 
     /// Bir anahtarı günceller (admin toggle). Restart gerekmez.

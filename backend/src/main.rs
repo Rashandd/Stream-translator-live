@@ -62,7 +62,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     match TlsSettings::from_env() {
         Some(settings) => serve_tls(config.bind_addr, router, settings).await,
         None => {
-            tracing::warn!("TLS not configured — serving plain HTTP (expect TLS-terminating proxy)");
+            tracing::warn!(
+                "TLS not configured — serving plain HTTP (expect TLS-terminating proxy)"
+            );
             serve_plain(config.bind_addr, router).await
         }
     }
@@ -144,7 +146,11 @@ fn health_check() -> Result<(), Box<dyn std::error::Error>> {
     let mut response = String::new();
     stream.read_to_string(&mut response)?;
 
-    if response.lines().next().is_some_and(|line| line.contains("200")) {
+    if response
+        .lines()
+        .next()
+        .is_some_and(|line| line.contains("200"))
+    {
         Ok(())
     } else {
         Err(format!("health check failed: {:?}", response.lines().next()).into())

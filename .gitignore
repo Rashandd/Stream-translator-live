@@ -69,3 +69,7 @@ docker-compose.override.yml
 *.sqlite3
 *.db
 *.pid
+
+# --- Agent session notes ---
+docs/sessions/codex.md
+docs/sessions/claude.md

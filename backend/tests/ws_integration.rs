@@ -37,7 +37,9 @@ async fn spawn_server() -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
     tokio::spawn(async move {
-        axum::serve(listener, app::router(state)).await.expect("serve");
+        axum::serve(listener, app::router(state))
+            .await
+            .expect("serve");
     });
     addr
 }
@@ -63,9 +65,8 @@ fn audio_frame(payload: &[u8]) -> Vec<u8> {
     buf
 }
 
-type Ws = tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
->;
+type Ws =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// Bir sonraki text mesajını JSON olarak okur.
 async fn next_json(ws: &mut Ws) -> Value {
@@ -87,10 +88,16 @@ async fn send_json(ws: &mut Ws, json: Value) {
 async fn full_stream_flow() {
     let addr = spawn_server().await;
     let url = format!("ws://{addr}/ws/stream");
-    let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
 
     // auth → session_ready
-    send_json(&mut ws, serde_json::json!({"type":"auth","token": valid_token()})).await;
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
     let ready = next_json(&mut ws).await;
     assert_eq!(ready["type"], "session_ready");
     assert_eq!(ready["user_id"], "11111111-1111-1111-1111-111111111111");
@@ -133,9 +140,15 @@ async fn full_stream_flow() {
 async fn invalid_token_is_rejected() {
     let addr = spawn_server().await;
     let url = format!("ws://{addr}/ws/stream");
-    let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
 
-    send_json(&mut ws, serde_json::json!({"type":"auth","token":"garbage.token"})).await;
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token":"garbage.token"}),
+    )
+    .await;
     let err = next_json(&mut ws).await;
     assert_eq!(err["type"], "error");
     assert_eq!(err["code"], 4001);
@@ -145,9 +158,15 @@ async fn invalid_token_is_rejected() {
 async fn audio_before_stream_start_errors() {
     let addr = spawn_server().await;
     let url = format!("ws://{addr}/ws/stream");
-    let (mut ws, _) = tokio_tungstenite::connect_async(url).await.expect("connect");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
 
-    send_json(&mut ws, serde_json::json!({"type":"auth","token": valid_token()})).await;
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
     let _ready = next_json(&mut ws).await;
 
     // stream_start göndermeden binary frame → 4002

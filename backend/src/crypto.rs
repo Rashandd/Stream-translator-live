@@ -129,7 +129,10 @@ mod tests {
 
     #[test]
     fn rejects_wrong_key_length() {
-        assert!(matches!(Cipher::new(&[0u8; 16]), Err(CryptoError::KeyLength(16))));
+        assert!(matches!(
+            Cipher::new(&[0u8; 16]),
+            Err(CryptoError::KeyLength(16))
+        ));
     }
 
     #[test]

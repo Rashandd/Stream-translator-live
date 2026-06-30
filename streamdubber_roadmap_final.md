@@ -272,7 +272,6 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 - Gömülü RTMP relay — yayıncının kendi internetinden N platforma dağıtım (Mod B)
 - OBS entegrasyonu (OBS WebSocket ile sahne, ses kanalı, altyazı)
 - Stream key ve platform konfigürasyonu (lokal, şifreli saklanır)
-- Buluta AES-256 şifreli **sadece ses** akışı (video lokal kalır)
 
 **Bulutla ilişki:**
 - SDK sadece sesi şifreli buluta yollar (çok küçük, ~50-128 Kbps)

@@ -100,6 +100,9 @@ mod tests {
             token: "dev".into(),
             mount: "secret".into(),
         };
-        assert!(matches!(store.get("JWT_SECRET").await, Err(SecretError::Backend(_))));
+        assert!(matches!(
+            store.get("JWT_SECRET").await,
+            Err(SecretError::Backend(_))
+        ));
     }
 }
