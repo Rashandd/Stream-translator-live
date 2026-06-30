@@ -351,8 +351,9 @@ Yayıncı  → Aylık abonelik
 | **Pro** | $24.99/ay | Altyazı + ses klonlama, 10 dil, tüm platformlar, 40 saat |
 | **Streamer** | $49.99/ay | Her şey, sınırsız dil, öncelikli destek, 100 saat |
 
-**Rakip toplam maliyet:** StreamTranslate $35 + ElevenLabs $22 + Restream $19 = **$76+/ay**  
-**StreamDubber Pro:** **$24.99/ay** — aynı özelliklerin üçte biri
+Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
+
+
 
 ---
 
@@ -497,7 +498,7 @@ Yayıncı  → Aylık abonelik
 ### Görevler
 
 #### 1.1 Backend — Rust (Axum)
-- [ ] Axum WebSocket sunucu
+- [x] Axum WebSocket sunucu
 - [ ] JWT kimlik doğrulama
 - [ ] Ses akışı pipeline'ı
 - [ ] API gateway (STT / Çeviri yönlendirme)
