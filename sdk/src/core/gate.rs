@@ -6,6 +6,7 @@
 
 use super::audio_frame::{build_audio_frame, AudioCodec, AudioFrameError};
 use super::capture::{CaptureError, CaptureSource};
+use super::preprocess::Preprocessor;
 use super::vad::VadGate;
 
 /// Errors surfaced while pulling and packaging audio.
@@ -25,23 +26,33 @@ pub struct GateStats {
     pub frames_dropped_silence: u64,
 }
 
-/// Drives a capture source through VAD and produces backend audio frames.
+/// Drives a capture source through optional preprocessing + VAD and produces
+/// backend audio frames.
 pub struct CapturePipeline<S: CaptureSource> {
     source: S,
+    preprocessor: Option<Preprocessor>,
     vad: VadGate,
     codec: AudioCodec,
     stats: GateStats,
 }
 
 impl<S: CaptureSource> CapturePipeline<S> {
-    /// Builds a pipeline. Phase 1 sends PCM s16le upstream (Opus encoding later).
+    /// Builds a pipeline without preprocessing. Phase 1 sends PCM s16le upstream
+    /// (Opus encoding later).
     pub fn new(source: S, vad: VadGate) -> Self {
         CapturePipeline {
             source,
+            preprocessor: None,
             vad,
             codec: AudioCodec::PcmS16Le,
             stats: GateStats::default(),
         }
+    }
+
+    /// Inserts a local preprocessing (noise cleanup) step before VAD.
+    pub fn with_preprocessor(mut self, preprocessor: Preprocessor) -> Self {
+        self.preprocessor = Some(preprocessor);
+        self
     }
 
     /// Cumulative counters.
@@ -54,8 +65,12 @@ impl<S: CaptureSource> CapturePipeline<S> {
     /// Silent frames are consumed and skipped (not returned). Returns `None`
     /// only when the capture source is exhausted.
     pub fn next_frame(&mut self) -> Result<Option<Vec<u8>>, GateError> {
-        while let Some(samples) = self.source.next_frame()? {
+        while let Some(raw) = self.source.next_frame()? {
             self.stats.frames_seen += 1;
+            let samples = match self.preprocessor.as_mut() {
+                Some(p) => p.process(&raw),
+                None => raw,
+            };
             if self.vad.forward(&samples) {
                 self.stats.frames_forwarded += 1;
                 let payload = pcm_to_le_bytes(&samples);
@@ -123,6 +138,22 @@ mod tests {
         assert_eq!(pipeline.next_frame().unwrap(), None);
         assert_eq!(pipeline.stats().frames_forwarded, 0);
         assert_eq!(pipeline.stats().frames_dropped_silence, 2);
+    }
+
+    #[test]
+    fn preprocessor_step_is_applied_before_vad() {
+        use crate::core::preprocess::{PreprocessConfig, Preprocessor};
+        // A constant-bias frame: after DC removal it becomes silence and is dropped.
+        let frames = vec![vec![1000i16; 320]];
+        let source = MockCapture::new(CaptureConfig::default(), frames);
+        let pre = Preprocessor::new(PreprocessConfig {
+            dc_removal: true,
+            pre_emphasis: 0.0,
+        });
+        let mut pipeline = CapturePipeline::new(source, no_hangover()).with_preprocessor(pre);
+        // Constant bias -> DC-removed to zero -> VAD treats as silence -> no frame.
+        assert_eq!(pipeline.next_frame().unwrap(), None);
+        assert_eq!(pipeline.stats().frames_dropped_silence, 1);
     }
 
     #[test]

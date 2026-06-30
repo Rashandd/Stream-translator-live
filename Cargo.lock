@@ -1991,8 +1991,15 @@ dependencies = [
 name = "streamdubber-sdk"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "futures-util",
  "serde",
+ "serde_json",
+ "streamdubber-backend",
  "thiserror",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tracing",
 ]
 
 [[package]]

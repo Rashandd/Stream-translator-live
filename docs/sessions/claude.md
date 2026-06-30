@@ -4,9 +4,22 @@
 Claude (claude-sonnet-4-6)
 
 ## Neredeyim?
-Faz 1.1 (6/6) + Faz 1.2 (güvenlik) + Faz 1.3 ilk 3 task bitti.
-Backend: 54 unit + 3 integration. SDK: 18 unit. Workspace clippy `-D warnings` temiz.
+Faz 1.1 (6/6) + Faz 1.2 (güvenlik) + Faz 1.3 (11/11) bitti.
+Backend: 54 unit + 3 integration. SDK: 36 unit + 2 e2e (SDK↔backend). Workspace clippy `-D warnings` temiz.
 TLS 1.3 + mTLS curl ile doğrulandı.
+
+## Faz 1.3 — Komple (bu oturum, Codex iskeletinin üstüne)
+- core/preprocess.rs — DC giderme + pre-emphasis; gate'e opsiyonel adım
+- core/cloud.rs — CloudClient (ws/wss), auth→stream_start→audio→subtitle; backend'e karşı e2e test
+- core/pairing.rs — 6 haneli kod doğrulama + PairingRequest
+- core/mux.rs — Faz1 Mod A çıktı planı (video lokal, sadece ses buluta)
+- integrations/obs.rs — obs-websocket v5 mesajları (Identify, SetInputSettings)
+- tauri.conf.json — updater + bundle signing config; docs/sdk-distribution.md
+- sdk/tests/cloud_e2e.rs — backend dev-dep ile gerçek interop (2 test)
+
+## Faz 1.3 gerçek vs iskelet (dürüstlük)
+- GERÇEK+TEST: preprocess, VAD, capture abstraction, cloud client + e2e, pairing/OBS mesaj tipleri.
+- İSKELET/CONFIG (sonraki tasklar): gerçek WASAPI cihaz I/O (Windows), canlı OBS bağlantısı, backend pairing endpoint (1.4), mTLS client-cert connector, sertifikalar + release CI + updater runtime init, gerçek video mux (Faz 2).
 
 ## Faz 1.3 — Yapılan (bu oturum, Codex iskeletinin üstüne)
 - Codex'in 1.3 task-1'i (Tauri kurulumu + platform-bağımsız çekirdek) doğrulandı: builds, 7 test, clippy temiz.

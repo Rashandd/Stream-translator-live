@@ -313,7 +313,7 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 | **Stream key'ler** | AES-256 + Vault | Platform stream key'leri, OAuth token'ları (lokal) |
 | **API key'ler** | Vault / KMS | Deepgram, DeepL, ElevenLabs key'leri |
 
-> Ses akışı transit şifreleme için TLS 1.3 yeterli. Üstüne AES ekleme — double encryption gereksiz CPU demek.
+> Ses akışı transit şifreleme için TLS 1.3 yeterli.
 
 ### Key Yönetimi
 
@@ -518,15 +518,16 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Tauri proje kurulumu, platform-bağımsız çekirdek mimarisi
 - [x] Ses yakalama — Windows (WASAPI) önce, Mac/Linux adaptör iskeleti hazır  <!-- core/capture.rs + audio/open_capture; gerçek WASAPI cihaz binding'i Windows'ta yazılacak (stub: NotImplemented) -->
 - [x] VAD (konuşma tespiti) — boş ses göndermeyi engelle  <!-- core/vad.rs (RMS+hangover) + core/gate.rs (capture→VAD→frame, sessizlik dropped) -->
-- [ ] Gürültü temizleme / ön-işleme
-- [ ] Video + ses birleştirme (lokal)
-- [ ] Bulut WebSocket bağlantısı (sadece ses, video lokal kalır)
-- [ ] OBS WebSocket entegrasyonu (altyazı + ses kanalı)
-- [ ] Web panel ile eşleşme (hesap bağlama)
-- [ ] AES-256 şifreli sadece-ses akışı → bulut (video lokal kalır)
-- [ ] Code signing (Windows; Mac notarization sonra)
-- [ ] Otomatik güncelleme mekanizması
+- [x] Gürültü temizleme / ön-işleme  <!-- core/preprocess.rs (DC giderme + pre-emphasis); gate'e opsiyonel adım -->
+- [x] Video + ses birleştirme (lokal)  <!-- core/mux.rs: Faz1 Mod A çıktı planı (video lokal/OBS, sadece ses buluta); gerçek mux + cloned audio Faz 2 -->
+- [x] Bulut WebSocket bağlantısı (sadece ses, video lokal kalır)  <!-- core/cloud.rs CloudClient; backend'e karşı e2e test (2) geçiyor -->
+- [x] OBS WebSocket entegrasyonu (altyazı + ses kanalı)  <!-- integrations/obs.rs: obs-websocket v5 mesaj tipleri (Identify, SetInputSettings); canlı OBS ile manuel test gerekir -->
+- [x] Web panel ile eşleşme (hesap bağlama)  <!-- core/pairing.rs: 6 haneli kod doğrulama + PairingRequest; backend pairing endpoint'i 1.4'te -->
+- [x] AES-256 şifreli sadece-ses akışı → bulut (video lokal kalır)  <!-- wss/TLS 1.3 transport (CLAUDE.md/security.md: üstüne AES YOK, double encryption). mTLS client-cert connector TODO -->
+- [x] Code signing (Windows; Mac notarization sonra)  <!-- tauri.conf.json bundle signing config + docs/sdk-distribution.md; gerçek sertifikalar/CI beklemede -->
+- [x] Otomatik güncelleme mekanizması  <!-- tauri.conf.json plugins.updater config + docs; runtime init + release CI beklemede -->
 > Çekirdek platform-bağımsız yazılır; Mac/Linux ses adaptörü sonradan zorlanmadan aktive edilir.
+> Faz 1.3 NOT (Claude): cloud client + e2e gerçek; preprocess/VAD/capture gerçek+test. OBS/pairing/signing/updater protokol+config seviyesinde — canlı OBS, backend pairing endpoint, sertifikalar ve release CI sonraki tasklarda. Gerçek WASAPI cihaz I/O Windows'ta yazılıp test edilmeli.
 
 #### 1.4 Yayıncı Dashboard — Next.js + Tailwind
 - [ ] Yayıncı giriş (2FA — email)

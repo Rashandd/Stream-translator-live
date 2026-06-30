@@ -25,6 +25,25 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [],
+    "windows": {
+      "//": "Code signing: set TAURI_SIGNING via CI secret. certificateThumbprint or signCommand (e.g. azuresigntool) avoids SmartScreen warnings.",
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    },
+    "macOS": {
+      "//": "Code signing + notarization: signingIdentity from Apple Developer cert; notarize via APPLE_ID/APPLE_PASSWORD in CI.",
+      "signingIdentity": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "//": "Auto-update (tauri-plugin-updater). pubkey from `tauri signer generate`; private key in CI secret TAURI_SIGNING_PRIVATE_KEY. endpoints serve latest.json.",
+      "endpoints": [
+        "https://releases.strovak.com/sdk/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "pubkey": ""
+    }
   }
 }

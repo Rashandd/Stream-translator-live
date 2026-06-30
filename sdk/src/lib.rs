@@ -6,6 +6,7 @@
 
 pub mod audio;
 pub mod core;
+pub mod integrations;
 
 /// Entry point used by the Tauri desktop shell.
 ///

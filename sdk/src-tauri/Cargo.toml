@@ -14,4 +14,18 @@ path = "src/main.rs"
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+
+[dev-dependencies]
+streamdubber-backend = { path = "../../backend" }
+axum.workspace = true
+
+# Integration tests live under sdk/tests (src lives under sdk/src, crate is here).
+[[test]]
+name = "cloud_e2e"
+path = "../tests/cloud_e2e.rs"
