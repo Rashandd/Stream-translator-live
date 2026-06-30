@@ -4,9 +4,21 @@
 Claude (claude-sonnet-4-6)
 
 ## Neredeyim?
-Faz 1.1 (6/6) + Faz 1.2 Güvenlik Altyapısı bitti. WS integration testleri eklendi.
-54 unit + 3 integration test geçiyor, `cargo clippy --all-targets -- -D warnings` temiz.
-TLS 1.3 ve mTLS uçtan uca curl ile doğrulandı (verify=0; mTLS sertifikasız reddediyor).
+Faz 1.1 (6/6) + Faz 1.2 (güvenlik) + Faz 1.3 ilk 3 task bitti.
+Backend: 54 unit + 3 integration. SDK: 18 unit. Workspace clippy `-D warnings` temiz.
+TLS 1.3 + mTLS curl ile doğrulandı.
+
+## Faz 1.3 — Yapılan (bu oturum, Codex iskeletinin üstüne)
+- Codex'in 1.3 task-1'i (Tauri kurulumu + platform-bağımsız çekirdek) doğrulandı: builds, 7 test, clippy temiz.
+- `core/capture.rs` — CaptureSource trait + CaptureConfig (16k mono, 20ms frame) + MockCapture
+- `audio/open_capture` — platform dispatch; WASAPI aktif nokta (NotImplemented stub, Windows'ta yazılacak), CoreAudio/PipeWire iskelet
+- `core/vad.rs` — RMS enerji VAD + hangover (VadGate), boş ses tespiti
+- `core/gate.rs` — CapturePipeline: capture→VAD→backend frame, sessizlik dropped (STT maliyeti ↓), GateStats
+
+## Faz 1.3 Açık / Dikkat
+- Gerçek WASAPI cihaz I/O yazılmadı (Linux'ta test edilemez) — capture trait + MockCapture ile akış tam test edildi; cihaz binding Windows'ta (cpal/windows crate).
+- Sıradaki: gürültü temizleme/ön-işleme, video+ses birleştirme, bulut WebSocket client (sadece ses).
+- ÖNEMLİ — multi-agent: SDK çalışma ağacında commit'siz. Codex iskeleti + Claude'un capture/vad/gate eklemeleri + workspace Cargo.toml member + backend dosyalarında rustfmt diff'leri karışık. Commit koordinasyonu kullanıcı/Codex ile yapılmalı.
 
 ## Faz 1.2 — Yapılan (bu oturum)
 - `crypto.rs` — AES-256-GCM at-rest (Cipher: encrypt/decrypt, nonce||ct base64), 6 test

@@ -515,9 +515,9 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] mTLS SDK ↔ bulut doğrulaması
 
 #### 1.3 Lokal SDK — Tauri + Rust (çok platformlu temel)
-- [ ] Tauri proje kurulumu, platform-bağımsız çekirdek mimarisi
-- [ ] Ses yakalama — Windows (WASAPI) önce, Mac/Linux adaptör iskeleti hazır
-- [ ] VAD (konuşma tespiti) — boş ses göndermeyi engelle
+- [x] Tauri proje kurulumu, platform-bağımsız çekirdek mimarisi
+- [x] Ses yakalama — Windows (WASAPI) önce, Mac/Linux adaptör iskeleti hazır  <!-- core/capture.rs + audio/open_capture; gerçek WASAPI cihaz binding'i Windows'ta yazılacak (stub: NotImplemented) -->
+- [x] VAD (konuşma tespiti) — boş ses göndermeyi engelle  <!-- core/vad.rs (RMS+hangover) + core/gate.rs (capture→VAD→frame, sessizlik dropped) -->
 - [ ] Gürültü temizleme / ön-işleme
 - [ ] Video + ses birleştirme (lokal)
 - [ ] Bulut WebSocket bağlantısı (sadece ses, video lokal kalır)
