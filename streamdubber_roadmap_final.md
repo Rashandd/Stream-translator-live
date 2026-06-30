@@ -499,11 +499,11 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 #### 1.1 Backend — Rust (Axum)
 - [x] Axum WebSocket sunucu
-- [ ] JWT kimlik doğrulama
-- [ ] Ses akışı pipeline'ı
-- [ ] API gateway (STT / Çeviri yönlendirme)
-- [ ] PostgreSQL şeması
-- [ ] Admin / yayıncı yetkilendirme katmanı
+- [x] JWT kimlik doğrulama
+- [x] Ses akışı pipeline'ı
+- [x] API gateway (STT / Çeviri yönlendirme)
+- [x] PostgreSQL şeması
+- [x] Admin / yayıncı yetkilendirme katmanı
 
 #### 1.2 Güvenlik Altyapısı
 - [ ] TLS 1.3 tüm bağlantılarda (ses akışı transit şifreleme — üstüne AES yok)

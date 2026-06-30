@@ -4,7 +4,26 @@
 Claude (claude-sonnet-4-6)
 
 ## Neredeyim?
-Faz 1 başlangıç hazırlıkları tamamlandı. Kod henüz yok ama tüm blueprint dökümanları hazır.
+Faz 1.1 Backend bloğunun TAMAMI bitti (6/6 madde). Cargo workspace + backend crate kuruldu;
+43 unit test geçiyor, `cargo clippy --all-targets -- -D warnings` temiz, sunucu ayağa kalkıyor.
+
+## Faz 1.1 — Yapılan (bu oturum)
+- `Cargo.toml` (workspace) + `backend/` crate — Axum 0.8, Tokio, serde, sqlx, jsonwebtoken
+- `ws/frame.rs` — binary SDAU frame parser (8B header, max 4096), TDD
+- `ws/protocol.rs` — Client/Server mesaj serde tagged enum'ları + error kodları
+- `ws/mod.rs` — auth handshake (5sn timeout) → session_ready → stream_start/stop → audio→subtitle
+- `auth/jwt.rs` — HS256 issue/verify, exp doğrulama (secret env'den)
+- `auth/authz.rs` — Role(broadcaster/admin), AuthUser/AdminUser Axum extractor'ları
+- `gateway/` — SttProvider/TranslateProvider trait'leri, config-driven seçim + fallback, paralel çeviri (JoinSet), Mock impl'ler
+- `pipeline/mod.rs` — StreamSession orchestration (frame→gateway→subtitle, sequence sayacı)
+- `config.rs` — Config (env: BIND_ADDR/JWT_SECRET/DATABASE_URL) + ServiceConfig (config::get deseni)
+- `db/mod.rs` + `migrations/0001_init.sql` — schema.md'deki 9 tablo, sqlx migrate
+- `app.rs`/`main.rs` — router (/health, /ws/stream, /admin/ping), state kurulumu, graceful shutdown
+
+## Son Kararlar
+- STT/DeepL gerçek entegrasyonu YOK (1.7/1.8 taskları) — şimdilik MockStt/MockTranslate, aynı trait'lerle takılacak.
+- session_ready.remaining_seconds = -1 (bilinmiyor/sınırsız) — usage tracking 1.11'de gelince hesaplanacak.
+- Transit AES yok (TLS 1.3 kararıyla uyumlu); JWT secret env'den, koda gömülmedi.
 
 ## Degistirdigim Alanlar
 - `CLAUDE.md` — şifreleme stack satırı düzeltildi (AES-256-GCM → TLS 1.3 transit + AES-256 at-rest)
@@ -24,15 +43,14 @@ Faz 1 başlangıç hazırlıkları tamamlandı. Kod henüz yok ama tüm blueprin
 - `service_config` tablosu başlangıç değerleriyle hazır — admin toggle için.
 
 ## Sonraki Adim
-Codex backend iskeletini kurmaya başlıyor. Claude'un yapabileceği paralel iş:
-- `infra/docker-compose.yml` oluştur (backend + frontend + postgres + redis + vault)
-- `.env.example` oluştur (tüm env var'ları belgele)
-- `.gitignore` genişlet (Rust target/, node_modules/, .env, Tauri build çıktıları)
-
-Codex backend'e başlamışsa çakışmayı önlemek için önce `git status --short` kontrol et.
+Faz 1.2 Güvenlik Altyapısı veya 1.3+ devam. Backend için paralel iş:
+- `infra/docker-compose.yml` (backend + frontend + postgres + redis + vault)
+- `.env.example` (BIND_ADDR, JWT_SECRET, DATABASE_URL, sağlayıcı key'leri)
+- Backend Dockerfile (multi-stage)
+- WS integration testi (gerçek tokio websocket client ile auth→subtitle akışı)
 
 ## Blokerlar / Dikkat
-- `docs/schema.md` ve `docs/websocket-protocol.md` git'e eklenmemiş olabilir — kullanıcı commit etmeli.
-- `docs/commands/test-pipeline.md` adım 7'de hâlâ "AES şifreleme aktif mi" ifadesi var — TLS 1.3 kararıyla çelişiyor, düzeltilmeli.
-- API hesapları (Deepgram, DeepL, Stripe) açık mı bilinmiyor — backend entegrasyon testleri için gerekli.
-- Vault local dev kurulumu (`vault server -dev`) dökümente edilmedi.
+- Migration canlı Postgres'e karşı çalıştırılmadı (yerel DB yok) — SQL schema.md'den birebir, sqlx derleme zamanı gömme başarılı.
+- Gerçek STT/DeepL key'leri yok — entegrasyon (1.7/1.8) için Deepgram/DeepL hesabı gerekli.
+- Vault local dev kurulumu (`vault server -dev`) hâlâ dökümente değil; JWT_SECRET şimdilik düz env var.
+- `docs/commands/test-pipeline.md` adım 7'deki "AES şifreleme aktif mi" ifadesi TLS 1.3 kararıyla çelişiyor, düzeltilmeli.
