@@ -809,3 +809,44 @@ Bu yayıncılardan premium ücret alınır
 - Code signing SDK için şart (Windows SmartScreen + macOS notarization).
 - Ses modelleri kullanıcı bazlı şifreli; hesap silinince kalıcı silinmeli (KVKK/GDPR).
 - Bulut multistream sadece interneti zayıf yayıncılar için premium opsiyon.
+
+---
+
+## Coming Soon — Palabra Benzeri Çözüm Kataloğu
+
+> Bu bölüm Faz 1 kapsamına alınmaz. Frontend'de bu çözümler aktif ürün gibi gösterilmez; admin panelden yönetilen `coming_soon`, `waitlist`, `disabled` veya `beta` durumlarıyla gösterilir. Metinler, logolar, sıralama, CTA, feature flag ve görünürlük DB/config kaynaklı olmalıdır; frontend'e hard-coded gömülmez.
+
+### Toplantı ve Webinar Çözümleri
+
+- [ ] Online Meetings Translation — Zoom, Teams ve Meet gibi toplantılarda gerçek zamanlı altyazı/çeviri deneyimi
+- [ ] Zoom Translation — Zoom toplantıları için StreamDubber canlı çeviri modu
+- [ ] MS Teams Translation — Microsoft Teams toplantıları için canlı çeviri modu
+- [ ] Google Meet Translation — Google Meet toplantıları için canlı çeviri modu
+- [ ] Webinar Translation — webinar ve online eğitim yayınlarında altyazı/çeviri
+
+### Yayın ve Etkinlik Çözümleri
+
+- [ ] Live Stream Translation — mevcut Faz 1 yayıncı ürünüyle uyumlu ana çözüm sayfası
+- [ ] Events and Conferences — fiziksel/hibrit etkinlik ve konferans çeviri çözümü
+
+### Platform ve Geliştirici Çözümleri
+
+- [ ] API for Developers — canlı STT/çeviri/TTS pipeline'ı için developer API ürünü
+- [ ] Text-to-Speech / TTS — ses üretimi ve ileride ses klonlama ürün yüzeyi
+
+### Sektörel Çözüm Sayfaları
+
+- [ ] Churches — ibadet/topluluk yayınları için canlı çeviri
+- [ ] Education — ders, kurs ve akademik etkinlikler için canlı çeviri
+- [ ] Nonprofit — uluslararası topluluk ve bağış etkinlikleri için canlı çeviri
+- [ ] Broadcasting — yayıncı, medya ve prodüksiyon ekipleri için canlı çeviri
+- [ ] International Companies — global şirket toplantıları ve townhall'lar için canlı çeviri
+
+### Frontend Coming Soon Kuralları
+
+- [ ] Çözüm kataloğu `ui.public.solutions.catalog` config'inden render edilir.
+- [ ] Her çözümün `status` alanı olur: `coming_soon`, `waitlist`, `beta`, `enabled`, `disabled`.
+- [ ] Logo/ikon asset referansları config'ten gelir; Zoom/Teams/Google Meet marka kullanımı için marka kılavuzları kontrol edilmeden asset commit edilmez.
+- [ ] Faz 1 dışı çözümler dashboard'da satın alınabilir/aktif özellik gibi gösterilmez.
+- [ ] Coming soon kartlarında CTA admin-config kaynaklı olur: bekleme listesi, demo talebi veya görünmez.
+- [ ] Admin panelden çözüm sırası, görünürlük, metin, CTA, hedef route ve feature flag değiştirilebilir.

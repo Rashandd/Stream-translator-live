@@ -46,6 +46,8 @@ ui.public.home.hero
 ui.public.home.metrics
 ui.public.home.compatibility_logos
 ui.public.home.sections
+ui.public.solutions.catalog
+ui.public.solutions.statuses
 ui.nav.broadcaster
 ui.nav.admin
 ui.dashboard.home.cards
@@ -111,8 +113,34 @@ Admin must be able to change, without redeploy:
 - SDK download links and minimum supported versions.
 - Dashboard navigation visibility.
 - Security and privacy claims shown on public pages.
+- Coming soon solution catalog, visibility, ordering, CTA labels, route targets, and status values.
 
 Every admin config write creates an `audit_logs` entry with old value, new value, actor, timestamp, and IP address.
+
+## Coming Soon Solution Catalog
+
+Solution and industry pages that are not part of the active Phase 1 product must be rendered from config and marked clearly as `coming_soon`, `waitlist`, `beta`, `disabled`, or `enabled`.
+
+Recommended item shape:
+
+```json
+{
+  "id": "zoom-translation",
+  "title": "Zoom Translation",
+  "kind": "solution",
+  "status": "coming_soon",
+  "route": "/solutions/zoom-translation",
+  "summary": "Live captions and translation for Zoom meetings.",
+  "icon_asset": "zoom",
+  "cta": {
+    "label": "Join waitlist",
+    "action": "waitlist"
+  },
+  "feature_flag": "solutions.zoom_translation"
+}
+```
+
+Do not hard-code the Palabra-inspired solution list in React components. Seed it from migrations or admin config, then render from `/api/public-config`.
 
 ## Caching
 
