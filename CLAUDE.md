@@ -1,21 +1,15 @@
 # StreamDubber — Claude Code Kuralları (Faz 1 MVP)
 
-## BAŞLARKEN — İlk Komut (Başka Hiçbir Şey Yapmadan Önce)
+## BAŞLARKEN — Regression Testleri uygula hangi alanda calsimaya basliyacakisen
 
-```bash
-bash scripts/session-start.sh
-```
 
-## BİTERKEN — Son Komut (Kullanıcıya Cevap Vermeden Önce)
 
-```bash
-bash scripts/session-end.sh
-```
+## BİTERKEN — Regression ve yeni Testleri Uygulamayi unutma
 
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
 Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
-Faz 1 hedefi: Deepgram + DeepL + Restream/Castr entegrasyonuyla ücretsiz altyazı.
+Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı.
 
 ## Stack
 - Backend: Rust + Axum + Tokio (WebSocket ses pipeline)
@@ -93,7 +87,7 @@ tauri build          # SDK release build
 
 ### Faz 1 Sınırları
 - Ses klonlama YOK (Faz 2)
-- SDK RTMP relay YOK (Faz 2) — yayıncı Restream/Castr kullanır
+- SDK gömülü RTMP relay Faz 1'dedir (1.6) — Restream/Castr desteği YOK, yayıncı isterse opsiyonel Streamlabs bağlar
 - XTTS/HY-MT1.5 YOK (Faz 3)
 - Twitch Extension / Chrome Extension YOK (Faz 2)
 - Faz 1 dışı özellik sormadan implement etme

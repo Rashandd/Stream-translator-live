@@ -21,7 +21,7 @@ Repo blueprint/dokumantasyon asamasinda. Backend/frontend/sdk/infra kod klasorle
 Proje dokümantasyonu analiz edildi. Repo şu an blueprint aşamasında; backend/frontend/sdk/infra kod klasörleri henüz oluşturulmamış. Faz 1 MVP için ilk somut adım backend iskeleti ve WebSocket protokolünün TDD ile kurulması.
 
 ## Son Kararlar
-- Faz 1 kapsamı: Deepgram + DeepL + Restream/Castr entegrasyonlu ücretsiz altyazı; ses klonlama, SDK RTMP relay, Twitch/Chrome extension ve local AI sonraki fazlarda.
+- Faz 1 kapsamı: Deepgram + DeepL + kendi SDK gömülü RTMP relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı; Restream/Castr desteği kaldırıldı. Ses klonlama, Twitch/Chrome extension ve local AI sonraki fazlarda.
 - Transit güvenlikte TLS 1.3 + SDK-backend mTLS kullanılacak; ses akışına ayrıca AES eklenmeyecek. AES-256 sadece at-rest veriler, lokal stream key'ler ve ileride ses modelleri için.
 - Konfigürasyonlar DB'deki service_config benzeri katmandan okunacak; provider/fallback/plan limitleri koda gömülmeyecek.
 - `docs/websocket-protocol.md` mevcut fakat git'e eklenmemiş; SDK-backend protokolü için referans alınmalı.

@@ -14,10 +14,14 @@ use tokio_tungstenite::tungstenite::Message;
 use streamdubber_backend::{
     app,
     auth::jwt::{Claims, Jwt},
+    billing::Billing,
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
     integrations::Integrations,
+    overlay::OverlayHub,
+    plans::PlanRegistry,
     state::AppState,
+    usage::UsageTracker,
 };
 
 const SECRET: &[u8] = b"integration-test-secret";
@@ -34,6 +38,10 @@ async fn spawn_server() -> SocketAddr {
         gateway: Arc::new(gateway),
         service_config,
         integrations: Arc::new(Integrations::empty()),
+        billing: Arc::new(Billing::empty()),
+        overlay: Arc::new(OverlayHub::new()),
+        plans: Arc::new(PlanRegistry::with_defaults()),
+        usage: Arc::new(UsageTracker::new()),
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");

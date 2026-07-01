@@ -10,16 +10,24 @@ use async_trait::async_trait;
 pub mod names {
     pub const JWT_SECRET: &str = "JWT_SECRET";
     pub const DEEPGRAM_KEY: &str = "DEEPGRAM_KEY";
+    pub const ASSEMBLYAI_KEY: &str = "ASSEMBLYAI_KEY";
     pub const DEEPL_KEY: &str = "DEEPL_KEY";
+    pub const GOOGLE_TRANSLATE_KEY: &str = "GOOGLE_TRANSLATE_KEY";
     pub const ELEVENLABS_KEY: &str = "ELEVENLABS_KEY";
 
-    // Multistream OAuth istemci kimlikleri (Faz 1.6). Client secret koda gömülmez.
-    pub const RESTREAM_CLIENT_ID: &str = "RESTREAM_CLIENT_ID";
-    pub const RESTREAM_CLIENT_SECRET: &str = "RESTREAM_CLIENT_SECRET";
-    pub const CASTR_CLIENT_ID: &str = "CASTR_CLIENT_ID";
-    pub const CASTR_CLIENT_SECRET: &str = "CASTR_CLIENT_SECRET";
+    // Multistream OAuth istemci kimlikleri (Faz 1.6, opsiyonel Streamlabs bağlantısı).
+    // Client secret koda gömülmez.
     pub const STREAMLABS_CLIENT_ID: &str = "STREAMLABS_CLIENT_ID";
     pub const STREAMLABS_CLIENT_SECRET: &str = "STREAMLABS_CLIENT_SECRET";
+
+    // YouTube Native CC (Faz 1.10) — OAuth istemci kimlikleri.
+    pub const YOUTUBE_CLIENT_ID: &str = "YOUTUBE_CLIENT_ID";
+    pub const YOUTUBE_CLIENT_SECRET: &str = "YOUTUBE_CLIENT_SECRET";
+
+    // Stripe (Faz 1.11). Secret key sunucu-taraflı API çağrıları için;
+    // webhook secret imza doğrulaması için. Koda asla gömülmez.
+    pub const STRIPE_SECRET_KEY: &str = "STRIPE_SECRET_KEY";
+    pub const STRIPE_WEBHOOK_SECRET: &str = "STRIPE_WEBHOOK_SECRET";
 }
 
 /// Secret erişim hataları.

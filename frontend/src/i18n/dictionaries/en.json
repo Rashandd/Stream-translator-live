@@ -563,14 +563,15 @@
       "subtitle": "How broadcasters distribute, and which methods each plan unlocks.",
       "methodsTitle": "Method usage",
       "methods": [
-        { "name": "Restream", "count": "0", "status": "enabled" },
-        { "name": "Castr", "count": "0", "status": "enabled" },
+        { "name": "SDK relay", "count": "0", "status": "enabled" },
+        { "name": "Streamlabs", "count": "0", "status": "enabled" },
         { "name": "Cloud multistream", "count": "0", "status": "waitlist" }
       ],
       "matrixTitle": "Plan access",
       "matrixColumns": ["Method", "Free", "Pro"],
       "matrix": [
-        { "method": "Your service (Restream / Castr)", "free": true, "pro": true },
+        { "method": "SDK relay", "free": true, "pro": true },
+        { "method": "Your service (Streamlabs)", "free": true, "pro": true },
         { "method": "Cloud multistream", "free": false, "pro": true }
       ]
     },

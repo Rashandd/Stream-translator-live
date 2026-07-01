@@ -1,21 +1,17 @@
 # StreamDubber — Agent Kuralları (Faz 1 MVP)
 
-## BAŞLARKEN — İlk Komut (Başka Hiçbir Şey Yapmadan Önce)
+## BAŞLARKEN — Regression Testleri uygula hangi alanda calsimaya basliyacakisen
 
-```bash
-bash scripts/session-start.sh
-```
 
-## BİTERKEN — Son Komut (Çalışmayı Bitirmeden Önce)
 
-```bash
-bash scripts/session-end.sh
-```
+## BİTERKEN — Regression ve yeni Testleri Uygulamayi unutma
+
+
 
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
 Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
-Faz 1 hedefi: Deepgram + DeepL + Restream/Castr entegrasyonuyla ücretsiz altyazı.
+Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı.
 
 ## Stack
 - Backend: Rust + Axum + Tokio (WebSocket ses pipeline)

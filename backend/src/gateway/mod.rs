@@ -4,8 +4,10 @@
 //! `translate.provider`). Hata olursa `*.fallback` devreye girer. Hedef diller
 //! paralel çevrilir (Tokio task'ları).
 
+pub mod assemblyai;
 pub mod deepgram;
 pub mod deepl;
+pub mod google_translate;
 pub mod stt;
 pub mod translate;
 

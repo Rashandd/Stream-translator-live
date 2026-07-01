@@ -4,28 +4,23 @@
 Codex
 
 ## Neredeyim?
-Dashboard distribution dili OBS hub ve Strovak managed routing olarak genisletildi.
+Proje durumu yeniden okundu: AGENTS, roadmap, session notlari, Faz 1 referans dokumanlari ve ana backend/frontend/sdk dosyalari incelendi. Repo artik blueprint degil; backend/frontend/sdk/infra iskeleti ve bircok Faz 1 parcasi mevcut, ancak calisma agacinda genis commit edilmemis degisiklikler var.
 
 ## Degistirdigim Alanlar
-- `frontend/src/i18n/dictionaries/en.json`
-- `frontend/src/i18n/dictionaries/marketing.test.ts`
-- `frontend/app/[locale]/dashboard/distribution/page.tsx`
-- `frontend/app/[locale]/dashboard/go-live/page.tsx`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
-- Restream/Castr/Streamlabs ayri caption veya multi-dub modu degil; OBS'den cikan yayini tasiyan harici servisler olarak kalmali.
-- Distribution kartlari: `Control outputs from OBS` ve `Let Strovak handle routing`.
-- OBS modu sadece caption overlay gibi anlatilmiyor; captions now + enabled language/dub outputs icin buyuyebilecek ana yayin hub'i olarak konumlandi.
-- Strovak routing modu upload workaround degil; destinations, language outputs, captions ve delivery'nin managed edilmesi olarak anlatiliyor.
-- Distribution sayfasindaki connected services bolumu kaldirildi.
-- Go-live sayfasinda platform hedef secimi yalnizca Strovak routing/cloud modunda gosteriliyor.
-- `marketing.test.ts` distribution modlarinda Restream/Castr/Streamlabs'in geri gelmemesini ve cloud routing'in upload bahanesi gibi anlatilmamasini kontrol ediyor.
+- Faz 1 urun ekseni: video lokal kalir; buluta yalniz ses gider. Transit guvenlik TLS 1.3 + mTLS; ses akisina ek AES yok. AES-256 sadece at-rest/lokal secret kullanimi icin.
+- Backend: Axum router, JWT auth, WS ses pipeline, config-driven gateway, Vault/env SecretStore, billing, integrations ve overlay hub ayni `AppState` altinda.
+- SDK: platform-independent core, VAD/gate/preprocess/cloud client mevcut; gercek WASAPI cihaz binding'i ve mTLS client connector henuz tam degil. `mux.rs` Faz 1'de gercek video relay degil, output plan modeli.
+- Frontend: dashboard/admin sayfalari agirlikla dictionary/config-driven statik UI; canli backend aksiyonlari ve persist katmani parca parca takip isleri olarak duruyor.
+- Roadmap'te acik agirlik: 1.6 RTMP relay/Streamlabs persist+test, 1.7 Deepgram streaming WS, 1.9 overlay render, 1.10 YouTube CC, 1.11 free/starter/pro/usage persist.
 
 ## Sonraki Adim
-Frontend sonraki adim: roadmap/admin metinlerinde Restream/Castr entegrasyon beklentisini bu yeni urun karariyla uyumlu hale getirmek.
+Ilk teknik duzeltme: workspace `cargo test` kiran `sdk/tests/cloud_e2e.rs` dosyasindaki eski `AppState` initializer'ini yeni `integrations`, `billing`, `overlay` alanlariyla guncelle. Ardindan `cargo test`, `cargo clippy`, frontend icin `npm run test`/`npm run lint` baseline'ini tekrar al.
 
 ## Blokerlar / Dikkat
-- `npm run test` ve `npm run lint` frontend icin gecti.
-- `scripts/session-start.sh` backend testlerinde gateway/Vault local socket bind izni nedeniyle sandbox kaynakli basarisizlik gosterdi.
-- Calisma agacinda bu turdan once de backend, dashboard ve roadmap dosyalarinda commit edilmemis degisiklikler vardi; bunlara dokunulmadi.
+- `scripts/session-start.sh` sandbox icinde backend testlerinde localhost/mock server bind izni nedeniyle cok sayida `Operation not permitted` verdi; sandbox disi `cargo test` daha gercek hatayi gosterdi.
+- Sandbox disi `cargo test` su an derlemede kaliyor: `sdk/src-tauri/../tests/cloud_e2e.rs:31` `AppState` initializer'inda `billing`, `integrations`, `overlay` eksik.
+- `docs/SESSION.md` ana koordinasyon dosyasi hala "blueprint" diyor; guncel gercekle uyumsuz. Kullanici acikca isterse kisa koordinasyon ozeti olarak yenilenmeli.
+- Calisma agacinda bu turdan once genis commit edilmemis degisiklikler vardi; kod tarafina dokunulmadi.

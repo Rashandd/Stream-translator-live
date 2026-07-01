@@ -2,14 +2,16 @@
 //!
 //! Akış (bkz. `docs/websocket-protocol.md` "Backend İçi Akış"):
 //! ```text
-//! binary frame → STT (gateway) → çeviri (paralel) → subtitle mesajı
+//! binary frame → kullanım limiti kontrolü → STT (gateway) → çeviri (paralel) → subtitle mesajı
 //! ```
 //! VAD lokalde olduğundan backend sessiz frame almaz; gelen her frame işlenir.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::gateway::Gateway;
-use crate::ws::protocol::{ServerMessage, SubtitleSource};
+use crate::usage::UsageTracker;
+use crate::ws::protocol::{ErrorCode, ServerMessage, SubtitleSource};
 
 /// Aktif bir stream session'ının durumu.
 pub struct StreamSession {
@@ -18,15 +20,29 @@ pub struct StreamSession {
     target_langs: Vec<String>,
     sequence: u64,
     gateway: Arc<Gateway>,
+    /// Overlay hub'ında bu session'ın altyazılarının yayınlandığı token
+    /// (bkz. `overlay` modülü, `ws::protocol::ServerMessage::StreamAck`).
+    overlay_token: String,
+    user_id: String,
+    /// Planın aylık saat limiti (`-1` = sınırsız). Bkz. `plans::PlanDefinition`.
+    monthly_hours: i64,
+    usage: Arc<UsageTracker>,
+    /// Kullanım süresini duvar saatiyle ölçmek için son tick zamanı.
+    last_tick: Instant,
 }
 
 impl StreamSession {
     /// `stream_start` üzerine yeni bir session kurar.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         session_id: impl Into<String>,
         source_lang: impl Into<String>,
         target_langs: Vec<String>,
         gateway: Arc<Gateway>,
+        overlay_token: impl Into<String>,
+        user_id: impl Into<String>,
+        monthly_hours: i64,
+        usage: Arc<UsageTracker>,
     ) -> Self {
         StreamSession {
             session_id: session_id.into(),
@@ -34,13 +50,36 @@ impl StreamSession {
             target_langs,
             sequence: 0,
             gateway,
+            overlay_token: overlay_token.into(),
+            user_id: user_id.into(),
+            monthly_hours,
+            usage,
+            last_tick: Instant::now(),
         }
     }
 
-    /// Bir ses parçasını işler ve (varsa) bir `subtitle` mesajı üretir.
-    ///
-    /// STT başarısızsa `None` döner (frame atlanır, akış bloklanmaz).
+    /// Bu session'ın overlay capability token'ı.
+    pub fn overlay_token(&self) -> &str {
+        &self.overlay_token
+    }
+
+    /// Bir ses parçasını işler ve bir mesaj üretir:
+    /// - plan limiti dolmuşsa `Error(PlanLimitReached)` (STT/çeviri hiç çağrılmaz),
+    /// - STT başarısızsa `None` (frame atlanır, akış bloklanmaz),
+    /// - aksi halde `Subtitle`.
     pub async fn process_audio(&mut self, audio: &[u8]) -> Option<ServerMessage> {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_tick).as_secs_f64();
+        self.last_tick = now;
+
+        let status = self.usage.record(&self.user_id, elapsed, self.monthly_hours);
+        if status.limit_reached {
+            return Some(ServerMessage::error(
+                ErrorCode::PlanLimitReached,
+                "plan_limit_reached",
+            ));
+        }
+
         let transcript = match self.gateway.transcribe(audio, &self.source_lang).await {
             Ok(t) => t,
             Err(err) => {
@@ -93,14 +132,22 @@ mod tests {
         Arc::new(gw)
     }
 
-    #[tokio::test]
-    async fn produces_subtitle_with_translations() {
-        let mut session = StreamSession::new(
+    fn session(target_langs: Vec<String>, monthly_hours: i64) -> StreamSession {
+        StreamSession::new(
             "s1",
             "tr",
-            vec!["en".to_string(), "de".to_string()],
+            target_langs,
             test_gateway(),
-        );
+            "tok-1",
+            "user-1",
+            monthly_hours,
+            Arc::new(UsageTracker::new()),
+        )
+    }
+
+    #[tokio::test]
+    async fn produces_subtitle_with_translations() {
+        let mut session = session(vec!["en".to_string(), "de".to_string()], -1);
         let msg = session.process_audio(&[1, 2, 3]).await.expect("subtitle");
         match msg {
             ServerMessage::Subtitle {
@@ -119,8 +166,7 @@ mod tests {
 
     #[tokio::test]
     async fn sequence_increments_per_subtitle() {
-        let mut session =
-            StreamSession::new("s1", "tr", vec!["en".to_string()], test_gateway());
+        let mut session = session(vec!["en".to_string()], -1);
         let first = session.process_audio(&[1]).await.expect("first");
         let second = session.process_audio(&[2]).await.expect("second");
         let seq = |m: &ServerMessage| match m {
@@ -133,9 +179,30 @@ mod tests {
 
     #[tokio::test]
     async fn empty_audio_skipped() {
-        let mut session =
-            StreamSession::new("s1", "tr", vec!["en".to_string()], test_gateway());
+        let mut session = session(vec!["en".to_string()], -1);
         // MockStt boş payload'ta hata verir → subtitle yok.
         assert!(session.process_audio(&[]).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn plan_limit_reached_short_circuits_before_stt() {
+        let usage = Arc::new(UsageTracker::new());
+        // Limiti önceden doldur: monthly_hours=0 → ilk tick'te bile limit dolu sayılır.
+        usage.record("user-1", 1.0, 0);
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            0,
+            usage,
+        );
+        let msg = session.process_audio(&[1, 2, 3]).await.expect("error message");
+        assert!(matches!(
+            msg,
+            ServerMessage::Error { code: 4003, .. }
+        ));
     }
 }

@@ -6,15 +6,18 @@ use std::sync::Arc;
 use axum::{
     extract::State,
     http::StatusCode,
-    routing::{get, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
 use tower_http::trace::TraceLayer;
 
 use crate::auth::authz::AdminUser;
+use crate::billing;
 use crate::config::ServiceConfig;
 use crate::integrations;
+use crate::overlay;
+use crate::plans::{PlanDefinition, PlanRegistry};
 use crate::state::AppState;
 use crate::ws::ws_handler;
 
@@ -60,6 +63,22 @@ async fn put_config(
     }
 }
 
+/// Plan listesini okur (public) — fiyatlandırma sayfası ve yayıncı paneli
+/// buradan okur, koda gömülü fiyat/limit olmaz.
+async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefinition>> {
+    Json(plans.snapshot())
+}
+
+/// Bir planı ekler/günceller (sadece admin). Restart gerekmez.
+async fn put_plan(
+    _admin: AdminUser,
+    State(plans): State<Arc<PlanRegistry>>,
+    Json(plan): Json<PlanDefinition>,
+) -> Json<Vec<PlanDefinition>> {
+    plans.set(plan);
+    Json(plans.snapshot())
+}
+
 /// Uygulama router'ını kurar.
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -78,6 +97,14 @@ pub fn router(state: AppState) -> Router {
             "/api/integrations/{provider}/callback",
             get(integrations::callback),
         )
+        // Stripe (1.11): yayıncı checkout başlatır, Stripe webhook'la olay bildirir.
+        .route("/api/billing/checkout", post(billing::checkout))
+        .route("/webhooks/stripe", post(billing::webhook))
+        // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
+        .route("/overlay/{token}", get(overlay::overlay_ws_handler))
+        // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.
+        .route("/api/plans", get(get_plans))
+        .route("/admin/plans", put(put_plan))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

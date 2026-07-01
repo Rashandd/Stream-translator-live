@@ -1,13 +1,14 @@
-//! Local video + audio output planning (Mod A, Phase 1).
+//! Local video + audio output planning (Mod A/A', Phase 1).
 //!
-//! IMPORTANT: in Phase 1 the SDK does NOT mux/relay video. Video stays local and
-//! is published by the broadcaster's own OBS / Restream / Castr. The SDK only:
+//! IMPORTANT: in Phase 1 the SDK does NOT mux *cloned* audio into the outgoing
+//! stream. Video stays local and is published by the broadcaster's own OBS,
+//! the SDK's own embedded RTMP relay, or (optionally) Streamlabs. The SDK only:
 //!   - sends audio to the cloud (subtitles come back),
 //!   - feeds subtitles to OBS via a browser/text source overlay.
 //!
-//! Real local muxing of *cloned audio* into the outgoing stream is Phase 2
-//! (cloned audio + SDK RTMP relay). This module captures the Phase-1 output
-//! *decision* so downstream code is explicit about where each track goes.
+//! Real local muxing of *cloned audio* into the outgoing stream is Phase 2.
+//! This module captures the Phase-1 output *decision* so downstream code is
+//! explicit about where each track goes.
 
 /// Where the audio track comes from for the outgoing stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

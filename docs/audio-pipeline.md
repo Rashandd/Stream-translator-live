@@ -6,13 +6,13 @@ Mikrofon → VAD (lokal) → gürültü temizleme (lokal)
 → TLS 1.3 → WebSocket → bulut
 → STT → Çeviri → altyazı
 → SDK'ya geri → video + altyazı birleştir (lokal)
-→ Restream/Castr (Faz 1) / SDK RTMP relay (Faz 2)
+→ SDK RTMP relay (Faz 1, birincil) / Streamlabs (Faz 1, opsiyonel)
 ```
 Ses akışı TLS 1.3 ile taşınır. Üstüne AES yok (double encryption = gereksiz CPU).
 
 ## Bant Genişliği
 - Ses buluta: ~50-128 Kbps / yayıncı
-- Video hiç buluta çıkmaz (Mod A/B)
+- Video hiç buluta çıkmaz (Mod A/A')
 - 1000 eşzamanlı = ~128 Mbps ses → standart sunucu yeterli
 
 ## VAD

@@ -24,10 +24,6 @@ use protocol::{ClientMessage, ErrorCode, ServerMessage};
 /// `auth` mesajı için bekleme süresi.
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Kullanım takibi (1.11) gelene kadar kalan süre bilinmiyor; -1 = sınırsız/bilinmiyor
-/// (`plans.monthly_hours = -1` ile aynı konvansiyon).
-const UNKNOWN_REMAINING: i64 = -1;
-
 /// `/ws/stream` route handler — bağlantıyı WebSocket'e yükseltir.
 pub async fn ws_handler(State(state): State<AppState>, ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
@@ -41,7 +37,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         None => return,
     };
 
-    let ready = session_ready(&claims);
+    let ready = session_ready(&claims, &state);
     if send(&mut socket, &ready).await.is_err() {
         return;
     }
@@ -60,14 +56,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
         match msg {
             Message::Text(text) => {
-                if let Some(reply) = handle_control(text.as_str(), &state, &mut session) {
+                if let Some(reply) = handle_control(text.as_str(), &state, &claims, &mut session) {
                     if send(&mut socket, &reply).await.is_err() {
                         break;
                     }
                 }
             }
             Message::Binary(bytes) => {
-                if send_for_audio(&mut socket, &bytes, &mut session)
+                if send_for_audio(&mut socket, &bytes, &mut session, &state.overlay)
                     .await
                     .is_err()
                 {
@@ -135,13 +131,28 @@ fn authenticate(jwt: &Jwt, text: &str) -> Result<Claims, Box<ServerMessage>> {
         .map_err(|_| Box::new(ServerMessage::error(ErrorCode::InvalidToken, "invalid_token")))
 }
 
-/// Doğrulanmış claim'lerden `session_ready` mesajı kurar.
-fn session_ready(claims: &Claims) -> ServerMessage {
+/// Bir planın aylık saat limitini saniyeye çevirir. Bilinmeyen plan adı için
+/// güvenli (kısıtlayıcı) varsayılan olarak `free` planı kullanılır; o da
+/// yoksa sınırsız (`-1`) kabul edilir — pratikte olmaz, seed her zaman `free`
+/// içerir.
+fn monthly_hours_for(state: &AppState, plan: &str) -> i64 {
+    state
+        .plans
+        .get(plan)
+        .or_else(|| state.plans.get("free"))
+        .map(|p| p.monthly_hours)
+        .unwrap_or(-1)
+}
+
+/// Doğrulanmış claim'lerden, gerçek kullanım durumuna göre `session_ready` kurar.
+fn session_ready(claims: &Claims, state: &AppState) -> ServerMessage {
+    let monthly_hours = monthly_hours_for(state, &claims.plan);
+    let status = state.usage.status(&claims.sub, monthly_hours);
     ServerMessage::SessionReady {
         session_id: claims.sub.clone(),
         user_id: claims.sub.clone(),
         plan: claims.plan.clone(),
-        remaining_seconds: UNKNOWN_REMAINING,
+        remaining_seconds: status.remaining_seconds,
     }
 }
 
@@ -149,6 +160,7 @@ fn session_ready(claims: &Claims) -> ServerMessage {
 fn handle_control(
     text: &str,
     state: &AppState,
+    claims: &Claims,
     session: &mut Option<StreamSession>,
 ) -> Option<ServerMessage> {
     let msg: ClientMessage = match serde_json::from_str(text) {
@@ -176,15 +188,22 @@ fn handle_control(
                     "unsupported_codec",
                 ));
             }
+            let overlay_token = uuid::Uuid::new_v4().simple().to_string();
+            let monthly_hours = monthly_hours_for(state, &claims.plan);
             *session = Some(StreamSession::new(
                 session_id.clone(),
                 source_lang,
                 target_langs,
                 Arc::clone(&state.gateway),
+                overlay_token.clone(),
+                claims.sub.clone(),
+                monthly_hours,
+                Arc::clone(&state.usage),
             ));
             Some(ServerMessage::StreamAck {
                 session_id,
                 status: "streaming".to_string(),
+                overlay_token,
             })
         }
         ClientMessage::StreamStop { .. } => {
@@ -195,11 +214,13 @@ fn handle_control(
     }
 }
 
-/// Binary ses frame'ini parse edip pipeline'a besler; üretilen subtitle'ı yollar.
+/// Binary ses frame'ini parse edip pipeline'a besler; üretilen subtitle'ı hem
+/// SDK'ya yollar hem de overlay hub'ında session'ın token'ına yayınlar.
 async fn send_for_audio(
     socket: &mut WebSocket,
     bytes: &[u8],
     session: &mut Option<StreamSession>,
+    overlay: &crate::overlay::OverlayHub,
 ) -> Result<(), axum::Error> {
     let Some(active) = session.as_mut() else {
         // `stream_start` gelmeden ses paketi: 4002.
@@ -222,8 +243,18 @@ async fn send_for_audio(
         }
     };
 
-    if let Some(subtitle) = active.process_audio(frame.payload).await {
-        return send(socket, &subtitle).await;
+    if let Some(reply) = active.process_audio(frame.payload).await {
+        overlay.publish(active.overlay_token(), reply.clone());
+        let limit_reached = matches!(
+            reply,
+            ServerMessage::Error { code, .. } if code == ErrorCode::PlanLimitReached as u16
+        );
+        send(socket, &reply).await?;
+        if limit_reached {
+            // Plan limiti dolan session'ı kapat — sonraki ses paketleri
+            // "stream_not_started" (4002) alır, yayıncı yeniden başlatmalı.
+            *session = None;
+        }
     }
     Ok(())
 }
@@ -269,6 +300,10 @@ mod tests {
             gateway: Arc::new(gw),
             service_config: config,
             integrations: Arc::new(crate::integrations::Integrations::empty()),
+            billing: Arc::new(crate::billing::Billing::empty()),
+            overlay: Arc::new(crate::overlay::OverlayHub::new()),
+            plans: Arc::new(crate::plans::PlanRegistry::with_defaults()),
+            usage: Arc::new(crate::usage::UsageTracker::new()),
         }
     }
 
@@ -300,7 +335,7 @@ mod tests {
         let st = state();
         let mut session = None;
         let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
-        let reply = handle_control(json, &st, &mut session);
+        let reply = handle_control(json, &st, &claims(), &mut session);
         assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
         assert!(session.is_some());
     }
@@ -310,7 +345,7 @@ mod tests {
         let st = state();
         let mut session = None;
         let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"mp3","sample_rate":16000,"channels":1}}"#;
-        let reply = handle_control(json, &st, &mut session);
+        let reply = handle_control(json, &st, &claims(), &mut session);
         assert!(matches!(reply, Some(ServerMessage::Error { code: 4004, .. })));
         assert!(session.is_none());
     }
@@ -319,7 +354,7 @@ mod tests {
     fn ping_yields_pong_after_auth() {
         let st = state();
         let mut session = None;
-        let reply = handle_control(r#"{"type":"ping","ts":42}"#, &st, &mut session);
+        let reply = handle_control(r#"{"type":"ping","ts":42}"#, &st, &claims(), &mut session);
         assert_eq!(reply, Some(ServerMessage::Pong { ts: 42 }));
     }
 
@@ -328,9 +363,9 @@ mod tests {
         let st = state();
         let mut session = None;
         let start = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
-        handle_control(start, &st, &mut session);
+        handle_control(start, &st, &claims(), &mut session);
         assert!(session.is_some());
-        handle_control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &mut session);
+        handle_control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &claims(), &mut session);
         assert!(session.is_none());
     }
 }

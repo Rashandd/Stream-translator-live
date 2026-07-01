@@ -61,6 +61,9 @@ pub enum ServerMessage {
     StreamAck {
         session_id: String,
         status: String,
+        /// Tahmin edilemez overlay capability token'ı — OBS Browser Source
+        /// URL'sinde kullanılır (bkz. `overlay` modülü). JWT gerektirmez.
+        overlay_token: String,
     },
     Subtitle {
         session_id: String,

@@ -100,6 +100,9 @@ VAD lokalde çalıştığından backend sessiz frame almaz — gelen her binary 
   "remaining_seconds": 18000
 }
 ```
+`remaining_seconds`, `plans::PlanRegistry`'deki `monthly_hours` ve
+`usage::UsageTracker`'daki bu ayki kullanım üzerinden hesaplanır (bkz. Faz
+1.11); `-1` sınırsız plan demektir.
 
 ---
 
@@ -108,9 +111,14 @@ VAD lokalde çalıştığından backend sessiz frame almaz — gelen her binary 
 {
   "type": "stream_ack",
   "session_id": "<sdk_session_id>",
-  "status": "streaming"
+  "status": "streaming",
+  "overlay_token": "<opaque_token>"
 }
 ```
+`overlay_token` — OBS Browser Source / dashboard canlı önizlemenin bağlandığı
+`GET /overlay/{token}` WebSocket'i için capability token'ı (bkz. Faz 1.9,
+`backend/src/overlay`). Auth gerektirmez; token'ın kendisi yetkidir — stream
+key'le aynı güven modeli.
 
 ---
 
@@ -158,7 +166,11 @@ VAD lokalde çalıştığından backend sessiz frame almaz — gelen her binary 
   "remaining_seconds": 14400
 }
 ```
-Her 5 dakikada bir veya `stream_stop` sonrasında gönderilir.
+Her 5 dakikada bir veya `stream_stop` sonrasında gönderilir. **KALAN:** Şu an
+bu mesaj gönderilmiyor — kullanım her ses frame'inde arka planda takip
+ediliyor ve `session_ready`'e yansıyor, ama limite ulaşılana kadar periyodik
+bir bildirim yok. Limite ulaşınca doğrudan `error` (4003) gönderilip session
+kapatılıyor (bkz. `pipeline::StreamSession::process_audio`).
 
 ---
 

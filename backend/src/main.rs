@@ -8,15 +8,19 @@ use axum::Router;
 use streamdubber_backend::{
     app,
     auth::jwt::Jwt,
+    billing::Billing,
     config::{Config, ServiceConfig},
     db,
     gateway::{
-        deepgram::DeepgramStt, deepl::DeeplTranslate, stt::MockStt, translate::MockTranslate,
-        Gateway,
+        assemblyai::AssemblyAiStt, deepgram::DeepgramStt, deepl::DeeplTranslate,
+        google_translate::GoogleTranslate, stt::MockStt, translate::MockTranslate, Gateway,
     },
     integrations::Integrations,
+    overlay::OverlayHub,
+    plans::PlanRegistry,
     secrets::{names, EnvSecretStore, SecretStore, VaultSecretStore},
     state::AppState,
+    usage::UsageTracker,
     tls::{self, TlsSettings},
 };
 use tokio::net::TcpListener;
@@ -106,8 +110,17 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
             gateway.register_stt(Arc::new(MockStt::new("deepgram")));
         }
     }
-    // AssemblyAI fallback henüz mock (Faz 1.7 devamı).
-    gateway.register_stt(Arc::new(MockStt::new("assemblyai")));
+    // STT fallback: ASSEMBLYAI_KEY varsa gerçek AssemblyAI, yoksa mock.
+    match secrets.get(names::ASSEMBLYAI_KEY).await {
+        Ok(key) => {
+            tracing::info!("stt fallback: AssemblyAI registered");
+            gateway.register_stt(Arc::new(AssemblyAiStt::new(key)));
+        }
+        Err(_) => {
+            tracing::warn!("stt fallback: ASSEMBLYAI_KEY not set — using mock provider");
+            gateway.register_stt(Arc::new(MockStt::new("assemblyai")));
+        }
+    }
 
     // Çeviri: DEEPL_KEY varsa gerçek DeepL, yoksa mock.
     match secrets.get(names::DEEPL_KEY).await {
@@ -120,17 +133,34 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
             gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
         }
     }
-    // Google fallback henüz mock (Faz 1.8 devamı).
-    gateway.register_translate(Arc::new(MockTranslate::new("google")));
+    // Çeviri fallback: GOOGLE_TRANSLATE_KEY varsa gerçek Google, yoksa mock.
+    match secrets.get(names::GOOGLE_TRANSLATE_KEY).await {
+        Ok(key) => {
+            tracing::info!("translate fallback: Google registered");
+            gateway.register_translate(Arc::new(GoogleTranslate::new(key)));
+        }
+        Err(_) => {
+            tracing::warn!("translate fallback: GOOGLE_TRANSLATE_KEY not set — using mock provider");
+            gateway.register_translate(Arc::new(MockTranslate::new("google")));
+        }
+    }
 
     // Multistream OAuth (1.6): sağlayıcı client id/secret'ları secret'lardan çözülür.
     let integrations = Arc::new(Integrations::from_secrets(secrets).await);
+
+    // Stripe (1.11): STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET yoksa checkout/webhook
+    // "yapılandırılmamış" (503) döner; DEEPGRAM_KEY/DEEPL_KEY ile aynı desen.
+    let billing = Arc::new(Billing::from_secrets(secrets).await);
 
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
         service_config,
         integrations,
+        billing,
+        overlay: Arc::new(OverlayHub::new()),
+        plans: Arc::new(PlanRegistry::with_defaults()),
+        usage: Arc::new(UsageTracker::new()),
     })
 }
 

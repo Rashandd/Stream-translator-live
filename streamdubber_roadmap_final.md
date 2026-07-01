@@ -10,7 +10,7 @@
 **Hedef platformlar:** YouTube, Twitch, Kick  
 **Müşteri:** Yayıncı (kullanıcı değil) — yayıncı öder, izleyici bedava kullanır  
 **Büyüme stratejisi:** Önce ücretsiz/ucuz girişle kitle çek → sonra tam pakete geçir  
-**Bağımlılık stratejisi:** Restream entegrasyonuyla başla → aşamalı olarak kendi altyapına taşı
+**Bağımlılık stratejisi:** Baştan kendi SDK multistream altyapınla ilerle → yayıncı isterse Streamlabs gibi mevcut bir servisi de bağlayabilir
 
 ---
 
@@ -18,7 +18,7 @@
 
 ```
 AŞAMA 1 — Kitle Çek
-  Restream + diğer popüler platformlara entegrasyon
+  Kendi SDK multistream'i (gömülü RTMP relay) ile çıkış
   Ücretsiz plan (altyazı, 1 dil, 5 saat/ay)
   Kurulum 60 saniye, OBS'e URL yapıştır bitti
   → Yayıncılar StreamTranslate yerine StreamDubber'ı dener
@@ -29,8 +29,8 @@ AŞAMA 2 — Bağla
   → Rakipte olmayan özellikler devreye girer, geçiş maliyeti artar
 
 AŞAMA 3 — Tek Paket
-  Kendi RTMP sunucusu devreye girer
-  Restream, Castr vb. artık opsiyonel
+  Bulut multistream (premium, zayıf internet için) devreye girer
+  Streamlabs gibi harici servisler hâlâ opsiyonel bağlanabilir
   "Tek abonelik, her şey dahil" mesajı
   → Yayıncı başka servise ihtiyaç duymaz
 ```
@@ -49,35 +49,33 @@ AŞAMA 3 — Tek Paket
 
 ### Multistream Dağıtım Seçenekleri
 
-Yayıncı zaten bir multistream servisi kullanıyor olabilir veya hiç kullanmıyordur. StreamDubber ikisini de destekler. Asıl fark: video yayıncının kendi internetinden dağıtılır, senin Gbit sunucuna gerek kalmaz.
+StreamDubber kendi SDK relay'iyle multistream sunar; yayıncı isterse ayrıca Streamlabs gibi mevcut bir servisi de bağlayabilir. Asıl fark: video yayıncının kendi internetinden dağıtılır, senin Gbit sunucuna gerek kalmaz.
 
 | Yöntem | Nasıl çalışır | Öncelik | Senin maliyetin |
 |---|---|---|---|
-| **SDK gömülü RTMP relay** | Yayıncının kendi interneti N platforma gönderir | Faz 2 — birincil | Sıfır (video buluta çıkmaz) |
-| **Restream** | Yayıncı kendi Restream hesabını bağlar (OAuth) | Faz 1 — başlangıç | Sıfır (yayıncının aboneliği) |
-| **Castr** | Yayıncı kendi Castr hesabını bağlar | Faz 1 — alternatif | Sıfır |
-| **Streamlabs** | OAuth bağlantı | Faz 1 — entegrasyon | Sıfır |
+| **SDK gömülü RTMP relay** | Yayıncının kendi interneti N platforma gönderir | Faz 1 — birincil | Sıfır (video buluta çıkmaz) |
+| **Streamlabs** | Yayıncı kendi Streamlabs hesabını bağlar (OAuth), isteğe bağlı | Faz 1 — opsiyonel | Sıfır (yayıncının aboneliği) |
 | **Bulut multistream** | Video buluta çıkar, bulut dağıtır | Premium — opsiyonel | Gbit sunucu (~$65/ay) |
 
-> SDK'nın kendi RTMP relay'i Faz 2'de gelir; Faz 1'de yayıncı mevcut servisini (Restream/Castr) bağlayarak başlar. Bulut multistream sadece interneti zayıf yayıncılar için premium opsiyon.
+> SDK'nın kendi RTMP relay'i Faz 1'de gelir ve asıl dağıtım yöntemidir. Streamlabs bağlantısı, zaten o servisi kullanan yayıncılar için opsiyonel bir alternatiftir. Bulut multistream sadece interneti zayıf yayıncılar için premium opsiyon.
 
 ### Entegrasyon Mantığı — İki Çalışma Modu
 
 StreamDubber'ın işleme katmanı (STT + çeviri + ses klonlama) her zaman aradadır. Fark, çıktının nasıl dağıtıldığında:
 
-**Mod A — Mevcut Servis Pass-Through (Faz 1)**
-```
-Yayıncı PC (SDK) → AES-256 → bulut işleme (sadece ses) → klonlanmış ses + altyazı → SDK
-SDK → video + ses birleştir → yayıncının Restream/Castr hesabı → platformlar
-```
-Yayıncı kendi multistream servisini kullanır. Video hiç buluta çıkmaz; sadece ses gidip gelir.
-
-**Mod B — SDK Yerel Multistream (Faz 2-3)**
+**Mod A — SDK Yerel Multistream (Faz 1, birincil)**
 ```
 Yayıncı PC (SDK) → AES-256 → bulut işleme (sadece ses) → klonlanmış ses + altyazı → SDK
 SDK içinde gömülü RTMP relay → yayıncının kendi internetinden → N platforma dağıtım
 ```
 SDK'nın içinde bir RTMP relay var. Yayıncının kendi interneti N platforma gönderir. **Senin Gbit sunucuya ihtiyacın kalmaz** — video hiç buluta uğramaz.
+
+**Mod A' — Mevcut Servis Pass-Through (Faz 1, opsiyonel — Streamlabs)**
+```
+Yayıncı PC (SDK) → AES-256 → bulut işleme (sadece ses) → klonlanmış ses + altyazı → SDK
+SDK → video + ses birleştir → yayıncının Streamlabs hesabı → platformlar
+```
+Yayıncı zaten Streamlabs kullanıyorsa hesabını bağlayabilir. Video hiç buluta çıkmaz; sadece ses gidip gelir.
 
 **Mod C — Bulut Multistream (opsiyonel, premium)**
 ```
@@ -91,10 +89,10 @@ Yayıncının interneti zayıfsa veya ikili yayın için upload yetmiyorsa bulut
 |---|---|---|
 | Ses yakalama, VAD, ön-işleme | Yayıncı PC (SDK) | — |
 | STT, çeviri, ses klonlama | Bulut (GPU) | ses: ~50–128 Kbps |
-| Video + ses birleştirme | Yayıncı PC (Mod A/B) | lokal |
-| Multistream dağıtım | Yayıncı interneti (Mod A/B) | video: 6 Mbps/platform |
+| Video + ses birleştirme | Yayıncı PC (Mod A/A') | lokal |
+| Multistream dağıtım | Yayıncı interneti (Mod A/A') | video: 6 Mbps/platform |
 
-**Kritik avantaj:** Mod A ve B'de video hiç buluta çıkmaz. Sadece ses (çok küçük) gidip gelir. Bu yüzden Gbit RTMP sunucusu gerekmez; sadece GPU sunucu (ses klonlama için) yeterli.
+**Kritik avantaj:** Mod A ve A''de video hiç buluta çıkmaz. Sadece ses (çok küçük) gidip gelir. Bu yüzden Gbit RTMP sunucusu gerekmez; sadece GPU sunucu (ses klonlama için) yeterli.
 
 ### Yayıncıya Sunum — Dashboard Akışı
 
@@ -103,11 +101,11 @@ Yayıncı "Yayın Kurulumu" sayfasında şu seçeneği görür:
 ```
 Dağıtım yöntemini seç:
 
-  ○ Mevcut servisimi kullan (Restream / Castr / Streamlabs)
-      → Hesabını bağla, StreamDubber sadece çeviri/ses ekler
+  ○ Doğrudan platformlara gönder (StreamDubber RTMP relay — önerilen)
+      → Ekstra servise gerek yok, kendi internetinden biz dağıtırız
 
-  ○ Doğrudan platformlara gönder (StreamDubber RTMP)   [Faz 3]
-      → Ekstra servise gerek yok, biz dağıtırız
+  ○ Mevcut servisimi kullan (Streamlabs)
+      → Hesabını bağla, StreamDubber sadece çeviri/ses ekler
 
   ○ Sadece OBS stream key ver
       → Manuel kurulum, ileri düzey kullanıcı
@@ -125,7 +123,7 @@ Dağıtım yöntemini seç:
 ║    ├── VAD (konuşma var mı) — hafif, lokal                   ║
 ║    ├── Ses ön-işleme (gürültü temizleme) — hafif, lokal      ║
 ║    ├── Video + ses birleştirme — lokal                       ║
-║    ├── Gömülü RTMP relay (Mod B) — lokal multistream         ║
+║    ├── Gömülü RTMP relay (Mod A) — lokal multistream         ║
 ║    ├── OBS / stream key yönetimi — lokal                     ║
 ║    └── AES-256: sadece SES'i buluta gönderir                 ║
 ║                                                              ║
@@ -144,8 +142,8 @@ Dağıtım yöntemini seç:
 ╚════════════════════════════════════════════════╝      │
                                                          │
         ┌──────────── DAĞITIM (yayıncı interneti) ───────┘
-        │  Mod A: Yayıncının Restream/Castr hesabı
-        │  Mod B: SDK gömülü RTMP relay (kendi internet)
+        │  Mod A: SDK gömülü RTMP relay (kendi internet, birincil)
+        │  Mod A': Yayıncının Streamlabs hesabı (opsiyonel)
         │  Mod C: Bulut multistream (premium, opsiyonel)
         └────────────────┬───────────────┘
                         ▼
@@ -155,10 +153,10 @@ Dağıtım yöntemini seç:
 ```
 
 **İşlem dağılımı (hibrit, temelde çok platformlu):**
-- **Lokalde (yayıncı PC):** ses yakalama, VAD, gürültü temizleme, video+ses birleştirme, RTMP relay (Mod B), OBS yönetimi
+- **Lokalde (yayıncı PC):** ses yakalama, VAD, gürültü temizleme, video+ses birleştirme, RTMP relay (Mod A), OBS yönetimi
 - **Bulutta:** sadece STT, çeviri, ses klonlama — ağır AI işleri, GPU gerektirir
 - **Web panel:** tüm kontrol — SDK'ya komut gönderir
-- **Video hiç buluta çıkmaz** (Mod A/B) → Gbit sunucu gerekmez, sadece GPU sunucu yeterli
+- **Video hiç buluta çıkmaz** (Mod A/A') → Gbit sunucu gerekmez, sadece GPU sunucu yeterli
 
 ---
 
@@ -227,8 +225,8 @@ Asıl strateji: dağıtım yayıncının kendi internetinden (SDK relay) yapıl�
 
 | Seçenek | Nerede çalışır | Senin maliyetin | Faz |
 |---|---|---|---|
-| **SDK gömülü RTMP relay** | Yayıncı PC (kendi internet) | Sıfır | Faz 2 — birincil |
-| **Restream / Castr (yayıncının)** | Yayıncının kendi aboneliği | Sıfır | Faz 1 başlangıç |
+| **SDK gömülü RTMP relay** | Yayıncı PC (kendi internet) | Sıfır | Faz 1 — birincil |
+| **Streamlabs (yayıncının)** | Yayıncının kendi aboneliği | Sıfır | Faz 1 — opsiyonel |
 | **Bulut multistream (MediaMTX)** | Senin Gbit sunucun | ~$65/ay (Hetzner 1Gbps) | Premium opsiyon |
 | **SRS / Nginx-RTMP** | Senin sunucun (alternatif) | ~$40/ay | Bulut modu yedeği |
 
@@ -369,8 +367,8 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 #### Yayın Kurulumu — Dağıtım Yöntemi
 - [ ] Dağıtım yöntemi seçimi (web panelden, SDK uygular)
-- [ ] **SDK relay (önerilen):** Kendi internetinden dağıt, ekstra servis yok (Faz 2)
-- [ ] **Mevcut servis:** Restream / Castr / Streamlabs OAuth bağlama (Faz 1)
+- [ ] **SDK relay (önerilen):** Kendi internetinden dağıt, ekstra servis yok (Faz 1)
+- [ ] **Mevcut servis:** Streamlabs OAuth bağlama (Faz 1, opsiyonel)
 - [ ] **Bulut multistream:** İnternetin zayıfsa biz dağıtırız (premium, opsiyonel)
 - [ ] Bağlı her servis/platform için durum göstergesi
 - [ ] Plana göre hangi yöntemlerin açık olduğu
@@ -442,9 +440,9 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [ ] Değişiklik geçmişi
 
 #### Multistream Dağıtım Yönetimi
-- [ ] Dağıtım yöntemi dağılımı (SDK relay / Restream / Castr / bulut)
+- [ ] Dağıtım yöntemi dağılımı (SDK relay / Streamlabs / bulut)
 - [ ] SDK relay kullanan yayıncı sayısı ve durumu
-- [ ] Yayıncının bağladığı dış servisler (Restream/Castr) durumu
+- [ ] Yayıncının bağladığı dış servis (Streamlabs) durumu
 - [ ] Bulut multistream (MediaMTX) yük dengeleme — sadece premium kullanıcılar
 - [ ] Hangi planda hangi dağıtım yönteminin açık olduğu
 - [ ] Bulut multistream maliyet takibi (sadece premium video taşıyanlar)
@@ -488,11 +486,11 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 ---
 
-## Faz 1 — MVP: Restream Entegrasyonlu Altyazı
+## Faz 1 — MVP: Kendi Multistream'i ile Altyazı
 
 **Hedef:** Ücretsiz plan ile kitle çek, rakipten daha iyi altyazı sun  
 **Mesaj:** "StreamTranslate'ten daha iyi, üstelik ücretsiz başlayabilirsin"  
-**Stack:** Deepgram + DeepL + Restream/Castr API
+**Stack:** Deepgram + DeepL + SDK gömülü RTMP relay (+ opsiyonel Streamlabs)
 
 ### Görevler
 
@@ -532,7 +530,7 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Yayıncı giriş (2FA — email)  <!-- login + 2FA verify UI akışı; mail gönderimi stub (noreply SMTP/API admin panelden ayarlanacak, şimdilik boş) -->
 - [x] Ana sayfa (durum, hızlı başlat)  <!-- overview: metrics, izleyici dil dağılımı, stream key kopyala, hızlı başlat -->
 - [x] SDK indirme ve eşleşme sayfası  <!-- /dashboard/sdk: Windows indir + 6 haneli pairing kod UI -->
-- [x] Yayın kurulumu — dağıtım modu seçimi (Mod A/C)  <!-- /dashboard/distribution: SDK relay/Restream-Castr-Streamlabs/bulut + servis bağlama UI -->
+- [x] Yayın kurulumu — dağıtım modu seçimi (Mod A/C)  <!-- /dashboard/distribution: "OBS'ten yönet" (SDK relay) / "Strovak yönlendirsin" (bulut) kartları; Restream/Castr/Streamlabs ayrı mod olarak gösterilmiyor -->
 - [x] Dil seçimi ve overlay URL  <!-- /dashboard/captions: konuşma dili, hedef diller, görünüm, overlay URL, canlı önizleme -->
 - [x] Platform hesapları (YouTube, Twitch, Kick OAuth)  <!-- /dashboard/platforms: connect/disconnect akışı, OAuth izin/scope notu, bağlı/bağsız durum UI; gerçek OAuth token exchange backend beklemede -->
 - [x] Stream key yönetimi (SDK'ya senkronize)  <!-- /dashboard/sdk: stream key görüntüle/kopyala/regenerate + SDK sync durum göstergesi UI; gerçek senkron backend beklemede -->
@@ -552,42 +550,44 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 <!-- Çekirdek: /admin/routing CLAUDE.md "hiçbir şey hard-coded değil" kuralının UI'ı (provider seçimi DB'de saklanacak) -->
 <!-- Ek (1.5 checklist dışı, Bölüm B specinden): /admin/multistream UI — yöntem kullanımı + plan erişim matrisi; backend 1.6'da bağlanacak -->
 
-#### 1.6 Multistream — Yayıncının Mevcut Servisi (Mod A)
-- [ ] Restream OAuth + API entegrasyonu  <!-- OAuth authorize→callback→token-exchange akış iskeleti hazır+test (integrations::oauth, mock token server). KALAN: token'ı crypto::Cipher ile şifreleyip platform_accounts'a persist + Restream API çağrıları (kanal listeleme/relay) + canlı key ile test -->
-- [ ] Castr OAuth + API entegrasyonu  <!-- akış aynı registry'de; KALAN: Castr OAuth uç noktaları DOĞRULANMALI (default'lar placeholder) + persist + API + canlı test -->
-- [ ] Streamlabs OAuth entegrasyonu  <!-- authorize/token uç noktaları + scope tanımlı; KALAN: persist + Streamlabs API + canlı test -->
-- [ ] Dağıtım yöntemi seçim arayüzü (web panelden)  <!-- /dashboard/distribution UI 1.4'te var; KALAN: authorize URL'lerini (GET /api/integrations, /authorize) UI'a bağlama -->
+#### 1.6 Multistream — Kendi SDK Relay'i (Mod A) + Opsiyonel Streamlabs
+- [ ] SDK içine RTMP relay motoru (Rust)  <!-- Faz 2.3'ten taşındı: yayıncı hesap bağlamadan doğrudan platformlara dağıtım -->
+- [ ] Yayıncının kendi internetinden N platforma forward  <!-- Faz 2.3'ten taşındı -->
+- [ ] Yayıncı dashboard'unda Mod A (SDK relay) seçeneğini aç ve varsayılan/önerilen yap  <!-- Faz 2.3'ten taşındı -->
+- [ ] Upload bant genişliği uyarısı (çoklu platform için ≥25 Mbps öner)  <!-- Faz 2.3'ten taşındı -->
+- [ ] Streamlabs OAuth entegrasyonu (opsiyonel alternatif)  <!-- authorize/token uç noktaları + scope tanımlı; KALAN: persist + Streamlabs API + canlı test -->
+- [ ] Dağıtım yöntemi seçim arayüzü (web panelden) — SDK relay birincil, Streamlabs opsiyonel  <!-- /dashboard/distribution UI 1.4'te var; KALAN: authorize URL'lerini (GET /api/integrations, /authorize) UI'a bağlama -->
 - [ ] Her bağlantı için test aracı  <!-- GET /api/integrations sağlayıcı durum listesi (configured + enabled_for_plan) hazır; KALAN: gerçek sağlayıcı API'sine canlı "bağlantıyı test et" çağrısı -->
 - [ ] Admin: hangi planda hangi yöntemin açılacağı  <!-- MEKANİZMA HAZIR+TEST: config integration.<provider>.plans (admin /admin/config'ten değiştirilir), begin() plan erişimini enforce eder, list() plana göre gösterir. KALAN: admin UI toggle'ları + canlı doğrulama -->
-> SDK gömülü RTMP relay (Mod B) Faz 2'de gelir. Faz 1'de yayıncı kendi Restream/Castr hesabını bağlar.
-> Faz 1.6 NOT (Claude): OAuth **akış çekirdeği** (authorize URL + CSRF state tek-kullanım + token değişimi) + plan-erişim gating config-driven ve mock-test'li (backend/src/integrations). Endpoint'ler: GET /api/integrations, /api/integrations/{provider}/authorize (yayıncı), /callback (state ile). client_id/secret SecretStore'dan (.env/Vault). Hiçbiri CANLI çalıştırılmadı; token persist + gerçek sağlayıcı API kullanımı + Castr endpoint doğrulaması kaldı.
+> SDK gömülü RTMP relay Faz 1'e alındı ve asıl dağıtım yöntemi oldu (video buluta çıkmaz, Gbit sunucu gerekmez). Restream ve Castr desteği kaldırıldı; yayıncı isterse Streamlabs'ı opsiyonel bağlayabilir. İkili yayın (TR/EN ayrı hesap, klonlanmış ses) Faz 2'de ses klonlama ile birlikte gelir (bkz. 2.3).
+> Faz 1.6 NOT (Claude): OAuth **akış çekirdeği** (authorize URL + CSRF state tek-kullanım + token değişimi) + plan-erişim gating config-driven ve mock-test'li (backend/src/integrations, sadece Streamlabs sağlayıcısı). Endpoint'ler: GET /api/integrations, /api/integrations/{provider}/authorize (yayıncı), /callback (state ile). client_id/secret SecretStore'dan (.env/Vault). Restream/Castr sağlayıcı kayıtları ve secret'ları kod ve `.env.example`'dan kaldırıldı. Hiçbiri CANLI çalıştırılmadı; token persist + gerçek Streamlabs API kullanımı + SDK RTMP relay motorunun kendisi kaldı.
 
-#### 1.7 STT — Deepgram API
-- [ ] Deepgram Nova-2 WebSocket  <!-- REST prerecorded client (gateway::deepgram::DeepgramStt) hazır+mock-test+wired (DEEPGRAM_KEY varsa aktif). KALAN: canlı ses için streaming WS yolu ayrı streaming-trait/pipeline değişikliği gerektirir + gerçek encoding/sample_rate paramları -->
-- [ ] Türkçe kalite testi  <!-- DEEPGRAM_KEY + canlı Türkçe ses gerektirir (ops/user) -->
-- [ ] AssemblyAI fallback  <!-- fallback slotu mock; AssemblyAI client aynı SttProvider trait'iyle eklenecek -->
+> **1.7 STT — Deepgram API** roadmap'ten kaldırıldı (kullanıcı kararı). STT olarak sadece Deepgram'ın mevcut prerecorded REST entegrasyonu (`gateway::deepgram::DeepgramStt`, DEEPGRAM_KEY varsa aktif) + fallback olarak AssemblyAI (`gateway::assemblyai::AssemblyAiStt`, 5 test) kullanılıyor. Gerçek zamanlı streaming WS ve ayrıca Türkçe kalite testi artık Faz 1 tamamlanma kriteri değil — bkz. STT kaynağı tartışması (yayıncı PC'si vs bulut) Faz 2.6b'ye taşındı.
 
 #### 1.8 Çeviri — DeepL API
 - [x] DeepL API (TR → EN, ES, DE, FR başlangıç)  <!-- gateway::deepl::DeeplTranslate: REST /v2/translate, free/pro endpoint auto, dil kodları upper-case; mock-server test; main.rs DEEPL_KEY varsa aktif. Canlı doğrulama key ile (user) -->
-- [ ] Google fallback  <!-- fallback slotu mock; Google Translate client aynı TranslateProvider trait'iyle eklenecek -->
+- [x] Google fallback  <!-- gateway::google_translate::GoogleTranslate: REST v2/translate (API key query param), TranslateProvider trait; main.rs GOOGLE_TRANSLATE_KEY varsa aktif. 3 test (mock server). Canlı doğrulama key ile (user) -->
 
 #### 1.9 OBS Browser Source Altyazı
-- [ ] Gerçek zamanlı altyazı render
-- [ ] Özelleştirilebilir görünüm
-- [ ] 2 sn altı latency
-- [ ] 3 platformda test
+- [x] Gerçek zamanlı altyazı render  <!-- backend/src/overlay: OverlayHub (token→broadcast::channel) + GET /overlay/{token} (auth gerektirmez, token capability'dir). Her subtitle, ws/mod.rs'te SDK'ya gönderilirken aynı anda session'ın overlay_token'ına da publish edilir (stream_ack.overlay_token). frontend/app/o/[token]: WS'e bağlanıp gelen altyazıyı render eden client sayfa, reconnect'li. 2 backend test (tests/overlay_api.rs: SDK→overlay uçtan uca akış + bilinmeyen token'a hiçbir şey gelmemesi) + 3 OverlayHub unit test -->
+- [x] Özelleştirilebilir görünüm  <!-- /o/[token] query param'ları: ?lang= (hangi çeviri gösterilir, boşsa kaynak dil) &font= &size= &color= &bg= &position=top|bottom -->
+- [ ] 2 sn altı latency  <!-- canlı ölçüm gerekir (ops/user) — mimari olarak WS push + broadcast channel, ek kuyruklama yok -->
+- [ ] 3 platformda test  <!-- gerçek OBS + YouTube/Twitch/Kick ile manuel doğrulama gerekir (user) -->
 
 #### 1.10 YouTube Native CC
-- [ ] YouTube Live CC API
-- [ ] OAuth bağlantısı
+- [x] YouTube Live CC API  <!-- integrations::youtube::YouTubeCaptions: liveBroadcasts.list ile closedCaptionsIngestionUrl çözme + ingestion URL'ine seq'li caption POST'u. 5 test (mock Data API + ingestion sunucusu: url çözme, canlı olmayan broadcast, yanlış token, seq/body doğrulama) -->
+- [x] OAuth bağlantısı  <!-- integrations/mod.rs default_providers()'a "youtube" eklendi (Google authorize/token uç noktaları, youtube.force-ssl scope), YOUTUBE_CLIENT_ID/SECRET SecretStore'dan. Paylaşılan integrations::oauth çekirdeği kullanılıyor (Streamlabs'la aynı akış, aynı testler). KALAN: Google'ın offline refresh token için gereken access_type=offline&prompt=consent parametreleri generic OAuth çekirdeğinde yok; canlı Google Cloud Console app'iyle doğrulanmadı -->
+
+#### 1.9/1.10 NOT (Claude, bu oturum): Yukarıdaki maddeler backend'de gerçek REST client + mock-server test'li; hiçbiri canlı sağlayıcı hesabıyla (gerçek Deepgram/AssemblyAI/Google/YouTube key'leri, gerçek OBS/platform yayını) doğrulanmadı. SDK gömülü RTMP relay motoru (1.6) kullanıcı kararıyla bu oturuma dahil edilmedi — SDK'nın video/relay mimarisini değiştiren, kendi başına ayrı bir PR gerektiren büyük bir iş.
 
 #### 1.11 Ücretsiz Plan + Stripe
-- [ ] Free plan (watermark, 5 saat limit)
-- [ ] Starter / Pro / Streamer planları
-- [ ] Kullanım takibi
+- [x] Stripe altyapısı (checkout + webhook)  <!-- backend/src/billing: StripeClient (checkout session, form+Basic Auth) + webhook imza doğrulama (Stripe-Signature, zaman toleranslı HMAC-SHA256) + event parse; POST /api/billing/checkout (auth, plan→price_id config'ten) ve POST /webhooks/stripe endpoint'leri; secret'lar STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET SecretStore'dan. 14 test (mock Stripe server + imza roundtrip + tampered/expired/missing-sig red + checkout auth/plan doğrulama). KALAN: gerçek Stripe hesabıyla canlı test, webhook event'lerinin subscriptions/users.stripe_customer_id'ye DB persist edilmesi (şu an sadece loglanıyor, plans tablosundaki gerçek stripe_price_id'lerin admin panelden girilmesi gerekiyor) -->
+- [x] Free plan (watermark, 5 saat limit)  <!-- plans::PlanRegistry: free planı monthly_hours=5, has_watermark=true, max_languages=1, max_platforms=1 ile seedli. GET /api/plans (public) + PUT /admin/plans (admin) — admin panelden değiştirilebilir, hard-coded değil. 4 test (tests/plans_api.rs: public liste, admin günceller, broadcaster reddedilir, auth gerekir) + 4 PlanRegistry unit test -->
+- [x] Starter / Pro / Streamer planları  <!-- aynı PlanRegistry: starter (20h, 3 dil, watermark yok), pro (40h, 10 dil, ses klonlama flag'i, sınırsız platform), streamer (100h, sınırsız dil/platform) — fiyatlandırma tablosuyla birebir -->
+- [x] Kullanım takibi  <!-- usage::UsageTracker: kullanıcı+dönem (YYYY-MM UTC) başına duvar-saati kullanım sayacı, ay değişince otomatik sıfırlanır. ws/mod.rs: session_ready artık gerçek remaining_seconds döner (UsageTracker.status + PlanRegistry.monthly_hours); her ses frame'inde pipeline::StreamSession kullanım kaydeder, limit dolunca STT/çeviri hiç çağrılmadan Error(PlanLimitReached, 4003) döner ve session kapatılır. 6 UsageTracker unit test + 1 pipeline test (plan_limit_reached_short_circuits_before_stt). KALAN: bellek içi (restart'ta sıfırlanır) — kalıcılık için usage_records tablosuna yazılması gerekiyor -->
 
 **Faz 1 tamamlandığında:**
-Yayıncı ücretsiz hesap açar → Restream veya direkt OBS ile bağlar → Türkçe konuşur → İngilizce altyazı çıkar. Rakipten üstün, ücretsiz başlanabiliyor.
+Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS ile) → Türkçe konuşur → İngilizce altyazı çıkar. Rakipten üstün, ücretsiz başlanabiliyor.
 
 ---
 
@@ -609,13 +609,10 @@ Yayıncı ücretsiz hesap açar → Restream veya direkt OBS ile bağlar → Tü
 - [ ] Metin → klonlanmış ses (2 sn altı)
 - [ ] SDK'da video + klonlanmış ses birleştirme
 
-#### 2.3 SDK Gömülü RTMP Relay (Mod B — yayıncı internetinden multistream)
-- [ ] SDK içine RTMP relay motoru (Rust)
-- [ ] Yayıncının kendi internetinden N platforma forward
-- [ ] İkili yayın: TR ses → hesap 1, EN klonlanmış ses → hesap 2
-- [ ] Yayıncı dashboard'unda Mod B seçeneğini aç
-- [ ] Upload bant genişliği uyarısı (ikili yayın için ≥25 Mbps öner)
-> Bu sayede video buluta çıkmaz, Gbit sunucu gerekmez.
+#### 2.3 İkili Yayın — SDK Relay'e Klonlanmış Ses Entegrasyonu
+- [ ] İkili yayın: TR ses → hesap 1, EN klonlanmış ses → hesap 2 (Faz 1.6'daki SDK relay üzerinden)
+- [ ] İkili yayın için upload bant genişliği uyarısı güncellemesi (≥25 Mbps öner)
+> SDK gömülü RTMP relay motoru Faz 1.6'da kuruldu; burada klonlanmış sesle ikili yayın eklenir.
 
 #### 2.4 Twitch Extension
 - [ ] Component overlay extension
@@ -626,10 +623,18 @@ Yayıncı ücretsiz hesap açar → Restream veya direkt OBS ile bağlar → Tü
 - [ ] Manifest V3
 - [ ] Chrome Web Store başvurusu
 
-#### 2.6 faster-whisper Geçişi
+#### 2.6 faster-whisper Geçişi (bulut)
 - [ ] Hetzner GPU sunucu
 - [ ] TR dil kalite testi
 - [ ] Admin toggle: Deepgram → Whisper
+
+#### 2.6b STT Kaynağı — Bulut vs Yayıncı PC'si (Faz 1'den taşındı)
+- [ ] Protokole `transcript` mesajı ekle (SDK → Backend): local STT kullanan SDK, ses yerine zaten yazıya dökülmüş metni gönderir
+- [ ] `stream_start`'a `stt_source: "cloud" | "local"` alanı ekle — hangi modda çalışıldığı backend'e bildirilir
+- [ ] Pipeline'da iki yolu birleştir: `cloud` → audio frame → STT gateway → çeviri; `local` → transcript mesajı → STT adımı atlanır, direkt çeviri. İkisi de aynı `Subtitle` çıktısını üretir
+- [ ] SDK'ya gömülü local model (faster-whisper/whisper.cpp) — dashboard'dan "Bulut STT" / "Yerel STT (deneysel)" seçimi, donanım (GPU) kontrolü + uyarı
+- [ ] Admin: hangi planda hangi STT kaynağının açık olduğu (config-driven)
+> Yayıncıdan yayıncıya donanım farkı riski nedeniyle Faz 1'den çıkarıldı, Faz 2'ye alındı. Local STT, mevcut senkron istek/cevap mimarisini BOZMAZ — çünkü yerel model de VAD ile bölünmüş bitmiş cümleyi gönderiyor (Deepgram'ın gerçek streaming WS'i gibi sürekli açık bağlantı gerektirmiyor); sadece "STT adımını bazen atla" mantığı eklenir.
 
 #### 2.7 Admin — Hibrit Kontrol Genişletme
 - [ ] STT toggle (Deepgram ↔ Whisper)
@@ -731,7 +736,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 
 ## Tahmini Maliyet Evrimi (1000 kullanıcı/ay)
 
-> Not: Multistream maliyeti senin tablonda yok — video yayıncının kendi internetinden dağıtılır (SDK relay) veya yayıncı kendi Restream/Castr aboneliğini kullanır. Sen sadece sesi işliyorsun.
+> Not: Multistream maliyeti senin tablonda yok — video yayıncının kendi internetinden dağıtılır (SDK relay) veya yayıncı kendi Streamlabs aboneliğini kullanır. Sen sadece sesi işliyorsun.
 
 ### Faz 1 — Full API (sadece altyazı)
 
@@ -804,7 +809,7 @@ Bu yayıncılardan premium ücret alınır
 - Twitch Extension onay süreci 2–4 hafta; Faz 2 başında başlanmalı.
 - Kick ses klonlamada AI içerik etiketi zorunlu (ToS).
 - İkili yayın için aynı IP'den iki hesap ban riski; SDK farklı bağlantı/profil yönetebilmeli.
-- Faz 1'de yayıncı kendi Restream/Castr hesabını bağlar; SDK relay Faz 2'de gelir.
+- Faz 1'de SDK gömülü RTMP relay asıl dağıtım yöntemidir; yayıncı isterse Streamlabs'ı da opsiyonel bağlayabilir.
 - Free plan ile kitle çekilmeden Pro planı zorlamak churn'ü artırır.
 - XTTS-v2 ElevenLabs'a kıyasla ~%10–15 kalite farkı; kullanıcıya şeffaf olunmalı.
 - Admin hibrit kontrol her fazda birlikte geliştirilmeli.

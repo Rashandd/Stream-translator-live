@@ -77,12 +77,20 @@ impl ServiceConfig {
             // Admin panel bunları değiştirir; yayıncı paneli okuyup kilitler.
             ("dist.service.plans", "free,pro"),
             ("dist.cloud.plans", "pro"),
-            // Multistream OAuth (1.6): hangi planda hangi sağlayıcı açık +
-            // callback redirect tabanı. Hepsi admin panelden değiştirilebilir.
-            ("integration.restream.plans", "free,pro"),
-            ("integration.castr.plans", "free,pro"),
+            // Multistream OAuth (1.6, opsiyonel Streamlabs bağlantısı): hangi
+            // planda açık + callback redirect tabanı. Admin panelden değiştirilebilir.
             ("integration.streamlabs.plans", "pro"),
+            ("integration.youtube.plans", "free,pro"),
             ("integration.redirect_base", "http://localhost:8080/api/integrations"),
+            // Stripe (1.11): plan → Stripe Price ID eşlemesi. Boş = henüz Stripe'ta
+            // ürün/fiyat oluşturulmadı; checkout o plan için 503 döner. Admin panelden
+            // Stripe Dashboard'da oluşturulan gerçek price_id'lerle doldurulur.
+            ("billing.plan.free.stripe_price_id", ""),
+            ("billing.plan.starter.stripe_price_id", ""),
+            ("billing.plan.pro.stripe_price_id", ""),
+            ("billing.plan.streamer.stripe_price_id", ""),
+            ("billing.success_url", "http://localhost:3000/dashboard/billing?checkout=success"),
+            ("billing.cancel_url", "http://localhost:3000/dashboard/billing?checkout=canceled"),
         ];
         let map = defaults
             .into_iter()

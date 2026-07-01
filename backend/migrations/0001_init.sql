@@ -103,7 +103,7 @@ CREATE INDEX idx_usage_user_period ON usage_records(user_id, period);
 CREATE TABLE platform_accounts (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    platform                TEXT NOT NULL,   -- 'restream' | 'castr' | 'streamlabs' | 'youtube' | 'twitch' | 'kick'
+    platform                TEXT NOT NULL,   -- 'streamlabs' | 'youtube' | 'twitch' | 'kick'
     platform_user_id        TEXT,
     platform_username       TEXT,
     access_token_encrypted  TEXT NOT NULL,

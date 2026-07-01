@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Bir OAuth2 sağlayıcısının (Restream/Castr/Streamlabs) uç noktaları.
+/// Bir OAuth2 sağlayıcısının (örn. Streamlabs) uç noktaları.
 #[derive(Debug, Clone)]
 pub struct OAuthProvider {
     pub name: String,
@@ -173,23 +173,23 @@ mod tests {
 
     fn provider() -> OAuthProvider {
         OAuthProvider {
-            name: "restream".into(),
-            authorize_url: "https://api.restream.io/login".into(),
-            token_url: "https://api.restream.io/oauth/token".into(),
-            scopes: vec!["profile.default.read".into(), "stream.default.read".into()],
+            name: "streamlabs".into(),
+            authorize_url: "https://streamlabs.com/api/v2.0/authorize".into(),
+            token_url: "https://streamlabs.com/api/v2.0/token".into(),
+            scopes: vec!["socket.token".into(), "stream.default.read".into()],
         }
     }
 
     #[test]
     fn authorize_redirect_encodes_params() {
         let url = provider().authorize_redirect("cid-123", "https://app/cb", "st-abc");
-        assert!(url.starts_with("https://api.restream.io/login?"));
+        assert!(url.starts_with("https://streamlabs.com/api/v2.0/authorize?"));
         assert!(url.contains("response_type=code"));
         assert!(url.contains("client_id=cid-123"));
         assert!(url.contains("state=st-abc"));
         // redirect_uri ve boşluklu scope percent-encode edilmeli.
         assert!(url.contains("redirect_uri=https%3A%2F%2Fapp%2Fcb"));
-        assert!(url.contains("profile.default.read+stream.default.read"));
+        assert!(url.contains("socket.token+stream.default.read"));
     }
 
     #[test]
@@ -203,9 +203,9 @@ mod tests {
     #[test]
     fn state_roundtrip_and_single_use() {
         let store = StateStore::new(Duration::from_secs(60));
-        let st = store.issue("user-1", "restream", "https://app/cb");
+        let st = store.issue("user-1", "streamlabs", "https://app/cb");
         let got = store.consume(&st).expect("valid state");
-        assert_eq!(got, ("user-1".into(), "restream".into(), "https://app/cb".into()));
+        assert_eq!(got, ("user-1".into(), "streamlabs".into(), "https://app/cb".into()));
         // İkinci kullanım reddedilir (tek kullanımlık).
         assert!(store.consume(&st).is_none());
     }
@@ -214,7 +214,7 @@ mod tests {
     fn state_unknown_and_expired_rejected() {
         assert!(StateStore::new(Duration::from_secs(60)).consume("nope").is_none());
         let store = StateStore::new(Duration::from_millis(0));
-        let st = store.issue("u", "restream", "cb");
+        let st = store.issue("u", "streamlabs", "cb");
         std::thread::sleep(Duration::from_millis(5));
         assert!(store.consume(&st).is_none());
     }

@@ -1,15 +1,20 @@
-//! Multistream OAuth entegrasyonları (Faz 1.6) — Restream / Castr / Streamlabs.
+//! Platform/multistream OAuth entegrasyonları — opsiyonel Streamlabs
+//! bağlantısı (Faz 1.6) ve YouTube Native CC (Faz 1.10).
 //!
-//! Yayıncı kendi Restream/Castr/Streamlabs hesabını OAuth ile bağlar (Mod A).
-//! `client_id`/`client_secret` `SecretStore`'dan (env/Vault) gelir — koda gömülü
-//! değil. Hangi planda hangi sağlayıcının açık olduğu `ServiceConfig`'ten
-//! (`integration.<provider>.plans`) okunur; hard-coded değildir.
+//! SDK'nın kendi gömülü RTMP relay'i (Mod A) asıl dağıtım yöntemidir. Yayıncı
+//! isterse ayrıca kendi Streamlabs hesabını OAuth ile bağlayabilir (Mod A').
+//! YouTube bağlantısı ise native closed-caption gönderimi içindir (bkz.
+//! [`youtube`] modülü). `client_id`/`client_secret` `SecretStore`'dan
+//! (env/Vault) gelir — koda gömülü değil. Hangi planda sağlayıcının açık
+//! olduğu `ServiceConfig`'ten (`integration.<provider>.plans`) okunur;
+//! hard-coded değildir.
 //!
 //! Bu modül OAuth **akışını** (authorize → callback → token değişimi) sağlar.
 //! Alınan token'ın AES ile şifrelenip DB'ye (`platform_accounts`) yazılması ve
 //! bağlantı testinin gerçek sağlayıcı API'siyle yapılması follow-up'tır.
 
 pub mod oauth;
+pub mod youtube;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,32 +62,11 @@ pub struct Connection {
 
 /// Sağlayıcı uç nokta varsayılanları (secret değil).
 ///
-/// NOT: Restream/Streamlabs URL'leri sağlayıcı dokümanına göredir; Castr OAuth
-/// uç noktaları doğrulanmalı. İleride bunlar da config/DB'den okunabilir.
+/// NOT: Streamlabs/Google URL'leri sağlayıcı dokümanına göredir. İleride
+/// bunlar da config/DB'den okunabilir. Restream/Castr desteği kaldırıldı —
+/// SDK'nın kendi gömülü RTMP relay'i (Mod A) asıl dağıtım yöntemidir.
 fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'static str)> {
     vec![
-        (
-            "restream",
-            OAuthProvider {
-                name: "restream".into(),
-                authorize_url: "https://api.restream.io/login".into(),
-                token_url: "https://api.restream.io/oauth/token".into(),
-                scopes: vec!["profile.default.read".into(), "stream.default.read".into()],
-            },
-            names::RESTREAM_CLIENT_ID,
-            names::RESTREAM_CLIENT_SECRET,
-        ),
-        (
-            "castr",
-            OAuthProvider {
-                name: "castr".into(),
-                authorize_url: "https://castr.com/oauth/authorize".into(),
-                token_url: "https://castr.com/oauth/token".into(),
-                scopes: vec![],
-            },
-            names::CASTR_CLIENT_ID,
-            names::CASTR_CLIENT_SECRET,
-        ),
         (
             "streamlabs",
             OAuthProvider {
@@ -93,6 +77,17 @@ fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'stat
             },
             names::STREAMLABS_CLIENT_ID,
             names::STREAMLABS_CLIENT_SECRET,
+        ),
+        (
+            "youtube",
+            OAuthProvider {
+                name: "youtube".into(),
+                authorize_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
+                token_url: "https://oauth2.googleapis.com/token".into(),
+                scopes: vec!["https://www.googleapis.com/auth/youtube.force-ssl".into()],
+            },
+            names::YOUTUBE_CLIENT_ID,
+            names::YOUTUBE_CLIENT_SECRET,
         ),
     ]
 }
@@ -346,10 +341,10 @@ mod tests {
     fn provider_at(token_url: &str, configured: bool) -> ProviderCreds {
         ProviderCreds {
             provider: OAuthProvider {
-                name: "restream".into(),
-                authorize_url: "https://api.restream.io/login".into(),
+                name: "streamlabs".into(),
+                authorize_url: "https://streamlabs.com/api/v2.0/authorize".into(),
                 token_url: token_url.into(),
-                scopes: vec!["stream.default.read".into()],
+                scopes: vec!["socket.token".into()],
             },
             client_id: configured.then(|| "cid".to_string()),
             client_secret: configured.then(|| "sec-1".to_string()),
@@ -358,7 +353,7 @@ mod tests {
 
     fn integrations_with(token_url: &str, configured: bool) -> Integrations {
         let mut map = HashMap::new();
-        map.insert("restream".to_string(), provider_at(token_url, configured));
+        map.insert("streamlabs".to_string(), provider_at(token_url, configured));
         Integrations::from_parts(map)
     }
 
@@ -389,7 +384,7 @@ mod tests {
         let cfg = cfg();
 
         // begin: URL üretilmeli ve içinde bir state olmalı.
-        let url = integ.begin("user-1", "pro", "restream", &cfg).unwrap();
+        let url = integ.begin("user-1", "pro", "streamlabs", &cfg).unwrap();
         let state = reqwest::Url::parse(&url)
             .unwrap()
             .query_pairs()
@@ -398,7 +393,7 @@ mod tests {
             .expect("state in url");
 
         // complete: aynı state ile bağlantı kurulmalı.
-        let conn = integ.complete("restream", "code-1", &state).await.unwrap();
+        let conn = integ.complete("streamlabs", "code-1", &state).await.unwrap();
         assert!(conn.connected);
         assert_eq!(conn.user_id, "user-1");
         assert_eq!(conn.expires_in, Some(3600));
@@ -409,8 +404,8 @@ mod tests {
     fn begin_rejects_plan_without_access() {
         let integ = integrations_with("http://unused", true);
         let cfg = cfg();
-        // integration.restream.plans = "free,pro" → "starter" reddedilir.
-        let err = integ.begin("u", "starter", "restream", &cfg).unwrap_err();
+        // integration.streamlabs.plans = "pro" → "starter" reddedilir.
+        let err = integ.begin("u", "starter", "streamlabs", &cfg).unwrap_err();
         assert!(matches!(err, OAuthError::PlanNotAllowed { .. }));
     }
 
@@ -423,7 +418,7 @@ mod tests {
             Err(OAuthError::UnknownProvider(_))
         ));
         assert!(matches!(
-            integ.begin("u", "pro", "restream", &cfg),
+            integ.begin("u", "pro", "streamlabs", &cfg),
             Err(OAuthError::NotConfigured(_))
         ));
     }
@@ -431,7 +426,7 @@ mod tests {
     #[tokio::test]
     async fn complete_rejects_unknown_state() {
         let integ = integrations_with("http://unused", true);
-        let err = integ.complete("restream", "code", "bogus-state").await.unwrap_err();
+        let err = integ.complete("streamlabs", "code", "bogus-state").await.unwrap_err();
         assert!(matches!(err, OAuthError::InvalidState));
     }
 
@@ -440,15 +435,15 @@ mod tests {
         let token_url = spawn_token_mock().await;
         let integ = integrations_with(&token_url, true);
         let cfg = cfg();
-        let url = integ.begin("u", "pro", "restream", &cfg).unwrap();
+        let url = integ.begin("u", "pro", "streamlabs", &cfg).unwrap();
         let state = reqwest::Url::parse(&url)
             .unwrap()
             .query_pairs()
             .find(|(k, _)| k == "state")
             .map(|(_, v)| v.to_string())
             .unwrap();
-        // state restream için üretildi; castr ile tüketmeye çalış → reddedilir.
-        let err = integ.complete("castr", "code", &state).await.unwrap_err();
+        // state streamlabs için üretildi; başka sağlayıcı adıyla tüketmeye çalış → reddedilir.
+        let err = integ.complete("other", "code", &state).await.unwrap_err();
         assert!(matches!(err, OAuthError::InvalidState));
     }
 }

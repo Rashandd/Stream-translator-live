@@ -142,7 +142,7 @@ Aylık limit kontrolü: `SELECT seconds_used FROM usage_records WHERE user_id = 
 CREATE TABLE platform_accounts (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    platform                TEXT NOT NULL,     -- 'restream' | 'castr' | 'streamlabs' | 'youtube' | 'twitch' | 'kick'
+    platform                TEXT NOT NULL,     -- 'streamlabs' | 'youtube' | 'twitch' | 'kick'
     platform_user_id        TEXT,
     platform_username       TEXT,
     access_token_encrypted  TEXT NOT NULL,     -- AES-256
