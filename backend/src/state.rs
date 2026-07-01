@@ -7,6 +7,7 @@ use axum::extract::FromRef;
 use crate::auth::jwt::Jwt;
 use crate::config::ServiceConfig;
 use crate::gateway::Gateway;
+use crate::integrations::Integrations;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
 #[derive(Clone)]
@@ -14,6 +15,7 @@ pub struct AppState {
     pub jwt: Arc<Jwt>,
     pub gateway: Arc<Gateway>,
     pub service_config: Arc<ServiceConfig>,
+    pub integrations: Arc<Integrations>,
 }
 
 impl FromRef<AppState> for Arc<Jwt> {
@@ -31,5 +33,11 @@ impl FromRef<AppState> for Arc<Gateway> {
 impl FromRef<AppState> for Arc<ServiceConfig> {
     fn from_ref(state: &AppState) -> Self {
         state.service_config.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Integrations> {
+    fn from_ref(state: &AppState) -> Self {
+        state.integrations.clone()
     }
 }

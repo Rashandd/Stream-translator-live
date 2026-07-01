@@ -4,22 +4,28 @@
 Codex
 
 ## Neredeyim?
-Next dev runtime hatasi giderildi: `__webpack_modules__[moduleId] is not a function` hatasi Next 15 devtools segment explorer tarafindan tetikleniyordu.
+Dashboard distribution dili OBS hub ve Strovak managed routing olarak genisletildi.
 
 ## Degistirdigim Alanlar
-- `frontend/next.config.mjs`
+- `frontend/src/i18n/dictionaries/en.json`
+- `frontend/src/i18n/dictionaries/marketing.test.ts`
+- `frontend/app/[locale]/dashboard/distribution/page.tsx`
+- `frontend/app/[locale]/dashboard/go-live/page.tsx`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
-- `next.config.mjs` icinde `devIndicators: false` ayarlandi.
-- Hatanin kaynagi uygulama componentleri degil, Next devtools manifest/chunk karismasiydi (`segment-explorer-node.js#SegmentViewNode`).
-- Dev server restart edildi; `/`, `/en`, `/en/dashboard` route'lari tekrar dogrulandi.
+- Restream/Castr/Streamlabs ayri caption veya multi-dub modu degil; OBS'den cikan yayini tasiyan harici servisler olarak kalmali.
+- Distribution kartlari: `Control outputs from OBS` ve `Let Strovak handle routing`.
+- OBS modu sadece caption overlay gibi anlatilmiyor; captions now + enabled language/dub outputs icin buyuyebilecek ana yayin hub'i olarak konumlandi.
+- Strovak routing modu upload workaround degil; destinations, language outputs, captions ve delivery'nin managed edilmesi olarak anlatiliyor.
+- Distribution sayfasindaki connected services bolumu kaldirildi.
+- Go-live sayfasinda platform hedef secimi yalnizca Strovak routing/cloud modunda gosteriliyor.
+- `marketing.test.ts` distribution modlarinda Restream/Castr/Streamlabs'in geri gelmemesini ve cloud routing'in upload bahanesi gibi anlatilmamasini kontrol ediyor.
 
 ## Sonraki Adim
-Frontend sonraki adim: auth/login akisi, gercek `/api/public-config` endpoint baglantisi ve dictionary/config merge stratejisi.
+Frontend sonraki adim: roadmap/admin metinlerinde Restream/Castr entegrasyon beklentisini bu yeni urun karariyla uyumlu hale getirmek.
 
 ## Blokerlar / Dikkat
-- `npm run lint`, `npm run build`, `npm run design:lint` gecti.
-- Dev server `http://127.0.0.1:3000` adresinde calisiyor; runtime TypeError tekrar etmedi.
-- `npm audit` 2 moderate bulgu raporluyor; `npm audit fix --force` breaking change yapabilecegi icin calistirilmadi.
-- Tum workspace testi sandbox'ta backend integration testlerinin local socket bind izni nedeniyle basarisiz olabilir.
+- `npm run test` ve `npm run lint` frontend icin gecti.
+- `scripts/session-start.sh` backend testlerinde gateway/Vault local socket bind izni nedeniyle sandbox kaynakli basarisizlik gosterdi.
+- Calisma agacinda bu turdan once de backend, dashboard ve roadmap dosyalarinda commit edilmemis degisiklikler vardi; bunlara dokunulmadi.

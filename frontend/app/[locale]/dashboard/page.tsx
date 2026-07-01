@@ -29,6 +29,24 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
     <div className="space-y-6">
       <PageHeader subtitle={overview.subtitle} title={overview.title} />
 
+      <SectionCard subtitle={overview.howItWorks.subtitle} title={overview.howItWorks.title}>
+        <ol className="grid gap-4 sm:grid-cols-3">
+          {overview.howItWorks.steps.map((step, index) => (
+            <li className="rounded-lg border border-hairline bg-canvas p-4" key={step.title}>
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
+                  {index + 1}
+                </span>
+                <Icon className="h-[18px] w-[18px] text-blue" name={step.icon} />
+              </div>
+              <h4 className="mt-3 text-sm font-semibold text-ink">{step.title}</h4>
+              <p className="mt-1 text-sm leading-6 text-muted">{step.body}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 text-sm leading-6 text-muted">{overview.howItWorks.note}</p>
+      </SectionCard>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {overview.metrics.map((metric) => (
           <MetricCard hint={metric.hint} icon={metric.icon} key={metric.label} label={metric.label} value={metric.value} />

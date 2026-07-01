@@ -16,6 +16,7 @@ use streamdubber_backend::{
     auth::jwt::{Claims, Jwt},
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
+    integrations::Integrations,
     state::AppState,
 };
 
@@ -32,6 +33,7 @@ async fn spawn_server() -> SocketAddr {
         jwt: Arc::new(Jwt::new(SECRET)),
         gateway: Arc::new(gateway),
         service_config,
+        integrations: Arc::new(Integrations::empty()),
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");

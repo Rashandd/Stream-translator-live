@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { SiteHeader } from "@/src/components/site-header";
-import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -95,19 +94,16 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="border-y border-hairline bg-canvas">
+      <section className="bg-ink text-white">
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <p className="text-sm font-semibold uppercase tracking-wide text-violet">{config.home.next.eyebrow}</p>
-          <h2 className="mt-3 max-w-2xl text-3xl font-semibold text-ink sm:text-4xl">{config.home.next.title}</h2>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {config.home.next.items.map((item) => (
-              <div className="rounded-xl border border-border bg-white p-6" key={item.title}>
-                <div className="flex items-center justify-between">
-                  <Icon className="h-6 w-6 text-violet" name={item.icon} />
-                  <StatusPill label={item.status} text={config.statusLabels[item.status as keyof typeof config.statusLabels]} />
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
-                <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-cyan">{config.home.edge.eyebrow}</p>
+          <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-white sm:text-4xl">{config.home.edge.title}</h2>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {config.home.edge.items.map((item) => (
+              <div className="rounded-xl border border-white/12 bg-white/[0.06] p-6" key={item.title}>
+                <Icon className="h-6 w-6 text-cyan" name={item.icon} />
+                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/70">{item.body}</p>
               </div>
             ))}
           </div>
@@ -125,6 +121,22 @@ export default async function HomePage({ params }: HomePageProps) {
               <p className="mt-2 text-sm leading-6 text-muted">{item.body}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-6 rounded-[28px] border border-border bg-canvas p-8 sm:p-10 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue">{config.home.businessCta.eyebrow}</p>
+            <h2 className="mt-3 text-2xl font-semibold text-ink sm:text-3xl">{config.home.businessCta.title}</h2>
+            <p className="mt-3 text-base leading-7 text-muted">{config.home.businessCta.body}</p>
+          </div>
+          <Link
+            className="inline-flex h-12 shrink-0 items-center justify-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition hover:bg-text"
+            href={localizePath(locale, config.home.businessCta.cta.href)}
+          >
+            {config.home.businessCta.cta.label}
+          </Link>
         </div>
       </section>
     </main>

@@ -33,6 +33,7 @@ getrandom.workspace = true
 axum-server.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true

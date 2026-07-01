@@ -507,7 +507,7 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 #### 1.2 Güvenlik Altyapısı
 - [x] TLS 1.3 tüm bağlantılarda (ses akışı transit şifreleme — üstüne AES yok)
 - [x] HashiCorp Vault kurulumu (key yönetimi)  <!-- infra/docker-compose vault dev servisi; KV wiring SecretStore'da skeleton -->
-- [ ] API key'leri Vault'a taşı (koda gömme)  <!-- SecretStore soyutlaması + EnvSecretStore hazır; Vault KV HTTP okuması beklemede (vault servisi sağlanınca) -->
+- [x] API key'leri Vault'a taşı (koda gömme)  <!-- VaultSecretStore KV v2 HTTP okuması hazır+test (mock server); main.rs VAULT_ADDR+VAULT_TOKEN varsa Vault'u, yoksa Env'i seçer. Kalan: deploy'da vault'a key'lerin populate edilmesi (ops) -->
 - [x] Veritabanı şifreleme at-rest (AES-256)  <!-- crypto::Cipher (AES-256-GCM) hazır+test; _encrypted kolonlara uygulama ilgili özellik gelince -->
 - [x] Ses modeli şifreleme (kullanıcı bazlı izolasyon, AES-256)  <!-- aynı Cipher; ses modeli depolama Faz 2 -->
 - [x] Stream key'ler AES-256 şifreli lokal saklanır  <!-- aynı Cipher; platform_accounts token kolonları için hazır -->
@@ -553,22 +553,23 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 <!-- Ek (1.5 checklist dışı, Bölüm B specinden): /admin/multistream UI — yöntem kullanımı + plan erişim matrisi; backend 1.6'da bağlanacak -->
 
 #### 1.6 Multistream — Yayıncının Mevcut Servisi (Mod A)
-- [ ] Restream OAuth + API entegrasyonu
-- [ ] Castr OAuth + API entegrasyonu
-- [ ] Streamlabs OAuth entegrasyonu
-- [ ] Dağıtım yöntemi seçim arayüzü (web panelden)
-- [ ] Her bağlantı için test aracı
-- [ ] Admin: hangi planda hangi yöntemin açılacağı
+- [ ] Restream OAuth + API entegrasyonu  <!-- OAuth authorize→callback→token-exchange akış iskeleti hazır+test (integrations::oauth, mock token server). KALAN: token'ı crypto::Cipher ile şifreleyip platform_accounts'a persist + Restream API çağrıları (kanal listeleme/relay) + canlı key ile test -->
+- [ ] Castr OAuth + API entegrasyonu  <!-- akış aynı registry'de; KALAN: Castr OAuth uç noktaları DOĞRULANMALI (default'lar placeholder) + persist + API + canlı test -->
+- [ ] Streamlabs OAuth entegrasyonu  <!-- authorize/token uç noktaları + scope tanımlı; KALAN: persist + Streamlabs API + canlı test -->
+- [ ] Dağıtım yöntemi seçim arayüzü (web panelden)  <!-- /dashboard/distribution UI 1.4'te var; KALAN: authorize URL'lerini (GET /api/integrations, /authorize) UI'a bağlama -->
+- [ ] Her bağlantı için test aracı  <!-- GET /api/integrations sağlayıcı durum listesi (configured + enabled_for_plan) hazır; KALAN: gerçek sağlayıcı API'sine canlı "bağlantıyı test et" çağrısı -->
+- [ ] Admin: hangi planda hangi yöntemin açılacağı  <!-- MEKANİZMA HAZIR+TEST: config integration.<provider>.plans (admin /admin/config'ten değiştirilir), begin() plan erişimini enforce eder, list() plana göre gösterir. KALAN: admin UI toggle'ları + canlı doğrulama -->
 > SDK gömülü RTMP relay (Mod B) Faz 2'de gelir. Faz 1'de yayıncı kendi Restream/Castr hesabını bağlar.
+> Faz 1.6 NOT (Claude): OAuth **akış çekirdeği** (authorize URL + CSRF state tek-kullanım + token değişimi) + plan-erişim gating config-driven ve mock-test'li (backend/src/integrations). Endpoint'ler: GET /api/integrations, /api/integrations/{provider}/authorize (yayıncı), /callback (state ile). client_id/secret SecretStore'dan (.env/Vault). Hiçbiri CANLI çalıştırılmadı; token persist + gerçek sağlayıcı API kullanımı + Castr endpoint doğrulaması kaldı.
 
 #### 1.7 STT — Deepgram API
-- [ ] Deepgram Nova-2 WebSocket
-- [ ] Türkçe kalite testi
-- [ ] AssemblyAI fallback
+- [ ] Deepgram Nova-2 WebSocket  <!-- REST prerecorded client (gateway::deepgram::DeepgramStt) hazır+mock-test+wired (DEEPGRAM_KEY varsa aktif). KALAN: canlı ses için streaming WS yolu ayrı streaming-trait/pipeline değişikliği gerektirir + gerçek encoding/sample_rate paramları -->
+- [ ] Türkçe kalite testi  <!-- DEEPGRAM_KEY + canlı Türkçe ses gerektirir (ops/user) -->
+- [ ] AssemblyAI fallback  <!-- fallback slotu mock; AssemblyAI client aynı SttProvider trait'iyle eklenecek -->
 
 #### 1.8 Çeviri — DeepL API
-- [ ] DeepL API (TR → EN, ES, DE, FR başlangıç)
-- [ ] Google fallback
+- [x] DeepL API (TR → EN, ES, DE, FR başlangıç)  <!-- gateway::deepl::DeeplTranslate: REST /v2/translate, free/pro endpoint auto, dil kodları upper-case; mock-server test; main.rs DEEPL_KEY varsa aktif. Canlı doğrulama key ile (user) -->
+- [ ] Google fallback  <!-- fallback slotu mock; Google Translate client aynı TranslateProvider trait'iyle eklenecek -->
 
 #### 1.9 OBS Browser Source Altyazı
 - [ ] Gerçek zamanlı altyazı render

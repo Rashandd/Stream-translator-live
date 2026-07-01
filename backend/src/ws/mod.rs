@@ -268,6 +268,7 @@ mod tests {
             jwt: Arc::new(jwt()),
             gateway: Arc::new(gw),
             service_config: config,
+            integrations: Arc::new(crate::integrations::Integrations::empty()),
         }
     }
 

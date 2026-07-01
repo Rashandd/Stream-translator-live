@@ -6,7 +6,7 @@
 //!   değişir, restart gerektirmez. Faz 1 iskeletinde bellek içi; ileride
 //!   `service_config` tablosundan beslenir.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 use std::sync::RwLock;
 
@@ -73,6 +73,16 @@ impl ServiceConfig {
             ("tts.provider", "disabled"),
             ("stream.max_bitrate", "128000"),
             ("vad.enabled", "true"),
+            // Dağıtım yöntemi → plan erişimi. Virgülle ayrılmış plan listesi.
+            // Admin panel bunları değiştirir; yayıncı paneli okuyup kilitler.
+            ("dist.service.plans", "free,pro"),
+            ("dist.cloud.plans", "pro"),
+            // Multistream OAuth (1.6): hangi planda hangi sağlayıcı açık +
+            // callback redirect tabanı. Hepsi admin panelden değiştirilebilir.
+            ("integration.restream.plans", "free,pro"),
+            ("integration.castr.plans", "free,pro"),
+            ("integration.streamlabs.plans", "pro"),
+            ("integration.redirect_base", "http://localhost:8080/api/integrations"),
         ];
         let map = defaults
             .into_iter()
@@ -93,6 +103,28 @@ impl ServiceConfig {
         if let Ok(mut m) = self.values.write() {
             m.insert(key.into(), value.into());
         }
+    }
+
+    /// Yalnızca seed'de tanımlı (bilinen) bir anahtarı günceller.
+    ///
+    /// Admin API'sinin gelişigüzel anahtar enjekte etmesini engeller —
+    /// şema seed ile sabittir. Anahtar yoksa `false` döner, hiçbir şey yazılmaz.
+    pub fn set_existing(&self, key: &str, value: impl Into<String>) -> bool {
+        match self.values.write() {
+            Ok(mut m) if m.contains_key(key) => {
+                m.insert(key.to_string(), value.into());
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Tüm config'in sıralı bir kopyasını döndürür (deterministik JSON için).
+    pub fn snapshot(&self) -> BTreeMap<String, String> {
+        self.values
+            .read()
+            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -125,5 +157,32 @@ mod tests {
     fn missing_key_is_none() {
         let cfg = ServiceConfig::with_defaults();
         assert_eq!(cfg.get("nonexistent"), None);
+    }
+
+    #[test]
+    fn set_existing_updates_known_key() {
+        let cfg = ServiceConfig::with_defaults();
+        assert!(cfg.set_existing("stt.provider", "whisper"));
+        assert_eq!(cfg.get("stt.provider").as_deref(), Some("whisper"));
+    }
+
+    #[test]
+    fn set_existing_rejects_unknown_key() {
+        let cfg = ServiceConfig::with_defaults();
+        assert!(!cfg.set_existing("attacker.key", "x"));
+        assert_eq!(cfg.get("attacker.key"), None);
+    }
+
+    #[test]
+    fn snapshot_is_sorted_and_complete() {
+        let cfg = ServiceConfig::with_defaults();
+        let snap = cfg.snapshot();
+        assert_eq!(snap.get("dist.service.plans").map(String::as_str), Some("free,pro"));
+        assert_eq!(snap.get("dist.cloud.plans").map(String::as_str), Some("pro"));
+        // BTreeMap garantili sıralı.
+        let keys: Vec<&String> = snap.keys().collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
     }
 }

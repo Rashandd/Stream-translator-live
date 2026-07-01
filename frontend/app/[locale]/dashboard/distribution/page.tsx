@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
-import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
+import { PageHeader } from "@/src/components/dashboard-ui";
 import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
-import { isLocale, locales, type Locale } from "@/src/i18n/routing";
+import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -24,55 +25,64 @@ export default async function DistributionPage({ params }: Props) {
     <div className="space-y-6">
       <PageHeader subtitle={distribution.subtitle} title={distribution.title} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {distribution.modes.map((mode) => {
-          const selected = mode.id === distribution.selectedMode;
-          return (
-            <article
-              className={`relative rounded-xl border bg-white p-5 ${selected ? "border-ink ring-1 ring-ink/20" : "border-border"}`}
-              key={mode.id}
-            >
-              <div className="flex items-center justify-between">
-                <Icon className="h-6 w-6 text-blue" name={mode.icon} />
-                {selected ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-0.5 text-xs font-semibold text-white">
-                    <Icon className="h-3 w-3" name="CheckCircle2" />
-                    {distribution.selectedLabel}
-                  </span>
-                ) : (
-                  <StatusPill label={mode.status} text={config.statusLabels[mode.status as keyof typeof config.statusLabels]} />
-                )}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-ink">{mode.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted">{mode.body}</p>
-            </article>
-          );
-        })}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
+            <Icon className="h-5 w-5" name="MonitorCog" />
+          </span>
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+              {distribution.appStatus.label}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 text-xs font-semibold text-ink">
+                <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+                {distribution.appStatus.value}
+              </span>
+            </p>
+            <p className="mt-1 text-sm leading-6 text-muted">{distribution.appStatus.note}</p>
+          </div>
+        </div>
+        <Link
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text"
+          href={localizePath(locale, distribution.appStatus.ctaHref)}
+        >
+          <Icon className="h-4 w-4" name="Download" />
+          {distribution.appStatus.ctaLabel}
+        </Link>
       </div>
 
-      <SectionCard subtitle={distribution.bandwidthNotice} title={distribution.servicesTitle}>
-        <ul className="divide-y divide-hairline">
-          {distribution.services.map((service) => (
-            <li className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0" key={service.name}>
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-ink">
-                  <Icon className="h-[18px] w-[18px]" name={service.icon} />
-                </span>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">{distribution.platformSupport.title}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">{distribution.platformSupport.subtitle}</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {distribution.platformSupport.rows.map((row) => (
+            <div className="rounded-xl border border-border bg-white p-5" key={row.platform}>
+              <div className="flex items-center gap-2">
+                <Icon className="h-5 w-5 text-blue" name={row.icon} />
+                <h3 className="text-base font-semibold text-ink">{row.platform}</h3>
+              </div>
+              <div className="mt-4 space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-ink">{service.name}</p>
-                  <p className="text-sm text-muted">{service.status}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted">{distribution.platformSupport.captionsLabel}</span>
+                    <StatusPill label={row.captionsStatus} text={config.statusLabels[row.captionsStatus as keyof typeof config.statusLabels]} />
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-muted">{row.captions}</p>
+                </div>
+                <div className="border-t border-hairline pt-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted">{distribution.platformSupport.dubbingLabel}</span>
+                    <StatusPill label={row.dubbingStatus} text={config.statusLabels[row.dubbingStatus as keyof typeof config.statusLabels]} />
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-muted">{row.dubbing}</p>
                 </div>
               </div>
-              <button
-                className="inline-flex h-9 items-center rounded-full border border-border bg-white px-4 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
-                type="button"
-              >
-                {service.action}
-              </button>
-            </li>
+            </div>
           ))}
-        </ul>
-      </SectionCard>
+        </div>
+        <p className="text-sm leading-6 text-muted">{distribution.platformSupport.note}</p>
+      </section>
     </div>
   );
 }

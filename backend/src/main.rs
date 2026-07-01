@@ -10,8 +10,12 @@ use streamdubber_backend::{
     auth::jwt::Jwt,
     config::{Config, ServiceConfig},
     db,
-    gateway::{stt::MockStt, translate::MockTranslate, Gateway},
-    secrets::{names, EnvSecretStore, SecretStore},
+    gateway::{
+        deepgram::DeepgramStt, deepl::DeeplTranslate, stt::MockStt, translate::MockTranslate,
+        Gateway,
+    },
+    integrations::Integrations,
+    secrets::{names, EnvSecretStore, SecretStore, VaultSecretStore},
     state::AppState,
     tls::{self, TlsSettings},
 };
@@ -44,8 +48,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env()?;
 
-    // Secret kaynağı — Faz 1: env. Üretim: Vault (infra sağlanınca).
-    let secrets = EnvSecretStore;
+    // Secret kaynağı — VAULT_ADDR+VAULT_TOKEN varsa Vault, yoksa env (local dev).
+    let secrets: Box<dyn SecretStore> = match VaultSecretStore::from_env() {
+        Some(vault) => {
+            tracing::info!("using Vault secret store");
+            Box::new(vault)
+        }
+        None => {
+            tracing::info!("using env secret store (VAULT_ADDR/VAULT_TOKEN not set)");
+            Box::new(EnvSecretStore)
+        }
+    };
 
     // DATABASE_URL verilmişse bağlan + migration uygula.
     if let Some(url) = &config.database_url {
@@ -56,7 +69,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("DATABASE_URL not set — running without database");
     }
 
-    let state = build_state(&secrets).await?;
+    let state = build_state(secrets.as_ref()).await?;
     let router = app::router(state);
 
     match TlsSettings::from_env() {
@@ -81,15 +94,43 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
     let service_config = Arc::new(ServiceConfig::with_defaults());
 
     let mut gateway = Gateway::new(Arc::clone(&service_config));
-    gateway.register_stt(Arc::new(MockStt::new("deepgram")));
+
+    // STT: DEEPGRAM_KEY varsa gerçek Deepgram, yoksa mock (dev/CI).
+    match secrets.get(names::DEEPGRAM_KEY).await {
+        Ok(key) => {
+            tracing::info!("stt: Deepgram (nova-2) registered");
+            gateway.register_stt(Arc::new(DeepgramStt::new(key)));
+        }
+        Err(_) => {
+            tracing::warn!("stt: DEEPGRAM_KEY not set — using mock provider");
+            gateway.register_stt(Arc::new(MockStt::new("deepgram")));
+        }
+    }
+    // AssemblyAI fallback henüz mock (Faz 1.7 devamı).
     gateway.register_stt(Arc::new(MockStt::new("assemblyai")));
-    gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
+
+    // Çeviri: DEEPL_KEY varsa gerçek DeepL, yoksa mock.
+    match secrets.get(names::DEEPL_KEY).await {
+        Ok(key) => {
+            tracing::info!("translate: DeepL registered");
+            gateway.register_translate(Arc::new(DeeplTranslate::new(key)));
+        }
+        Err(_) => {
+            tracing::warn!("translate: DEEPL_KEY not set — using mock provider");
+            gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
+        }
+    }
+    // Google fallback henüz mock (Faz 1.8 devamı).
     gateway.register_translate(Arc::new(MockTranslate::new("google")));
+
+    // Multistream OAuth (1.6): sağlayıcı client id/secret'ları secret'lardan çözülür.
+    let integrations = Arc::new(Integrations::from_secrets(secrets).await);
 
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
         service_config,
+        integrations,
     })
 }
 

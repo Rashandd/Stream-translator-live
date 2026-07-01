@@ -9,6 +9,7 @@ pub mod config;
 pub mod crypto;
 pub mod db;
 pub mod gateway;
+pub mod integrations;
 pub mod pipeline;
 pub mod secrets;
 pub mod state;

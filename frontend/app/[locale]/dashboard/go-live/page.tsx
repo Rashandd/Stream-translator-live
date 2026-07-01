@@ -31,8 +31,9 @@ export default async function GoLivePage({ params }: Props) {
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
   const { goLive } = config.dashboard;
-  const isService = goLive.activeMode === "service";
-  const mode = isService ? goLive.modes.service : goLive.modes.cloud;
+  const isCloud = goLive.activeMode === "cloud";
+  const mode = isCloud ? goLive.modes.cloud : goLive.modes.relay;
+  const live = mode;
   const ready = mode.steps.every((step) => step.done);
 
   return (
@@ -83,32 +84,34 @@ export default async function GoLivePage({ params }: Props) {
 
         <div className="space-y-6">
           <SectionCard title={goLive.startTitle}>
-            <p className="text-xs font-medium text-muted">{mode.connectLabel}</p>
+            <p className="text-xs font-medium text-muted">{live.connectLabel}</p>
             <div className="mt-1 space-y-2">
-              <CopyRow copyLabel={goLive.copyLabel} value={mode.connectValue} />
-              {!isService ? <CopyRow copyLabel={goLive.copyLabel} value={goLive.modes.cloud.streamKey} /> : null}
+              <CopyRow copyLabel={goLive.copyLabel} value={live.connectValue} />
+              {isCloud ? <CopyRow copyLabel={goLive.copyLabel} value={goLive.modes.cloud.streamKey} /> : null}
             </div>
 
             <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-hairline bg-canvas p-3">
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-blue" name="Video" />
-              <p className="text-sm leading-6 text-muted">{mode.videoNote}</p>
+              <p className="text-sm leading-6 text-muted">{live.videoNote}</p>
             </div>
 
-            <div className="mt-5">
-              <p className="mb-2 text-xs font-medium text-muted">{goLive.targetsLabel}</p>
-              <ul className="space-y-2">
-                {goLive.targets.map((target) => (
-                  <li className="flex items-center justify-between rounded-lg border border-hairline bg-canvas px-4 py-2.5" key={target.name}>
-                    <span className="text-sm font-semibold text-ink">{target.name}</span>
-                    <span
-                      className={`inline-flex h-6 w-11 items-center rounded-full px-0.5 ${target.enabled ? "justify-end bg-success" : "justify-start bg-border"}`}
-                    >
-                      <span className="h-5 w-5 rounded-full bg-white" />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {isCloud ? (
+              <div className="mt-5">
+                <p className="mb-2 text-xs font-medium text-muted">{goLive.targetsLabel}</p>
+                <ul className="space-y-2">
+                  {goLive.targets.map((target) => (
+                    <li className="flex items-center justify-between rounded-lg border border-hairline bg-canvas px-4 py-2.5" key={target.name}>
+                      <span className="text-sm font-semibold text-ink">{target.name}</span>
+                      <span
+                        className={`inline-flex h-6 w-11 items-center rounded-full px-0.5 ${target.enabled ? "justify-end bg-success" : "justify-start bg-border"}`}
+                      >
+                        <span className="h-5 w-5 rounded-full bg-white" />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             <button
               aria-disabled={!ready}
@@ -119,9 +122,9 @@ export default async function GoLivePage({ params }: Props) {
               type="button"
             >
               <Icon className="h-4 w-4" name="Play" />
-              {mode.startLabel}
+              {live.startLabel}
             </button>
-            <p className="mt-3 text-sm leading-6 text-muted">{mode.startNote}</p>
+            <p className="mt-3 text-sm leading-6 text-muted">{live.startNote}</p>
           </SectionCard>
         </div>
       </div>
