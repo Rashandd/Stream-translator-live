@@ -2,6 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { SiteHeader } from "@/src/components/site-header";
+// Edge bölümü koyu zeminde (bg-ink) — StatusPill'in açık-yüzey renkleri yerine
+// koyu zemine uygun rozet tonları.
+const edgeStatusTone: Record<string, string> = {
+  enabled: "border-success/45 bg-success/20 text-white",
+  beta: "border-cyan/45 bg-cyan/20 text-white",
+  waitlist: "border-violet/45 bg-violet/20 text-white",
+  coming_soon: "border-white/25 bg-white/10 text-white/85",
+  disabled: "border-white/15 bg-white/5 text-white/60",
+};
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -48,6 +57,7 @@ export default async function HomePage({ params }: HomePageProps) {
               {config.home.hero.secondaryCta.label}
             </Link>
           </div>
+          <p className="mt-4 text-sm leading-6 text-muted">{config.home.hero.note}</p>
         </div>
 
         <div className="relative min-h-[360px]">
@@ -101,7 +111,12 @@ export default async function HomePage({ params }: HomePageProps) {
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {config.home.edge.items.map((item) => (
               <div className="rounded-xl border border-white/12 bg-white/[0.06] p-6" key={item.title}>
-                <Icon className="h-6 w-6 text-cyan" name={item.icon} />
+                <div className="flex items-center justify-between gap-2">
+                  <Icon className="h-6 w-6 text-cyan" name={item.icon} />
+                  <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${edgeStatusTone[item.status] ?? edgeStatusTone.disabled}`}>
+                    {config.statusLabels[item.status as keyof typeof config.statusLabels] ?? item.status}
+                  </span>
+                </div>
                 <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-white/70">{item.body}</p>
               </div>

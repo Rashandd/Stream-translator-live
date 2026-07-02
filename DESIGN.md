@@ -7,29 +7,29 @@ colors:
   surface: "#FFFFFF"
   surface-muted: "#EEF2F6"
   surface-warm: "#FFF5F0"
-  ink: "#101114"
-  text: "#2B2F36"
-  muted: "#667085"
+  ink: "#061A3D"
+  text: "#273247"
+  muted: "#68748A"
   faint: "#98A2B3"
-  border: "#DDE3EA"
-  hairline: "#EEF2F6"
-  primary: "#121316"
-  primary-hover: "#2A2D33"
+  border: "#D7E0EA"
+  hairline: "#E8EEF5"
+  primary: "#061A3D"
+  primary-hover: "#273247"
   on-primary: "#FFFFFF"
-  accent-coral: "#FF5A3D"
-  accent-rose: "#F0436D"
-  accent-violet: "#7667FF"
-  accent-cyan: "#30B7D6"
+  accent-coral: "#FF6A4A"
+  accent-blue: "#2F6BFF"
+  accent-violet: "#9A8CFF"
+  accent-cyan: "#36D8E4"
   success: "#13A66B"
   warning: "#F59E0B"
-  danger: "#E5484D"
-  overlay: "#101114"
+  danger: "#D83A46"
+  overlay: "#061A3D"
 typography:
   display:
     fontFamily: Inter
-    fontSize: 64px
+    fontSize: 72px
     fontWeight: 650
-    lineHeight: 1.02
+    lineHeight: 1.03
     letterSpacing: 0em
   h1:
     fontFamily: Inter
@@ -158,7 +158,7 @@ components:
     padding: 12px
     height: 44px
   language-chip-active:
-    backgroundColor: "{colors.accent-rose}"
+    backgroundColor: "{colors.accent-blue}"
     textColor: "{colors.ink}"
     typography: "{typography.label}"
     rounded: "{rounded.pill}"
@@ -214,7 +214,7 @@ Frontend must be internationalization-ready from the start. Development may ship
 
 Use a mostly white and off-white foundation. The interface should breathe, but it must not become empty. Pair clean white surfaces with hairline borders, dark text, and a small number of vivid accents.
 
-Use coral and rose for active translation energy, language movement, and primary product moments. Use violet and cyan as secondary signal colors for latency, WebSocket, SDK pairing, and platform routing. Do not let violet dominate the whole app.
+Use blue and coral for active translation energy, language movement, and primary product moments. Use violet and cyan as secondary signal colors for latency, WebSocket, SDK pairing, and platform routing. Do not let violet dominate the whole app.
 
 Status colors are functional, not decorative. Green means connected or healthy. Amber means degraded, setup needed, or nearing a limit. Red means failed, disconnected, blocked, or security risk.
 

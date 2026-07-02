@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LockKeyhole,
   Mail,
+  Menu,
   MessagesSquare,
   Mic,
   MonitorCog,
@@ -31,6 +32,7 @@ import {
   Subtitles,
   Video,
   Wifi,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,6 +51,7 @@ const icons: Record<string, LucideIcon> = {
   LayoutDashboard,
   LockKeyhole,
   Mail,
+  Menu,
   MessagesSquare,
   Mic,
   MonitorCog,
@@ -66,6 +69,7 @@ const icons: Record<string, LucideIcon> = {
   Subtitles,
   Video,
   Wifi,
+  X,
 };
 
 type IconProps = {

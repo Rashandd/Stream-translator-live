@@ -38,10 +38,12 @@ export default async function VerifyPage({ params }: Props) {
           <h1 className="text-2xl font-semibold text-ink">{verify.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{verify.subtitle}</p>
 
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
-            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-warning" name="Mail" />
-            <p className="text-xs leading-5 text-text">{verify.devNotice}</p>
-          </div>
+          {process.env.NODE_ENV !== "production" ? (
+            <div className="mt-4 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-warning" name="Mail" />
+              <p className="text-xs leading-5 text-text">{verify.devNotice}</p>
+            </div>
+          ) : null}
 
           <form action={localizePath(locale, "/dashboard")} className="mt-6 space-y-4" method="get">
             <div>

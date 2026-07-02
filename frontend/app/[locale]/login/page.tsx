@@ -54,15 +54,15 @@ export default async function LoginPage({ params }: Props) {
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-ink" htmlFor="password">{login.passwordLabel}</label>
-                <Link className="text-sm font-semibold text-blue hover:text-ink" href={localizePath(locale, "/login")}>
+                <Link className="text-sm font-semibold text-blue hover:text-ink" href={localizePath(locale, "/login/reset")}>
                   {login.forgotLabel}
                 </Link>
               </div>
+              {/* name yok: form GET ile gezindiği için şifre asla URL'e yazılmamalı. */}
               <input
                 autoComplete="current-password"
                 className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
                 id="password"
-                name="password"
                 placeholder={login.passwordPlaceholder}
                 required
                 type="password"
@@ -84,7 +84,7 @@ export default async function LoginPage({ params }: Props) {
 
         <p className="mt-6 text-center text-sm text-muted">
           {login.signupPrompt}{" "}
-          <Link className="font-semibold text-blue hover:text-ink" href={localizePath(locale, "/login")}>
+          <Link className="font-semibold text-blue hover:text-ink" href={localizePath(locale, "/signup")}>
             {login.signupLabel}
           </Link>
         </p>

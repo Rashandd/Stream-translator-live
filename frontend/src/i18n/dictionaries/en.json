@@ -8,11 +8,14 @@
     "ariaLabel": "Primary navigation",
     "items": [
       { "label": "Product", "href": "/" },
-      { "label": "Dashboard", "href": "/dashboard" },
       { "label": "Solutions", "href": "/solutions" },
+      { "label": "Pricing", "href": "/pricing" },
       { "label": "Security", "href": "/security" }
     ],
-    "cta": { "label": "Start setup", "href": "/dashboard" },
+    "cta": { "label": "Start free", "href": "/dashboard" },
+    "signIn": { "label": "Sign in", "href": "/login" },
+    "menuLabel": "Open menu",
+    "menuCloseLabel": "Close menu",
     "languageLabel": "English"
   },
   "home": {
@@ -20,8 +23,9 @@
       "eyebrow": "Live translation for streamers",
       "title": "Choose how every language reaches your stream.",
       "summary": "Strovak lets you pick the output for each platform: captions baked into OBS, native captions viewers switch on, YouTube multi-audio dubbing, or a separate dubbed channel per language on Twitch and Kick.",
-      "primaryCta": { "label": "Start streaming", "href": "/dashboard" },
-      "secondaryCta": { "label": "See it live", "href": "/solutions" }
+      "primaryCta": { "label": "Start free", "href": "/dashboard" },
+      "secondaryCta": { "label": "See plans & pricing", "href": "/pricing" },
+      "note": "Free plan: live captions, 1 language, 5 hours a month. No credit card needed."
     },
     "scene": {
       "label": "Broadcaster control layer",
@@ -46,10 +50,10 @@
       "eyebrow": "Every setup covered",
       "title": "Two ways to caption, two ways to dub — you pick.",
       "items": [
-        { "title": "Captions baked into OBS", "body": "The simplest, and available today: translated subtitles are burned into your OBS scene, so everyone on any platform sees the same language layer.", "icon": "PanelsTopLeft" },
-        { "title": "Captions viewers switch on", "body": "Native captions through each platform's own layer, so viewers turn them on and pick a language — YouTube today; Twitch via our own extension and Kick via a browser extension (both in development).", "icon": "Subtitles" },
-        { "title": "Dubbed audio on YouTube", "body": "On YouTube, add translated audio tracks — viewers switch language right in the player, no second channel needed.", "icon": "Video" },
-        { "title": "A dubbed channel per language", "body": "On Twitch and Kick, run a dedicated channel for each language — dubbed live in your own voice.", "icon": "Share2" }
+        { "title": "Captions baked into OBS", "body": "The simplest, and available today: translated subtitles are burned into your OBS scene, so everyone on any platform sees the same language layer.", "icon": "PanelsTopLeft", "status": "enabled" },
+        { "title": "Captions viewers switch on", "body": "Native captions through each platform's own layer, so viewers turn them on and pick a language — YouTube today; Twitch via our own extension and Kick via a browser extension (both in development).", "icon": "Subtitles", "status": "beta" },
+        { "title": "Dubbed audio on YouTube", "body": "On YouTube, add translated audio tracks — viewers switch language right in the player, no second channel needed.", "icon": "Video", "status": "coming_soon" },
+        { "title": "A dubbed channel per language", "body": "On Twitch and Kick, run a dedicated channel for each language — dubbed live in your own voice.", "icon": "Share2", "status": "coming_soon" }
       ]
     },
     "audience": {
@@ -140,12 +144,12 @@
     },
     "overview": {
       "title": "Overview",
-      "subtitle": "Live stream state, audience languages, and quick start — all driven by config, nothing hard-coded.",
+      "subtitle": "Your live stream state, audience languages, and quick start.",
       "metrics": [
         { "label": "Stream state", "value": "Idle", "hint": "waiting for the app", "icon": "Radio" },
         { "label": "Live viewers", "value": "0", "hint": "across connected platforms", "icon": "Wifi" },
         { "label": "Caption latency", "value": "—", "hint": "available after stream start", "icon": "Gauge" },
-        { "label": "Monthly usage", "value": "0h / 5h", "hint": "from plan config", "icon": "CreditCard" }
+        { "label": "Monthly usage", "value": "0h / 5h", "hint": "of your plan's monthly hours", "icon": "CreditCard" }
       ],
       "languageBreakdown": {
         "title": "Audience languages",
@@ -370,6 +374,99 @@
       "syncTone": "warning"
     }
   },
+  "pricing": {
+    "hero": {
+      "eyebrow": "Pricing",
+      "title": "Start free. Upgrade when your audience grows.",
+      "summary": "Every plan includes live translated captions and the desktop app. Your video never leaves your machine on any plan."
+    },
+    "billingHint": "per month",
+    "ctaLabel": "Start free",
+    "ctaHref": "/dashboard",
+    "planCtaLabel": "Choose plan",
+    "popularLabel": "Most popular",
+    "plans": [
+      {
+        "name": "Free",
+        "price": "$0",
+        "summary": "Try live captions on your next stream.",
+        "features": [
+          "Live captions in 1 language",
+          "5 hours a month",
+          "Strovak watermark on captions",
+          "Community support"
+        ],
+        "popular": false
+      },
+      {
+        "name": "Starter",
+        "price": "$9.99",
+        "summary": "For streamers going multilingual.",
+        "features": [
+          "Captions in 3 languages",
+          "20 hours a month",
+          "Up to 3 platforms",
+          "No watermark"
+        ],
+        "popular": true
+      },
+      {
+        "name": "Pro",
+        "price": "$24.99",
+        "summary": "Captions plus voice features as they roll out.",
+        "features": [
+          "Captions in 10 languages",
+          "40 hours a month",
+          "All platforms",
+          "Voice dubbing (as it launches)"
+        ],
+        "popular": false
+      },
+      {
+        "name": "Streamer",
+        "price": "$49.99",
+        "summary": "Everything, for full-time broadcasters.",
+        "features": [
+          "Unlimited languages",
+          "100 hours a month",
+          "All platforms",
+          "Priority support"
+        ],
+        "popular": false
+      }
+    ],
+    "note": "Prices and limits shown here reflect the current plan catalog and may be updated — your dashboard always shows your live plan."
+  },
+  "security": {
+    "hero": {
+      "eyebrow": "Security & privacy",
+      "title": "Your video never leaves your PC.",
+      "summary": "Strovak processes only your microphone audio in the cloud — a small encrypted stream of roughly 50–128 Kbps. Your gameplay, camera, and scene stay on your machine, always."
+    },
+    "claims": [
+      {
+        "title": "Video stays local",
+        "body": "The desktop app captures only speech audio. Video is encoded and delivered by OBS from your PC — it is never uploaded to Strovak.",
+        "icon": "MonitorCog"
+      },
+      {
+        "title": "Encrypted in transit",
+        "body": "Every connection — app, dashboard, and audio stream — runs over TLS 1.3, with mutual authentication between the app and the cloud.",
+        "icon": "LockKeyhole"
+      },
+      {
+        "title": "Encrypted at rest",
+        "body": "Stored data, stream keys, and future voice profiles are protected with AES-256. Secrets live in a managed vault, never in code.",
+        "icon": "KeyRound"
+      },
+      {
+        "title": "You own your data",
+        "body": "Delete your account and your data — including any voice profile — is permanently removed, in line with GDPR and KVKK.",
+        "icon": "ShieldCheck"
+      }
+    ],
+    "note": "Questions about a security review or a data processing agreement? Reach us and we'll walk you through the pipeline in detail."
+  },
   "auth": {
     "login": {
       "title": "Sign in",
@@ -383,6 +480,26 @@
       "forgotLabel": "Forgot password?",
       "signupPrompt": "New to Strovak?",
       "signupLabel": "Create an account"
+    },
+    "signup": {
+      "title": "Create your account",
+      "subtitle": "Start free: live captions, 1 language, 5 hours a month. No credit card needed.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "submitLabel": "Create account",
+      "termsNote": "By creating an account you agree to the terms of service and privacy policy.",
+      "loginPrompt": "Already have an account?",
+      "loginLabel": "Sign in"
+    },
+    "reset": {
+      "title": "Reset your password",
+      "subtitle": "Enter your account email and we'll send you a reset link.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "submitLabel": "Send reset link",
+      "backLabel": "Back to sign in"
     },
     "verify": {
       "title": "Enter your code",
