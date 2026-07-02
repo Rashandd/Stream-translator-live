@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::gateway::Gateway;
+use crate::logging::{LogLevel, Logger};
 use crate::usage::UsageTracker;
 use crate::ws::protocol::{ErrorCode, ServerMessage, SubtitleSource};
 
@@ -29,6 +30,8 @@ pub struct StreamSession {
     usage: Arc<UsageTracker>,
     /// Kullanım süresini duvar saatiyle ölçmek için son tick zamanı.
     last_tick: Instant,
+    /// Merkezi log deposu (1.12) — pipeline/gateway olayları buraya yazılır.
+    logger: Arc<Logger>,
 }
 
 impl StreamSession {
@@ -43,6 +46,7 @@ impl StreamSession {
         user_id: impl Into<String>,
         monthly_hours: i64,
         usage: Arc<UsageTracker>,
+        logger: Arc<Logger>,
     ) -> Self {
         StreamSession {
             session_id: session_id.into(),
@@ -55,6 +59,7 @@ impl StreamSession {
             monthly_hours,
             usage,
             last_tick: Instant::now(),
+            logger,
         }
     }
 
@@ -74,6 +79,13 @@ impl StreamSession {
 
         let status = self.usage.record(&self.user_id, elapsed, self.monthly_hours);
         if status.limit_reached {
+            self.logger.log(
+                LogLevel::Warn,
+                "pipeline",
+                "plan limit reached, session closing",
+                Some(&self.user_id),
+                Some(&self.session_id),
+            );
             return Some(ServerMessage::error(
                 ErrorCode::PlanLimitReached,
                 "plan_limit_reached",
@@ -84,6 +96,13 @@ impl StreamSession {
             Ok(t) => t,
             Err(err) => {
                 tracing::debug!(error = %err, "stt failed for frame, skipping");
+                self.logger.log(
+                    LogLevel::Warn,
+                    "gateway",
+                    &format!("stt failed for frame, skipping: {err}"),
+                    Some(&self.user_id),
+                    Some(&self.session_id),
+                );
                 return None;
             }
         };
@@ -132,6 +151,10 @@ mod tests {
         Arc::new(gw)
     }
 
+    fn test_logger() -> Arc<Logger> {
+        Arc::new(Logger::in_memory(Arc::new(ServiceConfig::with_defaults())))
+    }
+
     fn session(target_langs: Vec<String>, monthly_hours: i64) -> StreamSession {
         StreamSession::new(
             "s1",
@@ -142,6 +165,7 @@ mod tests {
             "user-1",
             monthly_hours,
             Arc::new(UsageTracker::new()),
+            test_logger(),
         )
     }
 
@@ -189,6 +213,7 @@ mod tests {
         let usage = Arc::new(UsageTracker::new());
         // Limiti önceden doldur: monthly_hours=0 → ilk tick'te bile limit dolu sayılır.
         usage.record("user-1", 1.0, 0);
+        let logger = test_logger();
         let mut session = StreamSession::new(
             "s1",
             "tr",
@@ -198,11 +223,48 @@ mod tests {
             "user-1",
             0,
             usage,
+            Arc::clone(&logger),
         );
         let msg = session.process_audio(&[1, 2, 3]).await.expect("error message");
         assert!(matches!(
             msg,
             ServerMessage::Error { code: 4003, .. }
         ));
+
+        // Merkezi log deposuna warn kaydı düşer (1.12) — kullanıcı+session bağlı.
+        let logs = logger.query(&crate::logging::LogQuery {
+            level: Some(LogLevel::Warn),
+            service: Some("pipeline".into()),
+            ..Default::default()
+        });
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].user_id.as_deref(), Some("user-1"));
+        assert_eq!(logs[0].session_id.as_deref(), Some("s1"));
+    }
+
+    #[tokio::test]
+    async fn stt_failure_is_logged_to_central_store() {
+        let logger = test_logger();
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            Arc::clone(&logger),
+        );
+        // MockStt boş payload'ta hata verir → gateway hatası loglanır.
+        assert!(session.process_audio(&[]).await.is_none());
+
+        let logs = logger.query(&crate::logging::LogQuery {
+            service: Some("gateway".into()),
+            level: Some(LogLevel::Warn),
+            ..Default::default()
+        });
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].message.contains("stt failed"));
     }
 }

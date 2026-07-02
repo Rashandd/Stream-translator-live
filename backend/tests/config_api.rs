@@ -33,6 +33,7 @@ async fn spawn_server() -> SocketAddr {
     let state = AppState {
         jwt: Arc::new(Jwt::new(SECRET)),
         gateway: Arc::new(gateway),
+        logger: Arc::new(streamdubber_backend::logging::Logger::in_memory(Arc::clone(&service_config))),
         service_config,
         integrations: Arc::new(Integrations::empty()),
         billing: Arc::new(Billing::empty()),

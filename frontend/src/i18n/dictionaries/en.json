@@ -430,7 +430,8 @@
           "items": [
             { "label": "Overview", "href": "/admin", "icon": "Gauge" },
             { "label": "Users", "href": "/admin/users", "icon": "Building2" },
-            { "label": "Infrastructure", "href": "/admin/infrastructure", "icon": "MonitorCog" }
+            { "label": "Infrastructure", "href": "/admin/infrastructure", "icon": "MonitorCog" },
+            { "label": "Logs", "href": "/admin/logs", "icon": "ScrollText" }
           ]
         },
         {
@@ -585,6 +586,28 @@
         { "label": "Infra", "value": "$0", "hint": "Railway, this month", "icon": "MonitorCog" }
       ],
       "note": "Estimates are read from provider usage once billing integrations are connected."
+    },
+    "logs": {
+      "title": "Logs",
+      "subtitle": "Central log store for all backend services. Search and filter; admin only.",
+      "searchPlaceholder": "Search message, user ID, or session ID",
+      "levelFilters": ["All levels", "Error", "Warn", "Info", "Debug"],
+      "serviceFilters": ["All services", "ws", "pipeline", "gateway", "billing", "integrations", "overlay"],
+      "columns": ["Time", "Level", "Service", "Message", "User", "Session"],
+      "empty": "No log entries match the current filters.",
+      "recentErrors": {
+        "title": "Recent errors",
+        "subtitle": "Last errors across all services (level=error)."
+      },
+      "rows": [
+        { "time": "12:04:11", "level": "error", "service": "gateway", "message": "stt failed for frame, skipping: provider timeout", "user": "u_7f3a", "session": "s_91b2" },
+        { "time": "12:03:58", "level": "warn", "service": "billing", "message": "stripe webhook signature rejected: signature mismatch", "user": "—", "session": "—" },
+        { "time": "12:03:41", "level": "info", "service": "ws", "message": "stream started", "user": "u_7f3a", "session": "s_91b2" },
+        { "time": "12:02:19", "level": "info", "service": "integrations", "message": "oauth connected: streamlabs", "user": "u_22c1", "session": "—" },
+        { "time": "12:01:05", "level": "info", "service": "gateway", "message": "deepgram registered api_key=[REDACTED]", "user": "—", "session": "—" }
+      ],
+      "levelNote": "Minimum level is read from the log.level config key — change it from Service routing without a restart.",
+      "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend."
     }
   },
   "statusLabels": {

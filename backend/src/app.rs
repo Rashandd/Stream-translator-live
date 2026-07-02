@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     routing::{get, post, put},
     Json, Router,
@@ -16,6 +16,7 @@ use crate::auth::authz::AdminUser;
 use crate::billing;
 use crate::config::ServiceConfig;
 use crate::integrations;
+use crate::logging::{LogEntry, Logger, LogQuery};
 use crate::overlay;
 use crate::plans::{PlanDefinition, PlanRegistry};
 use crate::state::AppState;
@@ -63,6 +64,19 @@ async fn put_config(
     }
 }
 
+/// Log kayıtlarını arar/filtreler (sadece admin) — Faz 1.12.
+///
+/// Filtreler: `service`, `level`, `from_ms`/`to_ms` (epoch ms), `user_id`,
+/// `session_id`, `limit`. Son N hata için `level=error&limit=N`.
+/// Geçersiz `level` değeri 400 döner (Query deserialize hatası).
+async fn get_logs(
+    _admin: AdminUser,
+    State(logger): State<Arc<Logger>>,
+    Query(query): Query<LogQuery>,
+) -> Json<Vec<LogEntry>> {
+    Json(logger.query(&query))
+}
+
 /// Plan listesini okur (public) — fiyatlandırma sayfası ve yayıncı paneli
 /// buradan okur, koda gömülü fiyat/limit olmaz.
 async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefinition>> {
@@ -105,6 +119,8 @@ pub fn router(state: AppState) -> Router {
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.
         .route("/api/plans", get(get_plans))
         .route("/admin/plans", put(put_plan))
+        // Loglama (1.12): merkezi log deposu araması, sadece admin.
+        .route("/admin/logs", get(get_logs))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

@@ -31,6 +31,7 @@ async fn spawn_backend() -> SocketAddr {
     let state = AppState {
         jwt: Arc::new(Jwt::new(SECRET)),
         gateway: Arc::new(gateway),
+        logger: Arc::new(streamdubber_backend::logging::Logger::in_memory(Arc::clone(&service_config))),
         service_config,
         integrations: Arc::new(streamdubber_backend::integrations::Integrations::empty()),
         billing: Arc::new(streamdubber_backend::billing::Billing::empty()),

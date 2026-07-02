@@ -17,6 +17,7 @@ use axum::{
 };
 
 use crate::auth::jwt::{Claims, Jwt};
+use crate::logging::LogLevel;
 use crate::pipeline::StreamSession;
 use crate::state::AppState;
 use protocol::{ClientMessage, ErrorCode, ServerMessage};
@@ -36,6 +37,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         Some(claims) => claims,
         None => return,
     };
+
+    state.logger.log(
+        LogLevel::Info,
+        "ws",
+        "websocket authenticated",
+        Some(&claims.sub),
+        None,
+    );
 
     let ready = session_ready(&claims, &state);
     if send(&mut socket, &ready).await.is_err() {
@@ -183,6 +192,13 @@ fn handle_control(
             audio_format,
         } => {
             if audio_format.codec != "opus" && audio_format.codec != "pcm_s16le" {
+                state.logger.log(
+                    LogLevel::Warn,
+                    "ws",
+                    &format!("stream_start rejected: unsupported codec {}", audio_format.codec),
+                    Some(&claims.sub),
+                    Some(&session_id),
+                );
                 return Some(ServerMessage::error(
                     ErrorCode::UnsupportedCodec,
                     "unsupported_codec",
@@ -190,6 +206,13 @@ fn handle_control(
             }
             let overlay_token = uuid::Uuid::new_v4().simple().to_string();
             let monthly_hours = monthly_hours_for(state, &claims.plan);
+            state.logger.log(
+                LogLevel::Info,
+                "ws",
+                "stream started",
+                Some(&claims.sub),
+                Some(&session_id),
+            );
             *session = Some(StreamSession::new(
                 session_id.clone(),
                 source_lang,
@@ -199,6 +222,7 @@ fn handle_control(
                 claims.sub.clone(),
                 monthly_hours,
                 Arc::clone(&state.usage),
+                Arc::clone(&state.logger),
             ));
             Some(ServerMessage::StreamAck {
                 session_id,
@@ -206,7 +230,14 @@ fn handle_control(
                 overlay_token,
             })
         }
-        ClientMessage::StreamStop { .. } => {
+        ClientMessage::StreamStop { session_id } => {
+            state.logger.log(
+                LogLevel::Info,
+                "ws",
+                "stream stopped",
+                Some(&claims.sub),
+                Some(&session_id),
+            );
             *session = None;
             None
         }
@@ -304,6 +335,9 @@ mod tests {
             overlay: Arc::new(crate::overlay::OverlayHub::new()),
             plans: Arc::new(crate::plans::PlanRegistry::with_defaults()),
             usage: Arc::new(crate::usage::UsageTracker::new()),
+            logger: Arc::new(crate::logging::Logger::in_memory(Arc::new(
+                ServiceConfig::with_defaults(),
+            ))),
         }
     }
 

@@ -11,6 +11,7 @@ pub mod crypto;
 pub mod db;
 pub mod gateway;
 pub mod integrations;
+pub mod logging;
 pub mod overlay;
 pub mod pipeline;
 pub mod plans;

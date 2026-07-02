@@ -588,14 +588,15 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Kullanım takibi  <!-- usage::UsageTracker: kullanıcı+dönem (YYYY-MM UTC) başına duvar-saati kullanım sayacı, ay değişince otomatik sıfırlanır. ws/mod.rs: session_ready artık gerçek remaining_seconds döner (UsageTracker.status + PlanRegistry.monthly_hours); her ses frame'inde pipeline::StreamSession kullanım kaydeder, limit dolunca STT/çeviri hiç çağrılmadan Error(PlanLimitReached, 4003) döner ve session kapatılır. 6 UsageTracker unit test + 1 pipeline test (plan_limit_reached_short_circuits_before_stt). KALAN: bellek içi (restart'ta sıfırlanır) — kalıcılık için usage_records tablosuna yazılması gerekiyor -->
 
 #### 1.12 Loglama Sistemi (Admin Web Erişimi)
-- [ ] Merkezi loglama altyapısı (backend servisleri: WS pipeline, gateway, billing, integrations, overlay tek log formatına yazar)
-- [ ] Log seviyeleri (error / warn / info / debug) ve yapılandırılabilir seviye (config-driven, restart gerektirmez)
-- [ ] Loglar DB'ye veya log storage'a kalıcı yazılır (in-memory değil — restart'ta kaybolmaz)
-- [ ] Admin panel: `/admin/logs` sayfası — sadece admin yetkili kullanıcı erişebilir (mevcut admin auth katmanı ile korunur)
-- [ ] Log arama/filtreleme (servis, seviye, tarih aralığı, kullanıcı/session ID)
-- [ ] Son N hata canlı listesi (Admin Dashboard "Log ve Hata İzleme" bölümüyle birleşir — bkz. satır 482-486)
-- [ ] Hassas veri loglanmaz (API key, stream key, JWT, ses/görüntü verisi log'a yazılmaz — sadece referans ID)
+- [x] Merkezi loglama altyapısı (backend servisleri: WS pipeline, gateway, billing, integrations, overlay tek log formatına yazar)  <!-- backend/src/logging: Logger + LogEntry (ts_ms/level/service/message/user_id/session_id) AppState'e enjekte; ws (auth/stream_start/stop/codec red), pipeline (plan limit), gateway (stt hatası), billing (webhook imza+event), integrations (oauth callback), overlay (subscriber, token sadece 8 char önek) yazıyor -->
+- [x] Log seviyeleri (error / warn / info / debug) ve yapılandırılabilir seviye (config-driven, restart gerektirmez)  <!-- LogLevel sıralı enum; asgari seviye ServiceConfig "log.level" anahtarından her yazımda okunur — PUT /admin/config ile anında değişir, restart yok (logs_api testi uçtan uca doğruluyor) -->
+- [x] Loglar DB'ye veya log storage'a kalıcı yazılır (in-memory değil — restart'ta kaybolmaz)  <!-- Logger::with_file: LOG_FILE env → append-only JSONL, açılışta geri yüklenir (reopen testi var); LOG_FILE boşsa bellek içi (dev/CI) + startup warn. .env.example'a LOG_FILE eklendi. İleride istenirse aynı arayüzle Postgres store yazılabilir -->
+- [x] Admin panel: `/admin/logs` sayfası — sadece admin yetkili kullanıcı erişebilir (mevcut admin auth katmanı ile korunur)  <!-- backend GET /admin/logs AdminUser extractor'lı (broadcaster 403 / anonim 401 testli); frontend /admin/logs sayfası (console) grubunda, nav'a eklendi, config-driven (admin.logs en.json) -->
+- [x] Log arama/filtreleme (servis, seviye, tarih aralığı, kullanıcı/session ID)  <!-- GET /admin/logs?service=&level=&from_ms=&to_ms=&user_id=&session_id=&limit= — AND'lenir, yeniden-eskiye, limit max 1000; UI'da arama + seviye/servis filtre çipleri -->
+- [x] Son N hata canlı listesi (Admin Dashboard "Log ve Hata İzleme" bölümüyle birleşir — bkz. satır 482-486)  <!-- Logger::recent_errors(n) = level=error&limit=N; /admin/logs sayfasının üstünde "Recent errors" paneli -->
+- [x] Hassas veri loglanmaz (API key, stream key, JWT, ses/görüntü verisi log'a yazılmaz — sadece referans ID)  <!-- redact(): key/token/secret/password/authorization içeren anahtar=değer çiftleri + "Bearer <x>" deseni depoya yazılmadan [REDACTED]; overlay token'ı sadece 8 char önek. Testli (unit + e2e) -->
 > Not: Bu madde CLAUDE.md "console.log commit etme — logger kullan" kuralının altyapısal karşılığıdır. Admin Dashboard spec'inde zaten "Log ve Hata İzleme" bölümü var (satır 482-486); burada eklenen asıl loglama motoru + kalıcılık + admin-only erişim.
+> Faz 1.12 NOT (Claude): 11 logging unit + 5 logs_api e2e (raw HTTP + gerçek WS client) + 2 pipeline log testi eklendi; toplam workspace 217 test + clippy -D warnings temiz. Frontend: admin-logs.test.ts (5 test, nav/ikon/redaction sözleşmeleri), toplam 24 test + lint + tsc temiz. KALAN (diğer admin sayfalarıyla aynı desen): /admin/logs UI'ının canlı GET /admin/logs'a bağlanması (şu an config-driven mock satırlar) ve üretimde LOG_FILE'ın set edilmesi (ops).
 
 ---
 
@@ -899,6 +900,7 @@ Bu yayıncılardan premium ücret alınır
 
 - [ ] Live Stream Translation — mevcut Faz 1 yayıncı ürünüyle uyumlu ana çözüm sayfası
 - [ ] Events and Conferences — fiziksel/hibrit etkinlik ve konferans çeviri çözümü
+- [ ] Watch Party Mode — izleyici taraflı, herhangi bir tarayıcı sekmesini (Netflix, YouTube, Twitch, canlı spor) canlı çeviren mod; detaylı analiz ve uygulama planı aşağıda "Rakip Analizi — Watch Party Mode" bölümünde
 
 ### Platform ve Geliştirici Çözümleri
 
@@ -921,3 +923,45 @@ Bu yayıncılardan premium ücret alınır
 - [ ] Faz 1 dışı çözümler dashboard'da satın alınabilir/aktif özellik gibi gösterilmez.
 - [ ] Coming soon kartlarında CTA admin-config kaynaklı olur: bekleme listesi, demo talebi veya görünmez.
 - [ ] Admin panelden çözüm sırası, görünürlük, metin, CTA, hedef route ve feature flag değiştirilebilir.
+
+---
+
+## Rakip Analizi — Watch Party Mode (streamtranslate.live)
+
+> Kaynak: `streamtranslate.live/watch-party-info` (2026-07-02 itibarıyla). Bu bölüm sadece analiz + uygulama planıdır — Faz 1 kapsamına girmez, frontend'e şimdi eklenmez (kullanıcı talebiyle roadmap-only).
+
+### Rakip Ne Sunuyor
+- **Ne yapıyor:** Tarayıcı sekmesindeki HERHANGİ bir sesi (Netflix, YouTube, Twitch, canlı spor, podcast, haber, ders) canlı çeviriyor — yayıncıya değil, **izleyiciye** yönelik bir mod.
+- **Kullanıcı akışı:** `/control` sayfasına giriş → "Watch Party" aç → "GO LIVE" → paylaşılacak sekmeyi seç (3 adım).
+- **Teknik:** Uzantı/kurulum gerekmiyor — tarayıcının yerleşik ekran/sekme paylaşım API'si (`getDisplayMedia`) kullanılıyor. Video akışı değil, **çıkış (render edilmiş) ses** yakalandığı için DRM korumalı içerikte (Netflix) de çalışıyor. <2sn gecikme, 30+ dil.
+- **Fiyatlandırma:** Sadece en üst plan (**Elite, $149/ay**) üzerinde açık — premium/yüksek-fiyat kilitli özellik.
+
+### Bizim Ürünle Farkı — Kritik Nokta
+Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RTMP relay, OBS, platform OAuth). Watch Party ise **izleyici taraflı** ayrı bir dikey: yayıncının hiçbir katılımı/kurulumu olmadan, herhangi bir kullanıcı herhangi bir sekmeyi kendi başına çevirebiliyor. Bu, StreamDubber'ın "yayıncı öder" iş modeline **ek bir bacak** (B2C, kurulumsuz, tek kullanıcı) — SDK'ya hiç ihtiyaç yok.
+
+### Nasıl Yapılabilir — Mevcut Mimariyle Örtüşme
+
+**Büyük avantaj: bulut işleme katmanı zaten var, sıfırdan yazmaya gerek yok.**
+
+| İhtiyaç | Watch Party için gereken | Mevcut StreamDubber'da karşılığı |
+|---|---|---|
+| Ses yakalama | `navigator.mediaDevices.getDisplayMedia({video:true, audio:true})` (Chrome: "sekme sesini paylaş" seçeneğiyle) — saf tarayıcı JS, kurulum yok | SDK'daki `core/capture.rs` yerine tamamen web-native; SDK'ya gerek yok |
+| Ses → buluta akış | WebSocket üzerinden ses frame'leri | `backend/src/ws` + mevcut ses akışı protokolü (`docs/websocket-protocol.md`) — **aynen yeniden kullanılabilir** |
+| VAD / ön-işleme | Boş sesi filtrele | `sdk/src/core/vad.rs`, `preprocess.rs` mantığı — tarayıcıda WASM'a taşınabilir veya bulutta STT öncesi uygulanabilir |
+| STT + Çeviri | Gerçek zamanlı metne çevirip hedef dile çevirme | `backend/src/gateway` (Deepgram/AssemblyAI + DeepL/Google) — **birebir aynı pipeline** |
+| Altyazı gösterimi | Kullanıcının ekranında overlay/widget | `backend/src/overlay` (OverlayHub, WS push) + `/o/[token]` sayfası — **aynı mekanizma**, sadece SDK yerine tarayıcı sekmesi üstüne floating widget olarak render edilir |
+| Kimlik/plan kontrolü | Hangi planda açık, kullanım limiti | Mevcut `plans::PlanRegistry` + `usage::UsageTracker` — config-driven, yeni plan/flag eklemek yeterli |
+
+**Sonuç:** Bu özellik için SDK, RTMP relay, OBS entegrasyonu, platform OAuth, multistream — **hiçbiri gerekmiyor**. Sadece yeni bir **hafif web istemcisi** (mikrofon yerine `getDisplayMedia` sekme sesi kullanan bir capture sayfası) + mevcut STT/çeviri/overlay pipeline'ının bu yeni istemciyi kabul etmesi yeterli.
+
+### Uygulama Planı (Görevler — henüz hiçbir faza atanmadı)
+- [ ] `/watch-party` (veya `/control`) sayfası — tarayıcıda `getDisplayMedia({video:true, audio:true})` ile sekme sesi yakalama, kullanıcıya "sekme sesini paylaş" seçtirme UI'ı
+- [ ] Yakalanan ses'i mevcut WS ses protokolüne (`docs/websocket-protocol.md`) uyacak şekilde encode edip backend'e gönderme (SDK'nın yaptığı işin tarayıcı-JS karşılığı)
+- [ ] Backend: yeni bir `client_type: "watch_party"` ayrımı (SDK session'larından farklı — RTMP/relay alanları yok, sadece STT+çeviri) — pipeline zaten sağlayıcı-agnostik olduğu için minimal değişiklik
+- [ ] Floating altyazı widget'ı (mevcut `/o/[token]` overlay mantığının tarayıcı-içi, sekme üstü versiyonu — konumlandırma/opaklık ayarlı)
+- [ ] Plan gating: yeni bir flag (`watch_party.enabled`) — hangi planda açık olduğu admin panelden (config-driven, CLAUDE.md kuralına uygun), rakip gibi sadece en üst planla sınırlamak zorunda değiliz
+- [ ] Kullanım takibi: `UsageTracker`'a watch-party seansları da dahil edilir mi yoksa ayrı kotalı mı olacağı kararı (ürün kararı, admin panelden yapılandırılabilir)
+- [ ] Hukuki/ToS notu: sekme sesi yakalama kullanıcının **kendi** cihazında render edilen sesi kişisel kullanım için çeviriyor — yeniden yayın/dağıtım değil. Netflix/YouTube gibi platformların ToS'una aykırı olmayan "erişilebilirlik amaçlı kişisel altyazı" çerçevesinde konumlandırılmalı; pazarlama metninde "DRM atlatma" gibi ifadelerden kaçınılmalı (hukuki risk)
+- [ ] Tarayıcı uyumluluğu testi — `getDisplayMedia` sekme-sesi paylaşımı Chrome/Edge'de net, Safari/Firefox'ta kısıtlı/farklı davranabilir; desteklenmeyen tarayıcıda net bir uyarı gerekir
+
+> Bu özellik SDK'dan bağımsız, tamamen web tabanlı olduğu için Faz 1-3'ün SDK/RTMP/multistream işiyle çakışmaz — ayrı, paralel geliştirilebilecek bir görev grubu. Hangi faza (Faz 2 sonrası mı, Faz 4 büyüme kapsamında mı) alınacağı kullanıcı kararı bekliyor; şimdilik sadece "Coming Soon" kataloğunda ve bu analiz bölümünde duruyor.

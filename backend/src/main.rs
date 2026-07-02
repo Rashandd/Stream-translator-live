@@ -16,6 +16,7 @@ use streamdubber_backend::{
         google_translate::GoogleTranslate, stt::MockStt, translate::MockTranslate, Gateway,
     },
     integrations::Integrations,
+    logging::Logger,
     overlay::OverlayHub,
     plans::PlanRegistry,
     secrets::{names, EnvSecretStore, SecretStore, VaultSecretStore},
@@ -152,6 +153,20 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
     // "yapılandırılmamış" (503) döner; DEEPGRAM_KEY/DEEPL_KEY ile aynı desen.
     let billing = Arc::new(Billing::from_secrets(secrets).await);
 
+    // Merkezi log deposu (1.12): LOG_FILE verilirse kalıcı JSONL, yoksa bellek
+    // içi (restart'ta kaybolur — üretimde LOG_FILE bekleniyor).
+    let log_file = std::env::var("LOG_FILE").ok().filter(|p| !p.is_empty());
+    let logger = match log_file {
+        Some(path) => {
+            tracing::info!(%path, "log store: persistent JSONL file");
+            Arc::new(Logger::with_file(Arc::clone(&service_config), &path)?)
+        }
+        None => {
+            tracing::warn!("LOG_FILE not set — log store is in-memory (lost on restart)");
+            Arc::new(Logger::in_memory(Arc::clone(&service_config)))
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -161,6 +176,7 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
         overlay: Arc::new(OverlayHub::new()),
         plans: Arc::new(PlanRegistry::with_defaults()),
         usage: Arc::new(UsageTracker::new()),
+        logger,
     })
 }
 

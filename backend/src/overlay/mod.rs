@@ -66,9 +66,19 @@ impl OverlayHub {
 /// `stream_start` yapmadan yayıncı overlay URL'sini açabilir).
 pub async fn overlay_ws_handler(
     State(hub): State<Arc<OverlayHub>>,
+    State(logger): State<Arc<crate::logging::Logger>>,
     Path(token): Path<String>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
+    // Token bir capability'dir — log'a tamamı yazılmaz, sadece referans öneki.
+    let token_ref: String = token.chars().take(8).collect();
+    logger.log(
+        crate::logging::LogLevel::Info,
+        "overlay",
+        &format!("overlay subscriber connected (token {token_ref}…)"),
+        None,
+        None,
+    );
     ws.on_upgrade(move |socket| forward_to_client(socket, hub, token))
 }
 

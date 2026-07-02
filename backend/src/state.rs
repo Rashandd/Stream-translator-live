@@ -9,6 +9,7 @@ use crate::billing::Billing;
 use crate::config::ServiceConfig;
 use crate::gateway::Gateway;
 use crate::integrations::Integrations;
+use crate::logging::Logger;
 use crate::overlay::OverlayHub;
 use crate::plans::PlanRegistry;
 use crate::usage::UsageTracker;
@@ -24,6 +25,7 @@ pub struct AppState {
     pub overlay: Arc<OverlayHub>,
     pub plans: Arc<PlanRegistry>,
     pub usage: Arc<UsageTracker>,
+    pub logger: Arc<Logger>,
 }
 
 impl FromRef<AppState> for Arc<Jwt> {
@@ -71,5 +73,11 @@ impl FromRef<AppState> for Arc<PlanRegistry> {
 impl FromRef<AppState> for Arc<UsageTracker> {
     fn from_ref(state: &AppState) -> Self {
         state.usage.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Logger> {
+    fn from_ref(state: &AppState) -> Self {
+        state.logger.clone()
     }
 }

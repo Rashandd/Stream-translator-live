@@ -316,6 +316,7 @@ pub async fn callback(
     Path(provider): Path<String>,
     Query(q): Query<CallbackQuery>,
     State(integ): State<Arc<Integrations>>,
+    State(logger): State<Arc<crate::logging::Logger>>,
 ) -> Result<Json<Connection>, (StatusCode, String)> {
     if let Some(err) = q.error {
         return Err((StatusCode::BAD_REQUEST, format!("provider error: {err}")));
@@ -325,8 +326,26 @@ pub async fn callback(
     };
 
     match integ.complete(&provider, &code, &state).await {
-        Ok(conn) => Ok(Json(conn)),
-        Err(err) => Err((oauth_status(&err), err.to_string())),
+        Ok(conn) => {
+            logger.log(
+                crate::logging::LogLevel::Info,
+                "integrations",
+                &format!("oauth connected: {provider}"),
+                Some(&conn.user_id),
+                None,
+            );
+            Ok(Json(conn))
+        }
+        Err(err) => {
+            logger.log(
+                crate::logging::LogLevel::Warn,
+                "integrations",
+                &format!("oauth callback failed for {provider}: {err}"),
+                None,
+                None,
+            );
+            Err((oauth_status(&err), err.to_string()))
+        }
     }
 }
 

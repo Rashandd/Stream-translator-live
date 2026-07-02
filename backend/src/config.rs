@@ -91,6 +91,8 @@ impl ServiceConfig {
             ("billing.plan.streamer.stripe_price_id", ""),
             ("billing.success_url", "http://localhost:3000/dashboard/billing?checkout=success"),
             ("billing.cancel_url", "http://localhost:3000/dashboard/billing?checkout=canceled"),
+            // Loglama (1.12): asgari seviye admin panelden değişir, restart gerekmez.
+            ("log.level", "info"),
         ];
         let map = defaults
             .into_iter()

@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
+use crate::logging::{LogLevel, Logger};
 use crate::secrets::{names, SecretStore};
 use stripe::{StripeClient, StripeError};
 
@@ -127,6 +128,7 @@ pub async fn checkout(
 /// byte'ları üzerinden hesaplar.
 pub async fn webhook(
     State(billing): State<Arc<Billing>>,
+    State(logger): State<Arc<Logger>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -140,8 +142,16 @@ pub async fn webhook(
         .and_then(|v| v.to_str().ok())
         .ok_or((StatusCode::BAD_REQUEST, "missing Stripe-Signature header".to_string()))?;
 
-    stripe::verify_signature(&body, sig_header, secret)
-        .map_err(|err| (stripe_status(&err), err.to_string()))?;
+    stripe::verify_signature(&body, sig_header, secret).map_err(|err| {
+        logger.log(
+            LogLevel::Warn,
+            "billing",
+            &format!("stripe webhook signature rejected: {err}"),
+            None,
+            None,
+        );
+        (stripe_status(&err), err.to_string())
+    })?;
 
     let event = stripe::parse_event(&body).map_err(|err| (stripe_status(&err), err.to_string()))?;
 
@@ -149,6 +159,13 @@ pub async fn webhook(
     // güncelle (checkout.session.completed, customer.subscription.updated/deleted).
     // Şimdilik sadece doğrulanmış event loglanır.
     tracing::info!(event_id = %event.id, event_type = %event.event_type, "stripe webhook received");
+    logger.log(
+        LogLevel::Info,
+        "billing",
+        &format!("stripe webhook received: {} ({})", event.event_type, event.id),
+        None,
+        None,
+    );
 
     Ok(StatusCode::OK)
 }
@@ -166,6 +183,7 @@ mod tests {
     struct TestState {
         billing: Arc<Billing>,
         cfg: Arc<ServiceConfig>,
+        logger: Arc<Logger>,
     }
 
     impl FromRef<TestState> for Arc<Billing> {
@@ -178,12 +196,19 @@ mod tests {
             s.cfg.clone()
         }
     }
+    impl FromRef<TestState> for Arc<Logger> {
+        fn from_ref(s: &TestState) -> Self {
+            s.logger.clone()
+        }
+    }
 
     /// Webhook router'ını gerçek bir TCP dinleyicide ayağa kaldırır.
     async fn spawn_webhook_server(billing: Billing) -> std::net::SocketAddr {
+        let cfg = Arc::new(ServiceConfig::with_defaults());
         let state = TestState {
             billing: Arc::new(billing),
-            cfg: Arc::new(ServiceConfig::with_defaults()),
+            logger: Arc::new(Logger::in_memory(Arc::clone(&cfg))),
+            cfg,
         };
         let app = Router::new()
             .route("/webhooks/stripe", post(webhook))
