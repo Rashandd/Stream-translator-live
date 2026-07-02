@@ -587,6 +587,63 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Starter / Pro / Streamer planları  <!-- aynı PlanRegistry: starter (20h, 3 dil, watermark yok), pro (40h, 10 dil, ses klonlama flag'i, sınırsız platform), streamer (100h, sınırsız dil/platform) — fiyatlandırma tablosuyla birebir -->
 - [x] Kullanım takibi  <!-- usage::UsageTracker: kullanıcı+dönem (YYYY-MM UTC) başına duvar-saati kullanım sayacı, ay değişince otomatik sıfırlanır. ws/mod.rs: session_ready artık gerçek remaining_seconds döner (UsageTracker.status + PlanRegistry.monthly_hours); her ses frame'inde pipeline::StreamSession kullanım kaydeder, limit dolunca STT/çeviri hiç çağrılmadan Error(PlanLimitReached, 4003) döner ve session kapatılır. 6 UsageTracker unit test + 1 pipeline test (plan_limit_reached_short_circuits_before_stt). KALAN: bellek içi (restart'ta sıfırlanır) — kalıcılık için usage_records tablosuna yazılması gerekiyor -->
 
+#### 1.12 Loglama Sistemi (Admin Web Erişimi)
+- [ ] Merkezi loglama altyapısı (backend servisleri: WS pipeline, gateway, billing, integrations, overlay tek log formatına yazar)
+- [ ] Log seviyeleri (error / warn / info / debug) ve yapılandırılabilir seviye (config-driven, restart gerektirmez)
+- [ ] Loglar DB'ye veya log storage'a kalıcı yazılır (in-memory değil — restart'ta kaybolmaz)
+- [ ] Admin panel: `/admin/logs` sayfası — sadece admin yetkili kullanıcı erişebilir (mevcut admin auth katmanı ile korunur)
+- [ ] Log arama/filtreleme (servis, seviye, tarih aralığı, kullanıcı/session ID)
+- [ ] Son N hata canlı listesi (Admin Dashboard "Log ve Hata İzleme" bölümüyle birleşir — bkz. satır 482-486)
+- [ ] Hassas veri loglanmaz (API key, stream key, JWT, ses/görüntü verisi log'a yazılmaz — sadece referans ID)
+> Not: Bu madde CLAUDE.md "console.log commit etme — logger kullan" kuralının altyapısal karşılığıdır. Admin Dashboard spec'inde zaten "Log ve Hata İzleme" bölümü var (satır 482-486); burada eklenen asıl loglama motoru + kalıcılık + admin-only erişim.
+
+---
+
+## Faz 1 — MVP Öncesi Canlı Doğrulama Listesi
+
+Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleriyle doğrulanmış, ancak gerçek sağlayıcı hesabı, gerçek cihaz veya gerçek platform ile HİÇ canlı test edilmemiş. MVP çıkışından önce bunların tek tek doğrulanması gerekiyor:
+
+### Güvenlik / Altyapı (1.2)
+- [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı, henüz yapılmadı)
+- [ ] AES-256 DB şifrelemesinin `_encrypted` kolonlara gerçek uygulanması (Cipher hazır, kolonlara henüz bağlanmadı)
+
+### SDK (1.3)
+- [ ] Gerçek WASAPI cihaz I/O — Windows'ta gerçek mikrofon ile capture testi (şu an stub/NotImplemented)
+- [ ] OBS WebSocket entegrasyonu — canlı OBS ile manuel test (protokol mesajları yazıldı, gerçek OBS'e hiç bağlanılmadı)
+- [ ] Code signing — gerçek Windows/macOS sertifikaları ile imzalama (config hazır, sertifika yok)
+- [ ] Otomatik güncelleme mekanizması — runtime init + release CI ile uçtan uca test
+- [ ] SDK ↔ bulut mTLS client-cert connector — SDK'nın cloud client'ına gerçek istemci sertifikası bağlanması + canlı karşılıklı doğrulama testi (1.2'de sunucu tarafı hazır; SDK tarafında connector TODO — bkz. 1.3 "AES-256 şifreli sadece-ses akışı" notu)
+
+### Dashboard / Backend Wiring (1.4, 1.5)
+- [ ] Platform OAuth token exchange (YouTube/Twitch/Kick) — gerçek OAuth akışı backend'e bağlanmalı
+- [ ] Stream key senkronizasyonu SDK'ya — gerçek backend wiring
+- [ ] Pairing backend endpoint'i — 6 haneli kod ile SDK ↔ hesap eşleştirmesinin backend ucu (SDK tarafı `core/pairing.rs` hazır; backend endpoint'i hiç yazılmadı — 1.3 "Web panel ile eşleşme" notunda 1.4'e bırakılmıştı)
+- [ ] Admin panel canlı veri + servis start/stop + mail gönderimi (2FA mailleri dahil, şu an stub SMTP)
+
+### Multistream (1.6)
+- [ ] SDK RTMP relay'in gerçek OBS + gerçek YouTube/Twitch/Kick ile canlı fan-out testi (şu an sadece TCP loopback simülasyonu)
+- [ ] Streamlabs OAuth — token persist + gerçek Streamlabs API çağrısı
+- [ ] Yerel TCP listener'ın OBS'in bağlanacağı porta gerçek bağlanması (main.rs/Tauri tarafı wiring)
+
+### STT / Çeviri (1.7, 1.8)
+- [ ] Deepgram gerçek key ile canlı STT testi (TR dil kalitesi dahil)
+- [ ] AssemblyAI fallback canlı testi
+- [ ] DeepL gerçek key ile canlı çeviri testi
+- [ ] Google Translate fallback canlı testi
+
+### Overlay / YouTube (1.9, 1.10)
+- [ ] OBS Browser Source altyazısının 3 platformda (YouTube/Twitch/Kick) canlı testi
+- [ ] 2 saniye altı latency ölçümü (canlı yayında)
+- [ ] YouTube Live CC — gerçek Google Cloud Console app + offline refresh token ile canlı doğrulama
+
+### Ödeme (1.11)
+- [ ] Gerçek Stripe hesabıyla canlı checkout + webhook testi
+- [ ] Webhook event'lerinin `subscriptions`/`users.stripe_customer_id`'ye DB persist edilmesi (şu an sadece loglanıyor)
+- [ ] Plans tablosundaki gerçek `stripe_price_id`'lerin admin panelden girilmesi
+- [ ] Kullanım takibinin (UsageTracker) kalıcı hale getirilmesi — şu an bellek içi, restart'ta sıfırlanıyor
+
+---
+
 **Faz 1 tamamlandığında:**
 Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS ile) → Türkçe konuşur → İngilizce altyazı çıkar. Rakipten üstün, ücretsiz başlanabiliyor.
 
