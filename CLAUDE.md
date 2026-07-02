@@ -2,8 +2,6 @@
 
 ## BAŞLARKEN — Regression Testleri uygula hangi alanda calsimaya basliyacakisen
 
-
-
 ## BİTERKEN — Regression ve yeni Testleri Uygulamayi unutma
 
 ## Proje
@@ -35,6 +33,7 @@ tauri build          # SDK release build
 ```
 
 ## Klasör Yapısı
+
 ```
 /backend       → Rust/Axum (WebSocket, API gateway, auth)
 /frontend      → Next.js (yayıncı + admin dashboard)
@@ -95,9 +94,12 @@ tauri build          # SDK release build
 ## Task Tamamlama
 Bir task bittiğinde:
 1. `streamdubber_roadmap_final.md` içinde `[ ]` → `[x]` yap
-2. **Otomatik commit YOK.** Değişiklikleri ÖZETLE ve `git diff` ile kullanıcıya göster, dur.
-   - Kullanıcı inceler ve commit'i kendisi onaylar/yapar
-   - Kullanıcı açıkça "commit et" demeden `git commit` çalıştırma
+2. Regression + yeni testler ve lint yeşilse (cargo test / clippy / npm test / lint) **task'ı COMMIT'le**.
+   - **Her task ayrı commit** — tek sorumluluk, açıklayıcı mesaj (örn. `1.12: merkezi loglama — backend store + /admin/logs`)
+   - Birden fazla task bitirildiyse task task ayrı commit at, tek dev commit'e yığma
+   - Testler/lint kırmızıysa commit ATMA — önce düzelt, düzelmiyorsa kullanıcıya raporla
+   - `git push` kullanıcı açıkça istemedikçe yapılmaz
+3. Değişiklikleri kullanıcıya ÖZETLE (commit hash'leriyle)
 
 ## Context Sıfırlarken
 Yukarıdaki BAŞLARKEN ve BİTERKEN komutlarını uygula.
