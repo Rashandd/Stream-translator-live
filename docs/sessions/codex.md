@@ -8,6 +8,7 @@ Proje durumu yeniden okundu: AGENTS, roadmap, session notlari, Faz 1 referans do
 
 ## Degistirdigim Alanlar
 - `docs/sessions/codex.md`
+- `streamdubber_roadmap_final.md`
 
 ## Son Kararlar
 - Faz 1 urun ekseni: video lokal kalir; buluta yalniz ses gider. Transit guvenlik TLS 1.3 + mTLS; ses akisina ek AES yok. AES-256 sadece at-rest/lokal secret kullanimi icin.
@@ -15,6 +16,7 @@ Proje durumu yeniden okundu: AGENTS, roadmap, session notlari, Faz 1 referans do
 - SDK: platform-independent core, VAD/gate/preprocess/cloud client mevcut; gercek WASAPI cihaz binding'i ve mTLS client connector henuz tam degil. `mux.rs` Faz 1'de gercek video relay degil, output plan modeli.
 - Frontend: dashboard/admin sayfalari agirlikla dictionary/config-driven statik UI; canli backend aksiyonlari ve persist katmani parca parca takip isleri olarak duruyor.
 - Roadmap'te acik agirlik: 1.6 RTMP relay/Streamlabs persist+test, 1.7 Deepgram streaming WS, 1.9 overlay render, 1.10 YouTube CC, 1.11 free/starter/pro/usage persist.
+- Urun karari: SDK desktop app yalniz arka plan ajani olacak; RTMP hedefleri, stream key'ler ve dagitim ayarlari web panelinden yonetilecek, SDK sadece sifreli senkronize edilen ayarlari lokal uygular.
 
 ## Sonraki Adim
 Ilk teknik duzeltme: workspace `cargo test` kiran `sdk/tests/cloud_e2e.rs` dosyasindaki eski `AppState` initializer'ini yeni `integrations`, `billing`, `overlay` alanlariyla guncelle. Ardindan `cargo test`, `cargo clippy`, frontend icin `npm run test`/`npm run lint` baseline'ini tekrar al.

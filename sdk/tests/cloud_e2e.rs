@@ -32,6 +32,11 @@ async fn spawn_backend() -> SocketAddr {
         jwt: Arc::new(Jwt::new(SECRET)),
         gateway: Arc::new(gateway),
         service_config,
+        integrations: Arc::new(streamdubber_backend::integrations::Integrations::empty()),
+        billing: Arc::new(streamdubber_backend::billing::Billing::empty()),
+        overlay: Arc::new(streamdubber_backend::overlay::OverlayHub::new()),
+        plans: Arc::new(streamdubber_backend::plans::PlanRegistry::with_defaults()),
+        usage: Arc::new(streamdubber_backend::usage::UsageTracker::new()),
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -83,7 +88,11 @@ async fn sdk_client_runs_full_audio_path() {
     let frame = build_audio_frame(AudioCodec::PcmS16Le, &[1, 2, 3, 4]).expect("frame");
     client.send_audio(&frame).await.expect("send_audio");
 
-    let msg = client.next_message().await.expect("recv").expect("not closed");
+    let msg = client
+        .next_message()
+        .await
+        .expect("recv")
+        .expect("not closed");
     match msg {
         ServerMessage::Subtitle {
             source,

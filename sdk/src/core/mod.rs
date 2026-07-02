@@ -7,5 +7,6 @@ pub mod gate;
 pub mod mux;
 pub mod pairing;
 pub mod preprocess;
+pub mod rtmp;
 pub mod stream;
 pub mod vad;
