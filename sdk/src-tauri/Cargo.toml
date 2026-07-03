@@ -17,9 +17,11 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
+reqwest.workspace = true
 
 [dev-dependencies]
 streamdubber-backend = { path = "../../backend" }
@@ -29,3 +31,7 @@ axum.workspace = true
 [[test]]
 name = "cloud_e2e"
 path = "../tests/cloud_e2e.rs"
+
+[[test]]
+name = "relay_wiring"
+path = "../tests/relay_wiring.rs"

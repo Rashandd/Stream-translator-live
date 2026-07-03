@@ -2240,6 +2240,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures-util",
+ "reqwest",
  "serde",
  "serde_json",
  "streamdubber-backend",
@@ -2247,6 +2248,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
