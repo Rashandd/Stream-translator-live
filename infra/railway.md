@@ -45,10 +45,25 @@ kendi TLS dinleyicimizi gerektirdiğinde Hetzner'e (Faz 2) taşınır.
   otomatik bulunur.
 - Build arg / env (build sırasında gömülür, sonradan değiştirmek yeniden
   build ister):
-  - `NEXT_PUBLIC_API_URL` = backend servisinin public URL'i (örn.
-    `https://api.streamdubber.app`)
-  - `NEXT_PUBLIC_OVERLAY_WS_URL` = aynı host `wss://` şemasıyla (örn.
-    `wss://api.streamdubber.app`)
+  - `NEXT_PUBLIC_API_URL` = `https://api.strovak.com`
+  - `NEXT_PUBLIC_OVERLAY_WS_URL` = `wss://api.strovak.com`
+
+> **KRİTİK KURAL — frontend API proxy'si OLMAZ.** Dashboard/panel istekleri
+> (fetch + overlay WebSocket) tarayıcıdan **doğrudan `api.strovak.com`'a**
+> gider — Next.js sunucusu (Railway'deki frontend servisi) üzerinden
+> **asla** geçmez. Bu yüzden:
+> - `next.config.mjs`'e `rewrites()`/`redirects()` ile backend'e proxy
+>   EKLEME; `frontend/app/**` altına backend'e istek yönlendiren bir
+>   `route.ts` (Next.js Route Handler) EKLEME.
+> - Tüm API/WebSocket çağrıları `"use client"` bileşenlerde kalmalı
+>   (`src/lib/api.ts`'teki `adminFetch`/`API_URL` deseni — bkz.
+>   `admin-login-form.tsx`, `admin-live-status.tsx`,
+>   `app/o/[token]/page.tsx`), sunucu bileşeninde backend'e fetch YOK.
+> - Sebep: ses/API trafiği (özellikle altyazı WebSocket akışı) Railway'in
+>   frontend servisinden geçerse Railway faturasına (bandwidth) yansır ve
+>   maliyet kontrolden çıkar. `api.strovak.com` ayrı bir backend
+>   servisi/domain'i olduğu için trafik oradan ölçülür, frontend sadece
+>   statik/SSR sayfa render eder.
 
 ## 3. Postgres + Redis
 

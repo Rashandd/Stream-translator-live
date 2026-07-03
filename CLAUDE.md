@@ -70,6 +70,12 @@ tauri build          # SDK release build
 - Multi-stage build: builder → runtime (küçük final image)
 - Health check her container'da zorunlu
 
+### Frontend — API Proxy YASAK (KRİTİK)
+- Railway'deki frontend servisi backend'e proxy yapmaz — dashboard/panel istekleri (fetch + overlay WebSocket) tarayıcıdan **doğrudan** `https://api.strovak.com`'a gider (`NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_OVERLAY_WS_URL`, build-arg olarak gömülür)
+- `next.config.mjs`'e backend'e `rewrites()`/`redirects()` EKLEME; `app/**` altına backend'e istek yönlendiren bir Route Handler (`route.ts`) EKLEME
+- Backend'e giden her istek `"use client"` bileşende kalmalı (`src/lib/api.ts` deseni) — sunucu bileşeninde/route handler'da backend'e fetch YOK
+- Sebep: ses/API trafiği Railway'in frontend servisinden geçerse bandwidth faturasına yansır; `api.strovak.com` ayrı servis olduğu için maliyet oradan izole ölçülür (bkz. `infra/railway.md`)
+
 ### Konfigürasyon — Hiçbir Şey Hard-coded Olmaz
 - STT sağlayıcı (Deepgram/Whisper), çeviri (DeepL/HY-MT1.5), TTS (ElevenLabs/XTTS) admin panelden toggle edilebilir
 - Her toggle DB'de saklanır, restart gerektirmez
