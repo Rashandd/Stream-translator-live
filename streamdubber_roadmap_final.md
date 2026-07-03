@@ -663,11 +663,11 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] Ek: `AppState::skeleton()` test kurucusu — bundan sonra AppState'e alan eklemek test dosyalarında churn yaratmaz.
 - Yayıncı login'i (users tablosu, signup, e-posta doğrulama, 2FA) bu maddenin DIŞINDA — 1.4'ün kendi işi.
 
-#### V3 — /admin/secrets frontend sayfası (canlı API, maskeli görünüm)
-- [ ] Admin console'a `secrets` sayfası: `GET /admin/secrets` canlı listelenir (Bearer: `sd.admin.token`); her satır: ad (Geist Mono), durum rozeti (panel/env/vault/unset), **maskeli değer** (`dg_l…9876`), yeni değer girişi + Kaydet (PUT), override'ı temizle (DELETE, onaylı). Tam değer hiçbir zaman DOM'a gelmez (API zaten göndermiyor).
-- [ ] 401'de login'e yönlendirme; hata durumlarında (404/400/503) sözlükten mesaj. Kaydetme sonrası liste yenilenir, girilen değer input'tan silinir.
-- [ ] Nav'a girdi (`KeyRound` lucide ikonu), `en.json` sözlüğüne `admin.secrets.*` anahtarları (i18n-hazır), dictionary contract testleri (admin-logs.test.ts deseni: nav varlığı, kolonlar, emoji yasağı).
-- [ ] DESIGN.md uyumu: pill butonlar, hairline border'lı tablo, Geist Mono maskeli değerler, lucide ikonlar, 360px'te taşmasız (tablo `overflow-x-auto`).
+#### V3 — /admin/secrets frontend sayfası (canlı API, maskeli görünüm) — TAMAMLANDI
+- [x] `/{locale}/admin/secrets` sayfası: `AdminSecretsPanel` (client) canlı `GET /admin/secrets` listeler (`adminFetch` + Bearer `sd.admin.token`); satır = ad (mono), kaynak rozeti (panel/env/vault/unset), maskeli değer, `type=password` yeni değer girişi + Kaydet (PUT), panel kaynaklı satırda onaylı "Clear override" (DELETE). API tam değeri hiç göndermediği için DOM'a da gelmez; kaydet sonrası input temizlenir, liste API yanıtından yenilenir. <!-- frontend/src/components/admin-secrets-panel.tsx + app/[locale]/admin/(console)/secrets/page.tsx -->
+- [x] 401/403 → oturum uyarısı + admin login linki; ağ hatası ve kaydetme hatası için ayrı sözlük mesajları.
+- [x] Nav "Configuration" grubuna `KeyRound` ikonlu girdi; `admin.secrets.*` sözlük anahtarları; `admin-secrets.test.ts` sözleşme testleri (nav+ikon kayıtlı, 4 kolon, kaynak etiketleri, maskeleme notu, emoji yasağı).
+- [x] DESIGN.md uyumu: pill butonlar/rozetler, hairline tablo, mono maskeli değerler, lucide ikonlar, tablo kendi `overflow-x-auto` konteynerinde (sayfa yatay taşmaz). Frontend: 43 test + lint + tsc + production build yeşil.
 
 #### V4 — Cloud deploy paketi (Dockerfile'lar, compose, Railway rehberi, vault seed)
 - [ ] `frontend/Dockerfile`: multi-stage (deps → build → runner), `next.config.mjs`'e `output: "standalone"`, non-root user, `HEALTHCHECK` (`wget -qO- localhost:3000` yerine node tabanlı basit check), `NEXT_PUBLIC_*` build-arg'ları. (docs/docker-config.md "nginx" diyor ama SSR/route'lar için node standalone gerekli — doc bu maddede güncellenecek.)

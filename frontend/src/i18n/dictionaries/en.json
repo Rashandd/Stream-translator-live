@@ -1002,6 +1002,11 @@
           "label": "Configuration",
           "items": [
             {
+              "label": "Secrets",
+              "href": "/admin/secrets",
+              "icon": "KeyRound"
+            },
+            {
               "label": "Service routing",
               "href": "/admin/routing",
               "icon": "Route"
@@ -1454,6 +1459,37 @@
       ],
       "levelNote": "Minimum level is read from the log.level config key — change it from Service routing without a restart.",
       "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend."
+    },
+    "secrets": {
+      "title": "Secrets",
+      "subtitle": "Provider API keys entered here go live immediately, without a restart. Values are always masked: only the start and end are readable.",
+      "columns": [
+        "Name",
+        "Source",
+        "Value",
+        "Update"
+      ],
+      "sourceLabels": {
+        "panel": "Panel",
+        "env": "Env",
+        "vault": "Vault",
+        "unset": "Not set"
+      },
+      "placeholder": "Enter new value",
+      "saveLabel": "Save",
+      "savingLabel": "Saving...",
+      "clearLabel": "Clear override",
+      "confirmClear": "Remove the panel override? The env or Vault value, if any, takes over on the next call.",
+      "loading": "Loading secrets...",
+      "empty": "The API returned no managed secrets.",
+      "errors": {
+        "unauthorized": "Your admin session is missing or expired. Sign in again to manage secrets.",
+        "network": "Could not reach the API. Check NEXT_PUBLIC_API_URL and that the backend is running.",
+        "saveFailed": "Save failed. The value may be empty or the name is not managed."
+      },
+      "signInLabel": "Go to admin sign-in",
+      "maskNote": "Values are masked server-side: the API returns only the first and last characters of each secret (for example sk_l...3456). The full value never leaves the server.",
+      "note": "Keys resolve at call time, so a key saved here activates its provider on the next request. In production set providers.mock_fallback to false under Service routing so missing keys fail loudly instead of producing mock output."
     }
   },
   "statusLabels": {
