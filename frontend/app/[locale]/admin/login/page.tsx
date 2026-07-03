@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminLoginForm } from "@/src/components/admin-login-form";
 import { Icon } from "@/src/components/icon";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -41,38 +42,20 @@ export default async function AdminLoginPage({ params }: Props) {
           <h1 className="mt-3 text-2xl font-semibold text-ink">{login.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{login.subtitle}</p>
 
-          <form action={localizePath(locale, "/admin/login/verify")} className="mt-6 space-y-4" method="get">
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="email">{login.emailLabel}</label>
-              <input
-                autoComplete="email"
-                className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
-                id="email"
-                name="email"
-                placeholder={login.emailPlaceholder}
-                required
-                type="email"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="password">{login.passwordLabel}</label>
-              <input
-                autoComplete="current-password"
-                className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
-                id="password"
-                name="password"
-                placeholder={login.passwordPlaceholder}
-                required
-                type="password"
-              />
-            </div>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text"
-              type="submit"
-            >
-              {login.submitLabel}
-            </button>
-          </form>
+          <AdminLoginForm
+            labels={{
+              emailLabel: login.emailLabel,
+              emailPlaceholder: login.emailPlaceholder,
+              passwordLabel: login.passwordLabel,
+              passwordPlaceholder: login.passwordPlaceholder,
+              submitLabel: login.submitLabel,
+              submittingLabel: login.submittingLabel,
+              errorInvalid: login.errorInvalid,
+              errorUnavailable: login.errorUnavailable,
+              errorNetwork: login.errorNetwork,
+            }}
+            redirectTo={localizePath(locale, "/admin")}
+          />
 
           <p className="mt-4 flex items-center gap-2 text-sm leading-6 text-muted">
             <Icon className="h-4 w-4 shrink-0 text-blue" name="ShieldCheck" />

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use axum::extract::FromRef;
 
+use crate::auth::bootstrap::BootstrapAdmin;
 use crate::auth::jwt::Jwt;
 use crate::billing::Billing;
 use crate::config::ServiceConfig;
@@ -28,6 +29,29 @@ pub struct AppState {
     pub usage: Arc<UsageTracker>,
     pub logger: Arc<Logger>,
     pub secrets: Arc<ManagedSecrets>,
+    /// Env-bootstrap admin (`ADMIN_EMAIL`+şifre). `None` → login 503.
+    pub bootstrap_admin: Arc<Option<BootstrapAdmin>>,
+}
+
+impl AppState {
+    /// Test ve iskelet kurulumları için: verilen jwt + config + gateway
+    /// dışındaki tüm alanlar boş/varsayılan. Alanlar `pub` — çağıran,
+    /// ihtiyacına göre tek tek üzerine yazar (`state.logger = ...`).
+    pub fn skeleton(jwt: Jwt, service_config: Arc<ServiceConfig>, gateway: Gateway) -> Self {
+        AppState {
+            jwt: Arc::new(jwt),
+            gateway: Arc::new(gateway),
+            logger: Arc::new(Logger::in_memory(Arc::clone(&service_config))),
+            service_config,
+            integrations: Arc::new(Integrations::empty()),
+            billing: Arc::new(Billing::empty()),
+            overlay: Arc::new(OverlayHub::new()),
+            plans: Arc::new(PlanRegistry::with_defaults()),
+            usage: Arc::new(UsageTracker::new()),
+            secrets: Arc::new(ManagedSecrets::env()),
+            bootstrap_admin: Arc::new(None),
+        }
+    }
 }
 
 impl FromRef<AppState> for Arc<Jwt> {
@@ -87,5 +111,11 @@ impl FromRef<AppState> for Arc<Logger> {
 impl FromRef<AppState> for Arc<ManagedSecrets> {
     fn from_ref(state: &AppState) -> Self {
         state.secrets.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Option<BootstrapAdmin>> {
+    fn from_ref(state: &AppState) -> Self {
+        state.bootstrap_admin.clone()
     }
 }

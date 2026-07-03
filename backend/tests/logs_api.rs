@@ -12,15 +12,10 @@ use tokio_tungstenite::tungstenite::Message;
 use streamdubber_backend::{
     app,
     auth::jwt::{Claims, Jwt},
-    billing::Billing,
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
-    integrations::Integrations,
     logging::{LogLevel, Logger},
-    overlay::OverlayHub,
-    plans::PlanRegistry,
     state::AppState,
-    usage::UsageTracker,
 };
 
 const SECRET: &[u8] = b"logs-api-test-secret";
@@ -35,18 +30,9 @@ async fn spawn_server() -> (SocketAddr, Arc<Logger>, Arc<ServiceConfig>) {
 
     let logger = Arc::new(Logger::in_memory(Arc::clone(&service_config)));
 
-    let state = AppState {
-        jwt: Arc::new(Jwt::new(SECRET)),
-        gateway: Arc::new(gateway),
-        logger: Arc::clone(&logger),
-        service_config: Arc::clone(&service_config),
-        integrations: Arc::new(Integrations::empty()),
-        billing: Arc::new(Billing::empty()),
-        overlay: Arc::new(OverlayHub::new()),
-        plans: Arc::new(PlanRegistry::with_defaults()),
-        usage: Arc::new(UsageTracker::new()),
-        secrets: Arc::new(streamdubber_backend::secrets::ManagedSecrets::env()),
-    };
+    let mut state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
+    state.logger = Arc::clone(&logger);
+    let state = state;
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");

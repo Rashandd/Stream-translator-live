@@ -168,6 +168,8 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ws/stream", get(ws_handler))
+        // Env-bootstrap admin girişi (kullanıcı sistemi 1.4'te genişler).
+        .route("/api/auth/login", post(crate::auth::bootstrap::login))
         .route("/admin/ping", get(admin_ping))
         .route("/config", get(get_config))
         .route("/admin/config", put(put_config))

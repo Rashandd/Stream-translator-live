@@ -7,6 +7,7 @@ use std::sync::Arc;
 use axum::Router;
 use streamdubber_backend::{
     app,
+    auth::bootstrap::BootstrapAdmin,
     auth::jwt::Jwt,
     billing::Billing,
     config::{Config, ServiceConfig},
@@ -217,6 +218,14 @@ async fn build_state(secrets: Arc<ManagedSecrets>) -> Result<AppState, Box<dyn s
         }
     };
 
+    // Env-bootstrap admin: yoksa admin panel girişi 503 döner (uyar).
+    let bootstrap_admin = BootstrapAdmin::from_env();
+    if bootstrap_admin.is_none() {
+        tracing::warn!(
+            "ADMIN_EMAIL/ADMIN_PASSWORD_HASH not set — admin panel login is disabled (503)"
+        );
+    }
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -228,6 +237,7 @@ async fn build_state(secrets: Arc<ManagedSecrets>) -> Result<AppState, Box<dyn s
         usage: Arc::new(UsageTracker::new()),
         logger,
         secrets,
+        bootstrap_admin: Arc::new(bootstrap_admin),
     })
 }
 

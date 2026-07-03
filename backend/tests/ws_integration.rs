@@ -14,14 +14,9 @@ use tokio_tungstenite::tungstenite::Message;
 use streamdubber_backend::{
     app,
     auth::jwt::{Claims, Jwt},
-    billing::Billing,
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
-    integrations::Integrations,
-    overlay::OverlayHub,
-    plans::PlanRegistry,
     state::AppState,
-    usage::UsageTracker,
 };
 
 const SECRET: &[u8] = b"integration-test-secret";
@@ -33,18 +28,7 @@ async fn spawn_server() -> SocketAddr {
     gateway.register_stt(Arc::new(MockStt::new("deepgram")));
     gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
 
-    let state = AppState {
-        jwt: Arc::new(Jwt::new(SECRET)),
-        gateway: Arc::new(gateway),
-        logger: Arc::new(streamdubber_backend::logging::Logger::in_memory(Arc::clone(&service_config))),
-        service_config,
-        integrations: Arc::new(Integrations::empty()),
-        billing: Arc::new(Billing::empty()),
-        overlay: Arc::new(OverlayHub::new()),
-        plans: Arc::new(PlanRegistry::with_defaults()),
-        usage: Arc::new(UsageTracker::new()),
-        secrets: Arc::new(streamdubber_backend::secrets::ManagedSecrets::env()),
-    };
+    let state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");

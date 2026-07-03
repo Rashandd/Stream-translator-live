@@ -7,13 +7,31 @@
   "nav": {
     "ariaLabel": "Primary navigation",
     "items": [
-      { "label": "Product", "href": "/" },
-      { "label": "Solutions", "href": "/solutions" },
-      { "label": "Pricing", "href": "/pricing" },
-      { "label": "Security", "href": "/security" }
+      {
+        "label": "Product",
+        "href": "/"
+      },
+      {
+        "label": "Solutions",
+        "href": "/solutions"
+      },
+      {
+        "label": "Pricing",
+        "href": "/pricing"
+      },
+      {
+        "label": "Security",
+        "href": "/security"
+      }
     ],
-    "cta": { "label": "Start free", "href": "/dashboard" },
-    "signIn": { "label": "Sign in", "href": "/login" },
+    "cta": {
+      "label": "Start free",
+      "href": "/dashboard"
+    },
+    "signIn": {
+      "label": "Sign in",
+      "href": "/login"
+    },
     "menuLabel": "Open menu",
     "menuCloseLabel": "Close menu",
     "languageLabel": "English"
@@ -23,8 +41,14 @@
       "eyebrow": "Live translation for streamers",
       "title": "Choose how every language reaches your stream.",
       "summary": "Strovak lets you pick the output for each platform: captions baked into OBS, native captions viewers switch on, YouTube multi-audio dubbing, or a separate dubbed channel per language on Twitch and Kick.",
-      "primaryCta": { "label": "Start free", "href": "/dashboard" },
-      "secondaryCta": { "label": "See plans & pricing", "href": "/pricing" },
+      "primaryCta": {
+        "label": "Start free",
+        "href": "/dashboard"
+      },
+      "secondaryCta": {
+        "label": "See plans & pricing",
+        "href": "/pricing"
+      },
       "note": "Free plan: live captions, 1 language, 5 hours a month. No credit card needed."
     },
     "scene": {
@@ -41,36 +65,87 @@
       "eyebrow": "How it works",
       "title": "Your stream in every language, in 3 steps.",
       "items": [
-        { "title": "1 · Install & pair the app", "body": "Download the desktop app and enter your code. It captures only your mic audio — your video and gameplay stay on your PC.", "icon": "MonitorCog" },
-        { "title": "2 · Pick your output per platform", "body": "Choose captions or dubbing for each platform — baked into OBS, native captions viewers switch on, YouTube multi-audio, or a separate dubbed channel.", "icon": "Route" },
-        { "title": "3 · Go live like always", "body": "Stream to YouTube, Twitch or Kick the way you already do. Your viewers follow along live, in their own language.", "icon": "Radio" }
+        {
+          "title": "1 · Install & pair the app",
+          "body": "Download the desktop app and enter your code. It captures only your mic audio — your video and gameplay stay on your PC.",
+          "icon": "MonitorCog"
+        },
+        {
+          "title": "2 · Pick your output per platform",
+          "body": "Choose captions or dubbing for each platform — baked into OBS, native captions viewers switch on, YouTube multi-audio, or a separate dubbed channel.",
+          "icon": "Route"
+        },
+        {
+          "title": "3 · Go live like always",
+          "body": "Stream to YouTube, Twitch or Kick the way you already do. Your viewers follow along live, in their own language.",
+          "icon": "Radio"
+        }
       ]
     },
     "edge": {
       "eyebrow": "Every setup covered",
       "title": "Two ways to caption, two ways to dub — you pick.",
       "items": [
-        { "title": "Captions baked into OBS", "body": "The simplest, and available today: translated subtitles are burned into your OBS scene, so everyone on any platform sees the same language layer.", "icon": "PanelsTopLeft", "status": "enabled" },
-        { "title": "Captions viewers switch on", "body": "Native captions through each platform's own layer, so viewers turn them on and pick a language — YouTube today; Twitch via our own extension and Kick via a browser extension (both in development).", "icon": "Subtitles", "status": "beta" },
-        { "title": "Dubbed audio on YouTube", "body": "On YouTube, add translated audio tracks — viewers switch language right in the player, no second channel needed.", "icon": "Video", "status": "coming_soon" },
-        { "title": "A dubbed channel per language", "body": "On Twitch and Kick, run a dedicated channel for each language — dubbed live in your own voice.", "icon": "Share2", "status": "coming_soon" }
+        {
+          "title": "Captions baked into OBS",
+          "body": "The simplest, and available today: translated subtitles are burned into your OBS scene, so everyone on any platform sees the same language layer.",
+          "icon": "PanelsTopLeft",
+          "status": "enabled"
+        },
+        {
+          "title": "Captions viewers switch on",
+          "body": "Native captions through each platform's own layer, so viewers turn them on and pick a language — YouTube today; Twitch via our own extension and Kick via a browser extension (both in development).",
+          "icon": "Subtitles",
+          "status": "beta"
+        },
+        {
+          "title": "Dubbed audio on YouTube",
+          "body": "On YouTube, add translated audio tracks — viewers switch language right in the player, no second channel needed.",
+          "icon": "Video",
+          "status": "coming_soon"
+        },
+        {
+          "title": "A dubbed channel per language",
+          "body": "On Twitch and Kick, run a dedicated channel for each language — dubbed live in your own voice.",
+          "icon": "Share2",
+          "status": "coming_soon"
+        }
       ]
     },
     "audience": {
       "eyebrow": "Who it's for",
       "title": "Built for streamers first. Ready for teams next.",
       "items": [
-        { "title": "Streamers & creators", "body": "Grow a global audience without switching tools or losing your voice.", "icon": "Radio" },
-        { "title": "Esports & events", "body": "Caption and translate live events for a worldwide crowd as they happen.", "icon": "Presentation" },
-        { "title": "Educators", "body": "Make live lectures understandable in any language, in real time.", "icon": "Building2" },
-        { "title": "Business & teams", "body": "Real-time translation for webinars and town halls — with data that stays private.", "icon": "MonitorUp" }
+        {
+          "title": "Streamers & creators",
+          "body": "Grow a global audience without switching tools or losing your voice.",
+          "icon": "Radio"
+        },
+        {
+          "title": "Esports & events",
+          "body": "Caption and translate live events for a worldwide crowd as they happen.",
+          "icon": "Presentation"
+        },
+        {
+          "title": "Educators",
+          "body": "Make live lectures understandable in any language, in real time.",
+          "icon": "Building2"
+        },
+        {
+          "title": "Business & teams",
+          "body": "Real-time translation for webinars and town halls — with data that stays private.",
+          "icon": "MonitorUp"
+        }
       ]
     },
     "businessCta": {
       "eyebrow": "For business — on the way",
       "title": "The same live engine is coming to your team.",
       "body": "Webinars, town halls, conferences and product events — translated live in every attendee's language, with your video and data kept private. Rolling out next.",
-      "cta": { "label": "See what's coming", "href": "/solutions" }
+      "cta": {
+        "label": "See what's coming",
+        "href": "/solutions"
+      }
     }
   },
   "solutions": {
@@ -89,18 +164,60 @@
       "both": "Everyone"
     },
     "items": [
-      { "title": "Live stream translation", "body": "Translate your Twitch, Kick or YouTube stream as you talk. Viewers pick their language and read along in real time.", "icon": "Radio", "audience": "creators", "status": "enabled" },
-      { "title": "Voice-preserving dubbing", "body": "Speak once and reach every language in your own cloned voice — not a robotic overlay.", "icon": "AudioLines", "audience": "both", "status": "coming_soon" },
-      { "title": "Webinar translation", "body": "Let every attendee follow your webinar in their language, live — no interpreter booth, no delay.", "icon": "MonitorUp", "audience": "business", "status": "coming_soon" },
-      { "title": "Events & conferences", "body": "Caption and translate keynotes and panels for a global room, on screen and in real time.", "icon": "Presentation", "audience": "business", "status": "coming_soon" },
-      { "title": "Online meetings", "body": "Two-way live translation for calls and all-hands, so language never slows the conversation.", "icon": "MessagesSquare", "audience": "business", "status": "coming_soon" },
-      { "title": "API for developers", "body": "Drop real-time translation and voice cloning into your own product with one API.", "icon": "Code2", "audience": "business", "status": "waitlist" }
+      {
+        "title": "Live stream translation",
+        "body": "Translate your Twitch, Kick or YouTube stream as you talk. Viewers pick their language and read along in real time.",
+        "icon": "Radio",
+        "audience": "creators",
+        "status": "enabled"
+      },
+      {
+        "title": "Voice-preserving dubbing",
+        "body": "Speak once and reach every language in your own cloned voice — not a robotic overlay.",
+        "icon": "AudioLines",
+        "audience": "both",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Webinar translation",
+        "body": "Let every attendee follow your webinar in their language, live — no interpreter booth, no delay.",
+        "icon": "MonitorUp",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Events & conferences",
+        "body": "Caption and translate keynotes and panels for a global room, on screen and in real time.",
+        "icon": "Presentation",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Online meetings",
+        "body": "Two-way live translation for calls and all-hands, so language never slows the conversation.",
+        "icon": "MessagesSquare",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "API for developers",
+        "body": "Drop real-time translation and voice cloning into your own product with one API.",
+        "icon": "Code2",
+        "audience": "business",
+        "status": "waitlist"
+      }
     ],
     "cta": {
       "eyebrow": "Ready when you are",
       "title": "Go live in every language today.",
-      "primary": { "label": "Start setup", "href": "/dashboard" },
-      "secondary": { "label": "Talk to us", "href": "/dashboard" }
+      "primary": {
+        "label": "Start setup",
+        "href": "/dashboard"
+      },
+      "secondary": {
+        "label": "Talk to us",
+        "href": "/dashboard"
+      }
     }
   },
   "dashboard": {
@@ -116,19 +233,51 @@
         {
           "label": "Broadcast",
           "items": [
-            { "label": "Overview", "href": "/dashboard", "icon": "LayoutDashboard" },
-            { "label": "Distribution", "href": "/dashboard/distribution", "icon": "Route" },
-            { "label": "Platforms", "href": "/dashboard/platforms", "icon": "Share2" },
-            { "label": "Languages & captions", "href": "/dashboard/captions", "icon": "Subtitles" },
-            { "label": "Go live", "href": "/dashboard/go-live", "icon": "Play" }
+            {
+              "label": "Overview",
+              "href": "/dashboard",
+              "icon": "LayoutDashboard"
+            },
+            {
+              "label": "Distribution",
+              "href": "/dashboard/distribution",
+              "icon": "Route"
+            },
+            {
+              "label": "Platforms",
+              "href": "/dashboard/platforms",
+              "icon": "Share2"
+            },
+            {
+              "label": "Languages & captions",
+              "href": "/dashboard/captions",
+              "icon": "Subtitles"
+            },
+            {
+              "label": "Go live",
+              "href": "/dashboard/go-live",
+              "icon": "Play"
+            }
           ]
         },
         {
           "label": "Account",
           "items": [
-            { "label": "Desktop app", "href": "/dashboard/sdk", "icon": "Download" },
-            { "label": "Analytics", "href": "/dashboard/analytics", "icon": "BarChart3" },
-            { "label": "Billing", "href": "/dashboard/billing", "icon": "CreditCard" }
+            {
+              "label": "Desktop app",
+              "href": "/dashboard/sdk",
+              "icon": "Download"
+            },
+            {
+              "label": "Analytics",
+              "href": "/dashboard/analytics",
+              "icon": "BarChart3"
+            },
+            {
+              "label": "Billing",
+              "href": "/dashboard/billing",
+              "icon": "CreditCard"
+            }
           ]
         }
       ]
@@ -136,29 +285,81 @@
     "statusStrip": {
       "ariaLabel": "Stream status",
       "items": [
-        { "label": "Stream", "value": "Idle", "tone": "muted", "icon": "Radio" },
-        { "label": "App", "value": "Not connected", "tone": "warning", "icon": "MonitorCog" },
-        { "label": "Latency", "value": "—", "tone": "muted", "icon": "Gauge" },
-        { "label": "Plan", "value": "Free · 0h / 5h", "tone": "muted", "icon": "CreditCard" }
+        {
+          "label": "Stream",
+          "value": "Idle",
+          "tone": "muted",
+          "icon": "Radio"
+        },
+        {
+          "label": "App",
+          "value": "Not connected",
+          "tone": "warning",
+          "icon": "MonitorCog"
+        },
+        {
+          "label": "Latency",
+          "value": "—",
+          "tone": "muted",
+          "icon": "Gauge"
+        },
+        {
+          "label": "Plan",
+          "value": "Free · 0h / 5h",
+          "tone": "muted",
+          "icon": "CreditCard"
+        }
       ]
     },
     "overview": {
       "title": "Overview",
       "subtitle": "Your live stream state, audience languages, and quick start.",
       "metrics": [
-        { "label": "Stream state", "value": "Idle", "hint": "waiting for the app", "icon": "Radio" },
-        { "label": "Live viewers", "value": "0", "hint": "across connected platforms", "icon": "Wifi" },
-        { "label": "Caption latency", "value": "—", "hint": "available after stream start", "icon": "Gauge" },
-        { "label": "Monthly usage", "value": "0h / 5h", "hint": "of your plan's monthly hours", "icon": "CreditCard" }
+        {
+          "label": "Stream state",
+          "value": "Idle",
+          "hint": "waiting for the app",
+          "icon": "Radio"
+        },
+        {
+          "label": "Live viewers",
+          "value": "0",
+          "hint": "across connected platforms",
+          "icon": "Wifi"
+        },
+        {
+          "label": "Caption latency",
+          "value": "—",
+          "hint": "available after stream start",
+          "icon": "Gauge"
+        },
+        {
+          "label": "Monthly usage",
+          "value": "0h / 5h",
+          "hint": "of your plan's monthly hours",
+          "icon": "CreditCard"
+        }
       ],
       "languageBreakdown": {
         "title": "Audience languages",
         "subtitle": "Live viewer distribution by caption language",
         "empty": "No live viewers yet — start a stream to see language distribution.",
         "items": [
-          { "language": "English", "code": "EN", "viewers": 0 },
-          { "language": "Turkish", "code": "TR", "viewers": 0 },
-          { "language": "Spanish", "code": "ES", "viewers": 0 }
+          {
+            "language": "English",
+            "code": "EN",
+            "viewers": 0
+          },
+          {
+            "language": "Turkish",
+            "code": "TR",
+            "viewers": 0
+          },
+          {
+            "language": "Spanish",
+            "code": "ES",
+            "viewers": 0
+          }
         ]
       },
       "quickStart": {
@@ -168,18 +369,45 @@
         "copyLabel": "Copy",
         "note": "Connect the desktop app and choose a distribution method before going live.",
         "actions": [
-          { "label": "Connect the app", "description": "Get a code to link the desktop app.", "icon": "MonitorCog", "href": "/dashboard/sdk" },
-          { "label": "Choose distribution", "description": "Pick where your captions or dub show up.", "icon": "Route", "href": "/dashboard/distribution" },
-          { "label": "Set languages", "description": "Select source speech and target captions.", "icon": "Languages", "href": "/dashboard/captions" }
+          {
+            "label": "Connect the app",
+            "description": "Get a code to link the desktop app.",
+            "icon": "MonitorCog",
+            "href": "/dashboard/sdk"
+          },
+          {
+            "label": "Choose distribution",
+            "description": "Pick where your captions or dub show up.",
+            "icon": "Route",
+            "href": "/dashboard/distribution"
+          },
+          {
+            "label": "Set languages",
+            "description": "Select source speech and target captions.",
+            "icon": "Languages",
+            "href": "/dashboard/captions"
+          }
         ]
       },
       "howItWorks": {
         "title": "How Strovak works for you",
         "subtitle": "Three steps and your stream goes multilingual — no plugin for your viewers.",
         "steps": [
-          { "title": "Install & pair the app", "body": "Grab the desktop app and punch in your code. It only takes your mic audio — your video and gameplay never leave your PC.", "icon": "MonitorCog" },
-          { "title": "Pick where the translation shows up", "body": "Baked into your OBS scene, native captions viewers switch on, or a separate dubbed channel — you choose per platform.", "icon": "Route" },
-          { "title": "Go live like you always do", "body": "Stream to Twitch, Kick or YouTube as usual. Your non-English viewers follow you live, in their own language.", "icon": "Radio" }
+          {
+            "title": "Install & pair the app",
+            "body": "Grab the desktop app and punch in your code. It only takes your mic audio — your video and gameplay never leave your PC.",
+            "icon": "MonitorCog"
+          },
+          {
+            "title": "Pick where the translation shows up",
+            "body": "Baked into your OBS scene, native captions viewers switch on, or a separate dubbed channel — you choose per platform.",
+            "icon": "Route"
+          },
+          {
+            "title": "Go live like you always do",
+            "body": "Stream to Twitch, Kick or YouTube as usual. Your non-English viewers follow you live, in their own language.",
+            "icon": "Radio"
+          }
         ],
         "note": "That's it — no extra plugin for your viewers, and no re-streaming your gameplay to the cloud."
       }
@@ -200,9 +428,30 @@
         "captionsLabel": "Captions",
         "dubbingLabel": "Dubbing",
         "rows": [
-          { "platform": "YouTube", "icon": "Video", "captions": "Full support — embedded captions today, plus native and multi-audio tracks.", "captionsStatus": "enabled", "dubbing": "Multi-audio track — viewers switch language right in the player.", "dubbingStatus": "coming_soon" },
-          { "platform": "Twitch", "icon": "Radio", "captions": "Through our own Twitch extension, built specifically for this (in development).", "captionsStatus": "coming_soon", "dubbing": "Needs a separate channel per language — one channel per dubbed language.", "dubbingStatus": "coming_soon" },
-          { "platform": "Kick", "icon": "Radio", "captions": "Through a browser extension we're building — viewers add it once (in development).", "captionsStatus": "coming_soon", "dubbing": "Needs a separate channel per language — one channel per dubbed language.", "dubbingStatus": "coming_soon" }
+          {
+            "platform": "YouTube",
+            "icon": "Video",
+            "captions": "Full support — embedded captions today, plus native and multi-audio tracks.",
+            "captionsStatus": "enabled",
+            "dubbing": "Multi-audio track — viewers switch language right in the player.",
+            "dubbingStatus": "coming_soon"
+          },
+          {
+            "platform": "Twitch",
+            "icon": "Radio",
+            "captions": "Through our own Twitch extension, built specifically for this (in development).",
+            "captionsStatus": "coming_soon",
+            "dubbing": "Needs a separate channel per language — one channel per dubbed language.",
+            "dubbingStatus": "coming_soon"
+          },
+          {
+            "platform": "Kick",
+            "icon": "Radio",
+            "captions": "Through a browser extension we're building — viewers add it once (in development).",
+            "captionsStatus": "coming_soon",
+            "dubbing": "Needs a separate channel per language — one channel per dubbed language.",
+            "dubbingStatus": "coming_soon"
+          }
         ],
         "note": "Embedded OBS captions already work on every platform — burn them into your scene and go. The table above is about native, in-player captions and dubbing, which depend on each platform's own tools."
       }
@@ -217,11 +466,51 @@
       "notConnectedLabel": "Not connected",
       "scopesLabel": "Permissions",
       "accounts": [
-        { "name": "YouTube", "provider": "youtube", "detail": "Native captions + multi-audio tracks", "scopes": "Manage live broadcasts and captions", "connected": false, "account": "", "icon": "Video" },
-        { "name": "Twitch · channel 1 (TR)", "provider": "twitch", "detail": "Turkish output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
-        { "name": "Twitch · channel 2 (EN)", "provider": "twitch", "detail": "English output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
-        { "name": "Kick · channel 1 (TR)", "provider": "kick", "detail": "Turkish output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" },
-        { "name": "Kick · channel 2 (EN)", "provider": "kick", "detail": "English output channel", "scopes": "Read channel, edit stream info", "connected": false, "account": "", "icon": "Radio" }
+        {
+          "name": "YouTube",
+          "provider": "youtube",
+          "detail": "Native captions + multi-audio tracks",
+          "scopes": "Manage live broadcasts and captions",
+          "connected": false,
+          "account": "",
+          "icon": "Video"
+        },
+        {
+          "name": "Twitch · channel 1 (TR)",
+          "provider": "twitch",
+          "detail": "Turkish output channel",
+          "scopes": "Read channel, edit stream info",
+          "connected": false,
+          "account": "",
+          "icon": "Radio"
+        },
+        {
+          "name": "Twitch · channel 2 (EN)",
+          "provider": "twitch",
+          "detail": "English output channel",
+          "scopes": "Read channel, edit stream info",
+          "connected": false,
+          "account": "",
+          "icon": "Radio"
+        },
+        {
+          "name": "Kick · channel 1 (TR)",
+          "provider": "kick",
+          "detail": "Turkish output channel",
+          "scopes": "Read channel, edit stream info",
+          "connected": false,
+          "account": "",
+          "icon": "Radio"
+        },
+        {
+          "name": "Kick · channel 2 (EN)",
+          "provider": "kick",
+          "detail": "English output channel",
+          "scopes": "Read channel, edit stream info",
+          "connected": false,
+          "account": "",
+          "icon": "Radio"
+        }
       ]
     },
     "captions": {
@@ -231,17 +520,45 @@
       "sourceValue": "English",
       "targetsLabel": "Target caption languages",
       "targets": [
-        { "language": "Turkish", "code": "TR", "enabled": true },
-        { "language": "Spanish", "code": "ES", "enabled": true },
-        { "language": "German", "code": "DE", "enabled": false },
-        { "language": "French", "code": "FR", "enabled": false }
+        {
+          "language": "Turkish",
+          "code": "TR",
+          "enabled": true
+        },
+        {
+          "language": "Spanish",
+          "code": "ES",
+          "enabled": true
+        },
+        {
+          "language": "German",
+          "code": "DE",
+          "enabled": false
+        },
+        {
+          "language": "French",
+          "code": "FR",
+          "enabled": false
+        }
       ],
       "appearanceTitle": "Caption appearance",
       "appearance": [
-        { "label": "Font", "value": "Inter" },
-        { "label": "Size", "value": "Medium" },
-        { "label": "Color", "value": "White on 60% black" },
-        { "label": "Position", "value": "Lower third" }
+        {
+          "label": "Font",
+          "value": "Inter"
+        },
+        {
+          "label": "Size",
+          "value": "Medium"
+        },
+        {
+          "label": "Color",
+          "value": "White on 60% black"
+        },
+        {
+          "label": "Position",
+          "value": "Lower third"
+        }
       ],
       "overlayLabel": "Overlay URL",
       "overlayUrl": "https://overlay.strovak.com/o/•••••••",
@@ -260,9 +577,18 @@
       "startTitle": "Go live",
       "targetsLabel": "Send to platforms",
       "targets": [
-        { "name": "YouTube", "enabled": false },
-        { "name": "Twitch (EN)", "enabled": false },
-        { "name": "Twitch (TR)", "enabled": false }
+        {
+          "name": "YouTube",
+          "enabled": false
+        },
+        {
+          "name": "Twitch (EN)",
+          "enabled": false
+        },
+        {
+          "name": "Twitch (TR)",
+          "enabled": false
+        }
       ],
       "modes": {
         "relay": {
@@ -270,10 +596,30 @@
           "name": "Baked into your stream (OBS)",
           "summary": "OBS stays where you run the show. Strovak drops translated captions straight into your scene — your gameplay and video never leave your PC, and this path grows into dubbed outputs later.",
           "steps": [
-            { "title": "Install and connect the desktop app", "body": "Download the desktop app and enter the 6-digit code. The app captures your speech audio on your machine.", "icon": "MonitorCog", "done": false },
-            { "title": "Add captions to OBS", "body": "Copy the overlay URL below and add it in OBS as a Browser source on top of your scene.", "icon": "Subtitles", "done": false },
-            { "title": "Pick your languages", "body": "Set the language you speak and the caption languages your audience reads.", "icon": "Languages", "done": false },
-            { "title": "Start in OBS, then arm translation here", "body": "Press Start Streaming in OBS as you always do, then start the translation session below.", "icon": "Play", "done": false }
+            {
+              "title": "Install and connect the desktop app",
+              "body": "Download the desktop app and enter the 6-digit code. The app captures your speech audio on your machine.",
+              "icon": "MonitorCog",
+              "done": false
+            },
+            {
+              "title": "Add captions to OBS",
+              "body": "Copy the overlay URL below and add it in OBS as a Browser source on top of your scene.",
+              "icon": "Subtitles",
+              "done": false
+            },
+            {
+              "title": "Pick your languages",
+              "body": "Set the language you speak and the caption languages your audience reads.",
+              "icon": "Languages",
+              "done": false
+            },
+            {
+              "title": "Start in OBS, then arm translation here",
+              "body": "Press Start Streaming in OBS as you always do, then start the translation session below.",
+              "icon": "Play",
+              "done": false
+            }
           ],
           "connectLabel": "Caption overlay URL — add as a Browser source in OBS",
           "connectValue": "https://overlay.strovak.com/o/•••••••",
@@ -286,11 +632,36 @@
           "name": "Let Strovak handle routing",
           "summary": "OBS sends one clean stream to Strovak, and we manage destinations, captions, language outputs, and delivery from one place.",
           "steps": [
-            { "title": "Choose target platforms", "body": "Pick which platforms Strovak should forward your stream to.", "icon": "Share2", "done": false },
-            { "title": "Install and connect the desktop app", "body": "Download the desktop app and link it with the 6-digit code.", "icon": "MonitorCog", "done": false },
-            { "title": "Point OBS at Strovak", "body": "Paste the ingest URL and stream key below into OBS stream settings.", "icon": "MonitorUp", "done": false },
-            { "title": "Pick your languages", "body": "Set the language you speak and the caption languages your audience reads.", "icon": "Languages", "done": false },
-            { "title": "Start the stream here", "body": "Press Start below — Strovak receives your video, adds captions, and distributes to your platforms.", "icon": "Play", "done": false }
+            {
+              "title": "Choose target platforms",
+              "body": "Pick which platforms Strovak should forward your stream to.",
+              "icon": "Share2",
+              "done": false
+            },
+            {
+              "title": "Install and connect the desktop app",
+              "body": "Download the desktop app and link it with the 6-digit code.",
+              "icon": "MonitorCog",
+              "done": false
+            },
+            {
+              "title": "Point OBS at Strovak",
+              "body": "Paste the ingest URL and stream key below into OBS stream settings.",
+              "icon": "MonitorUp",
+              "done": false
+            },
+            {
+              "title": "Pick your languages",
+              "body": "Set the language you speak and the caption languages your audience reads.",
+              "icon": "Languages",
+              "done": false
+            },
+            {
+              "title": "Start the stream here",
+              "body": "Press Start below — Strovak receives your video, adds captions, and distributes to your platforms.",
+              "icon": "Play",
+              "done": false
+            }
           ],
           "connectLabel": "Ingest URL and stream key — paste into OBS",
           "connectValue": "rtmp://ingest.strovak.com/live",
@@ -306,25 +677,66 @@
       "title": "Analytics",
       "subtitle": "Audience languages, platform comparison, and total broadcast time.",
       "metrics": [
-        { "label": "Total broadcast time", "value": "0h", "hint": "all streams", "icon": "Gauge" },
-        { "label": "Peak viewers", "value": "0", "hint": "best single stream", "icon": "Wifi" },
-        { "label": "Languages served", "value": "0", "hint": "distinct caption languages", "icon": "Languages" },
-        { "label": "Streams", "value": "0", "hint": "lifetime", "icon": "Radio" }
+        {
+          "label": "Total broadcast time",
+          "value": "0h",
+          "hint": "all streams",
+          "icon": "Gauge"
+        },
+        {
+          "label": "Peak viewers",
+          "value": "0",
+          "hint": "best single stream",
+          "icon": "Wifi"
+        },
+        {
+          "label": "Languages served",
+          "value": "0",
+          "hint": "distinct caption languages",
+          "icon": "Languages"
+        },
+        {
+          "label": "Streams",
+          "value": "0",
+          "hint": "lifetime",
+          "icon": "Radio"
+        }
       ],
       "sampleNote": "Sample from your most recent stream. Live numbers replace this once the backend is connected.",
       "languageTitle": "Viewers by language",
       "languageSubtitle": "Per stream",
       "languages": [
-        { "language": "English", "code": "EN", "viewers": 680 },
-        { "language": "Turkish", "code": "TR", "viewers": 412 },
-        { "language": "Spanish", "code": "ES", "viewers": 148 }
+        {
+          "language": "English",
+          "code": "EN",
+          "viewers": 680
+        },
+        {
+          "language": "Turkish",
+          "code": "TR",
+          "viewers": 412
+        },
+        {
+          "language": "Spanish",
+          "code": "ES",
+          "viewers": 148
+        }
       ],
       "platformTitle": "Viewers by platform",
       "platformSubtitle": "Per stream",
       "platforms": [
-        { "name": "YouTube", "viewers": 540 },
-        { "name": "Twitch (EN)", "viewers": 410 },
-        { "name": "Twitch (TR)", "viewers": 290 }
+        {
+          "name": "YouTube",
+          "viewers": 540
+        },
+        {
+          "name": "Twitch (EN)",
+          "viewers": 410
+        },
+        {
+          "name": "Twitch (TR)",
+          "viewers": 290
+        }
       ],
       "emailNote": "A weekly summary is emailed to you when reports are enabled in your account."
     },
@@ -353,9 +765,24 @@
       "downloadTitle": "Download the desktop app",
       "downloadNote": "Windows is available now. macOS and Linux follow.",
       "platforms": [
-        { "name": "Windows", "status": "enabled", "icon": "MonitorCog", "action": "Download" },
-        { "name": "macOS", "status": "coming_soon", "icon": "MonitorCog", "action": "Coming soon" },
-        { "name": "Linux", "status": "coming_soon", "icon": "MonitorCog", "action": "Coming soon" }
+        {
+          "name": "Windows",
+          "status": "enabled",
+          "icon": "MonitorCog",
+          "action": "Download"
+        },
+        {
+          "name": "macOS",
+          "status": "coming_soon",
+          "icon": "MonitorCog",
+          "action": "Coming soon"
+        },
+        {
+          "name": "Linux",
+          "status": "coming_soon",
+          "icon": "MonitorCog",
+          "action": "Coming soon"
+        }
       ],
       "pairingTitle": "Pair the desktop app",
       "pairingNote": "Enter this 6-digit code in the desktop app to pair it with your account. The code expires in 10 minutes.",
@@ -526,7 +953,11 @@
       "passwordLabel": "Password",
       "passwordPlaceholder": "Your password",
       "submitLabel": "Continue",
-      "twofaNote": "Admin accounts always require a 6-digit email code."
+      "twofaNote": "Email 2FA codes activate once SMTP is configured. Until then, sign-in uses email and password only.",
+      "submittingLabel": "Signing in...",
+      "errorInvalid": "Email or password is incorrect.",
+      "errorUnavailable": "Admin login is not configured on the server yet (ADMIN_EMAIL / ADMIN_PASSWORD_HASH).",
+      "errorNetwork": "Could not reach the API. Check NEXT_PUBLIC_API_URL and that the backend is running."
     },
     "verify": {
       "title": "Enter your code",
@@ -545,18 +976,46 @@
         {
           "label": "Operations",
           "items": [
-            { "label": "Overview", "href": "/admin", "icon": "Gauge" },
-            { "label": "Users", "href": "/admin/users", "icon": "Building2" },
-            { "label": "Infrastructure", "href": "/admin/infrastructure", "icon": "MonitorCog" },
-            { "label": "Logs", "href": "/admin/logs", "icon": "ScrollText" }
+            {
+              "label": "Overview",
+              "href": "/admin",
+              "icon": "Gauge"
+            },
+            {
+              "label": "Users",
+              "href": "/admin/users",
+              "icon": "Building2"
+            },
+            {
+              "label": "Infrastructure",
+              "href": "/admin/infrastructure",
+              "icon": "MonitorCog"
+            },
+            {
+              "label": "Logs",
+              "href": "/admin/logs",
+              "icon": "ScrollText"
+            }
           ]
         },
         {
           "label": "Configuration",
           "items": [
-            { "label": "Service routing", "href": "/admin/routing", "icon": "Route" },
-            { "label": "Multistream", "href": "/admin/multistream", "icon": "Share2" },
-            { "label": "Costs", "href": "/admin/costs", "icon": "CreditCard" }
+            {
+              "label": "Service routing",
+              "href": "/admin/routing",
+              "icon": "Route"
+            },
+            {
+              "label": "Multistream",
+              "href": "/admin/multistream",
+              "icon": "Share2"
+            },
+            {
+              "label": "Costs",
+              "href": "/admin/costs",
+              "icon": "CreditCard"
+            }
           ]
         }
       ]
@@ -564,35 +1023,113 @@
     "statusStrip": {
       "ariaLabel": "Platform status",
       "items": [
-        { "label": "Active streams", "value": "0", "tone": "muted", "icon": "Radio" },
-        { "label": "Providers", "value": "Healthy", "tone": "success", "icon": "ShieldCheck" },
-        { "label": "Error rate (1h)", "value": "0%", "tone": "success", "icon": "Gauge" },
-        { "label": "RTMP load", "value": "0%", "tone": "muted", "icon": "MonitorUp" }
+        {
+          "label": "Active streams",
+          "value": "0",
+          "tone": "muted",
+          "icon": "Radio"
+        },
+        {
+          "label": "Providers",
+          "value": "Healthy",
+          "tone": "success",
+          "icon": "ShieldCheck"
+        },
+        {
+          "label": "Error rate (1h)",
+          "value": "0%",
+          "tone": "success",
+          "icon": "Gauge"
+        },
+        {
+          "label": "RTMP load",
+          "value": "0%",
+          "tone": "muted",
+          "icon": "MonitorUp"
+        }
       ]
     },
     "overview": {
       "title": "Overview",
       "subtitle": "Live platform health across streams, users, and providers.",
       "metrics": [
-        { "label": "Active streams", "value": "0", "hint": "live now", "icon": "Radio" },
-        { "label": "Active users", "value": "0", "hint": "online broadcasters", "icon": "Wifi" },
-        { "label": "STT latency", "value": "—", "hint": "rolling average", "icon": "Languages" },
-        { "label": "TTS latency", "value": "—", "hint": "rolling average", "icon": "AudioLines" },
-        { "label": "RTMP load", "value": "0%", "hint": "relay capacity", "icon": "MonitorUp" },
-        { "label": "Error rate (1h)", "value": "0%", "hint": "failed sessions", "icon": "ShieldCheck" }
+        {
+          "label": "Active streams",
+          "value": "0",
+          "hint": "live now",
+          "icon": "Radio"
+        },
+        {
+          "label": "Active users",
+          "value": "0",
+          "hint": "online broadcasters",
+          "icon": "Wifi"
+        },
+        {
+          "label": "STT latency",
+          "value": "—",
+          "hint": "rolling average",
+          "icon": "Languages"
+        },
+        {
+          "label": "TTS latency",
+          "value": "—",
+          "hint": "rolling average",
+          "icon": "AudioLines"
+        },
+        {
+          "label": "RTMP load",
+          "value": "0%",
+          "hint": "relay capacity",
+          "icon": "MonitorUp"
+        },
+        {
+          "label": "Error rate (1h)",
+          "value": "0%",
+          "hint": "failed sessions",
+          "icon": "ShieldCheck"
+        }
       ]
     },
     "users": {
       "title": "Users",
       "subtitle": "All broadcasters. Filter by plan, country, or status.",
       "searchPlaceholder": "Search by email or name",
-      "filters": ["All plans", "Active only", "All countries"],
-      "columns": ["Broadcaster", "Plan", "Country", "Status", "Usage"],
+      "filters": [
+        "All plans",
+        "Active only",
+        "All countries"
+      ],
+      "columns": [
+        "Broadcaster",
+        "Plan",
+        "Country",
+        "Status",
+        "Usage"
+      ],
       "empty": "No users yet.",
       "rows": [
-        { "name": "ada@example.com", "plan": "Free", "country": "TR", "status": "active", "usage": "1.2h / 5h" },
-        { "name": "leo@example.com", "plan": "Pro", "country": "DE", "status": "active", "usage": "14h / 50h" },
-        { "name": "mira@example.com", "plan": "Pro", "country": "US", "status": "suspended", "usage": "0h / 50h" }
+        {
+          "name": "ada@example.com",
+          "plan": "Free",
+          "country": "TR",
+          "status": "active",
+          "usage": "1.2h / 5h"
+        },
+        {
+          "name": "leo@example.com",
+          "plan": "Pro",
+          "country": "DE",
+          "status": "active",
+          "usage": "14h / 50h"
+        },
+        {
+          "name": "mira@example.com",
+          "plan": "Pro",
+          "country": "US",
+          "status": "suspended",
+          "usage": "0h / 50h"
+        }
       ],
       "actionsNote": "Open a user to change plan, add credit, or ban. Live data appears once the backend is connected.",
       "manageLabel": "Manage"
@@ -602,20 +1139,60 @@
       "subtitle": "Live service health and resource usage. Start or stop services here.",
       "servicesTitle": "Services",
       "services": [
-        { "name": "Deepgram (STT)", "state": "healthy", "detail": "Nova-2 · primary" },
-        { "name": "AssemblyAI (STT fallback)", "state": "healthy", "detail": "standby" },
-        { "name": "DeepL (translation)", "state": "healthy", "detail": "primary" },
-        { "name": "PostgreSQL", "state": "healthy", "detail": "primary db" },
-        { "name": "Redis", "state": "healthy", "detail": "cache + queue" },
-        { "name": "Vault", "state": "degraded", "detail": "secrets — not provisioned" },
-        { "name": "RTMP relay", "state": "down", "detail": "Phase 2" }
+        {
+          "name": "Deepgram (STT)",
+          "state": "healthy",
+          "detail": "Nova-2 · primary"
+        },
+        {
+          "name": "AssemblyAI (STT fallback)",
+          "state": "healthy",
+          "detail": "standby"
+        },
+        {
+          "name": "DeepL (translation)",
+          "state": "healthy",
+          "detail": "primary"
+        },
+        {
+          "name": "PostgreSQL",
+          "state": "healthy",
+          "detail": "primary db"
+        },
+        {
+          "name": "Redis",
+          "state": "healthy",
+          "detail": "cache + queue"
+        },
+        {
+          "name": "Vault",
+          "state": "degraded",
+          "detail": "secrets — not provisioned"
+        },
+        {
+          "name": "RTMP relay",
+          "state": "down",
+          "detail": "Phase 2"
+        }
       ],
       "resourcesTitle": "Resources",
       "resources": [
-        { "label": "CPU", "value": 0 },
-        { "label": "GPU", "value": 0 },
-        { "label": "RAM", "value": 0 },
-        { "label": "Bandwidth", "value": 0 }
+        {
+          "label": "CPU",
+          "value": 0
+        },
+        {
+          "label": "GPU",
+          "value": 0
+        },
+        {
+          "label": "RAM",
+          "value": 0
+        },
+        {
+          "label": "Bandwidth",
+          "value": 0
+        }
       ],
       "startLabel": "Start",
       "stopLabel": "Stop"
@@ -629,9 +1206,21 @@
           "label": "Speech-to-text (STT)",
           "configKey": "service_config.stt.provider",
           "options": [
-            { "name": "Deepgram", "status": "enabled", "active": true },
-            { "name": "faster-whisper", "status": "coming_soon", "active": false },
-            { "name": "Hybrid", "status": "coming_soon", "active": false }
+            {
+              "name": "Deepgram",
+              "status": "enabled",
+              "active": true
+            },
+            {
+              "name": "faster-whisper",
+              "status": "coming_soon",
+              "active": false
+            },
+            {
+              "name": "Hybrid",
+              "status": "coming_soon",
+              "active": false
+            }
           ],
           "fallbackLabel": "Fallback",
           "fallback": "AssemblyAI"
@@ -641,9 +1230,21 @@
           "label": "Translation",
           "configKey": "service_config.translation.provider",
           "options": [
-            { "name": "DeepL", "status": "enabled", "active": true },
-            { "name": "HY-MT1.5", "status": "coming_soon", "active": false },
-            { "name": "Hybrid", "status": "coming_soon", "active": false }
+            {
+              "name": "DeepL",
+              "status": "enabled",
+              "active": true
+            },
+            {
+              "name": "HY-MT1.5",
+              "status": "coming_soon",
+              "active": false
+            },
+            {
+              "name": "Hybrid",
+              "status": "coming_soon",
+              "active": false
+            }
           ],
           "fallbackLabel": "Fallback",
           "fallback": "Google Translate"
@@ -653,9 +1254,21 @@
           "label": "Text-to-speech (TTS)",
           "configKey": "service_config.tts.provider",
           "options": [
-            { "name": "ElevenLabs", "status": "enabled", "active": true },
-            { "name": "Cartesia", "status": "coming_soon", "active": false },
-            { "name": "XTTS-v2", "status": "coming_soon", "active": false }
+            {
+              "name": "ElevenLabs",
+              "status": "enabled",
+              "active": true
+            },
+            {
+              "name": "Cartesia",
+              "status": "coming_soon",
+              "active": false
+            },
+            {
+              "name": "XTTS-v2",
+              "status": "coming_soon",
+              "active": false
+            }
           ],
           "fallbackLabel": "Fallback",
           "fallback": "Cartesia"
@@ -666,13 +1279,25 @@
       "historyTitle": "Change history",
       "historyEmpty": "No changes recorded yet.",
       "history": [
-        { "when": "—", "what": "Defaults loaded from service_config seed.", "who": "system" }
+        {
+          "when": "—",
+          "what": "Defaults loaded from service_config seed.",
+          "who": "system"
+        }
       ],
       "emailSenderTitle": "Notification sender (noreply)",
       "emailSenderNote": "Set the SMTP or API credentials used to send 2FA and report emails. Stored in Vault, never in code. Empty for now — login codes are stubbed until this is filled.",
       "emailSenderFields": [
-        { "label": "Provider", "value": "Not set", "placeholder": "SMTP / SendGrid / SES" },
-        { "label": "From address", "value": "Not set", "placeholder": "noreply@strovak.com" }
+        {
+          "label": "Provider",
+          "value": "Not set",
+          "placeholder": "SMTP / SendGrid / SES"
+        },
+        {
+          "label": "From address",
+          "value": "Not set",
+          "placeholder": "noreply@strovak.com"
+        }
       ],
       "saveLabel": "Save"
     },
@@ -681,26 +1306,74 @@
       "subtitle": "How broadcasters distribute, and which methods each plan unlocks.",
       "methodsTitle": "Method usage",
       "methods": [
-        { "name": "SDK relay", "count": "0", "status": "enabled" },
-        { "name": "Streamlabs", "count": "0", "status": "enabled" },
-        { "name": "Cloud multistream", "count": "0", "status": "waitlist" }
+        {
+          "name": "SDK relay",
+          "count": "0",
+          "status": "enabled"
+        },
+        {
+          "name": "Streamlabs",
+          "count": "0",
+          "status": "enabled"
+        },
+        {
+          "name": "Cloud multistream",
+          "count": "0",
+          "status": "waitlist"
+        }
       ],
       "matrixTitle": "Plan access",
-      "matrixColumns": ["Method", "Free", "Pro"],
+      "matrixColumns": [
+        "Method",
+        "Free",
+        "Pro"
+      ],
       "matrix": [
-        { "method": "SDK relay", "free": true, "pro": true },
-        { "method": "Your service (Streamlabs)", "free": true, "pro": true },
-        { "method": "Cloud multistream", "free": false, "pro": true }
+        {
+          "method": "SDK relay",
+          "free": true,
+          "pro": true
+        },
+        {
+          "method": "Your service (Streamlabs)",
+          "free": true,
+          "pro": true
+        },
+        {
+          "method": "Cloud multistream",
+          "free": false,
+          "pro": true
+        }
       ]
     },
     "costs": {
       "title": "Costs",
       "subtitle": "A basic monthly estimate of provider spend.",
       "metrics": [
-        { "label": "STT spend", "value": "$0", "hint": "Deepgram, this month", "icon": "Languages" },
-        { "label": "Translation spend", "value": "$0", "hint": "DeepL, this month", "icon": "Route" },
-        { "label": "TTS spend", "value": "$0", "hint": "ElevenLabs, this month", "icon": "AudioLines" },
-        { "label": "Infra", "value": "$0", "hint": "Railway, this month", "icon": "MonitorCog" }
+        {
+          "label": "STT spend",
+          "value": "$0",
+          "hint": "Deepgram, this month",
+          "icon": "Languages"
+        },
+        {
+          "label": "Translation spend",
+          "value": "$0",
+          "hint": "DeepL, this month",
+          "icon": "Route"
+        },
+        {
+          "label": "TTS spend",
+          "value": "$0",
+          "hint": "ElevenLabs, this month",
+          "icon": "AudioLines"
+        },
+        {
+          "label": "Infra",
+          "value": "$0",
+          "hint": "Railway, this month",
+          "icon": "MonitorCog"
+        }
       ],
       "note": "Estimates are read from provider usage once billing integrations are connected."
     },
@@ -708,20 +1381,76 @@
       "title": "Logs",
       "subtitle": "Central log store for all backend services. Search and filter; admin only.",
       "searchPlaceholder": "Search message, user ID, or session ID",
-      "levelFilters": ["All levels", "Error", "Warn", "Info", "Debug"],
-      "serviceFilters": ["All services", "ws", "pipeline", "gateway", "billing", "integrations", "overlay"],
-      "columns": ["Time", "Level", "Service", "Message", "User", "Session"],
+      "levelFilters": [
+        "All levels",
+        "Error",
+        "Warn",
+        "Info",
+        "Debug"
+      ],
+      "serviceFilters": [
+        "All services",
+        "ws",
+        "pipeline",
+        "gateway",
+        "billing",
+        "integrations",
+        "overlay"
+      ],
+      "columns": [
+        "Time",
+        "Level",
+        "Service",
+        "Message",
+        "User",
+        "Session"
+      ],
       "empty": "No log entries match the current filters.",
       "recentErrors": {
         "title": "Recent errors",
         "subtitle": "Last errors across all services (level=error)."
       },
       "rows": [
-        { "time": "12:04:11", "level": "error", "service": "gateway", "message": "stt failed for frame, skipping: provider timeout", "user": "u_7f3a", "session": "s_91b2" },
-        { "time": "12:03:58", "level": "warn", "service": "billing", "message": "stripe webhook signature rejected: signature mismatch", "user": "—", "session": "—" },
-        { "time": "12:03:41", "level": "info", "service": "ws", "message": "stream started", "user": "u_7f3a", "session": "s_91b2" },
-        { "time": "12:02:19", "level": "info", "service": "integrations", "message": "oauth connected: streamlabs", "user": "u_22c1", "session": "—" },
-        { "time": "12:01:05", "level": "info", "service": "gateway", "message": "deepgram registered api_key=[REDACTED]", "user": "—", "session": "—" }
+        {
+          "time": "12:04:11",
+          "level": "error",
+          "service": "gateway",
+          "message": "stt failed for frame, skipping: provider timeout",
+          "user": "u_7f3a",
+          "session": "s_91b2"
+        },
+        {
+          "time": "12:03:58",
+          "level": "warn",
+          "service": "billing",
+          "message": "stripe webhook signature rejected: signature mismatch",
+          "user": "—",
+          "session": "—"
+        },
+        {
+          "time": "12:03:41",
+          "level": "info",
+          "service": "ws",
+          "message": "stream started",
+          "user": "u_7f3a",
+          "session": "s_91b2"
+        },
+        {
+          "time": "12:02:19",
+          "level": "info",
+          "service": "integrations",
+          "message": "oauth connected: streamlabs",
+          "user": "u_22c1",
+          "session": "—"
+        },
+        {
+          "time": "12:01:05",
+          "level": "info",
+          "service": "gateway",
+          "message": "deepgram registered api_key=[REDACTED]",
+          "user": "—",
+          "session": "—"
+        }
       ],
       "levelNote": "Minimum level is read from the log.level config key — change it from Service routing without a restart.",
       "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend."

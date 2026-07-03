@@ -655,13 +655,13 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 > ayrı task/commit. Tamamlandıkça hem burada hem yukarıdaki doğrulama
 > listesindeki karşılığı işaretlenmeli.
 
-#### V2 — Minimal admin login (env-bootstrap) + frontend login wiring
-- [ ] **Neden:** Backend'de hiç login endpoint'i yok; cloud'da admin JWT alınamadığı için `/admin/secrets` panelden KULLANILAMAZ. Mevcut frontend admin login formu saf UI stub — üstelik GET form olduğu için şifreyi query-string'e koyuyor (düzeltilecek).
-- [ ] Backend: `POST /api/auth/login` `{email, password}` → `{token}`. Kaynak: env-bootstrap tek admin — `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (argon2id; `argon2` crate eklenecek). Dev kolaylığı: `ADMIN_PASSWORD` (düz) da kabul edilir ama startup'ta warn loglanır. Yanlış kimlik → 401 (hangi alanın yanlış olduğu söylenmez), yapılandırılmamışsa → 503. Başarılı/başarısız denemeler logger'a düşer (şifre asla loglanmaz). JWT claims: `sub=admin-bootstrap`, `role=admin`, `plan=streamer`, `exp=+12h`.
-- [ ] Backend testleri: doğru şifre → 200+geçerli token (verify ile role=admin), yanlış şifre/email → 401, env yokken → 503, hash ve düz şifre yolları.
-- [ ] Frontend: admin login sayfası client component olur; POST `/api/auth/login` (taban: `NEXT_PUBLIC_API_URL`), token `localStorage["sd.admin.token"]`, başarıda `/admin`'e redirect, 401/503 için sözlükten hata mesajı. 2FA verify sayfası şimdilik akış dışı (SMTP gelince bağlanır — V10 notu).
-- [ ] `.env.example`: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` (+nasıl üretileceği: `echo -n 'pass' | argon2 somesalt -id -e`), frontend `.env.example`: `NEXT_PUBLIC_API_URL`.
-- [ ] Yayıncı login'i (users tablosu, signup, e-posta doğrulama, 2FA) bu maddenin DIŞINDA — 1.4'ün kendi işi.
+#### V2 — Minimal admin login (env-bootstrap) + frontend login wiring — TAMAMLANDI
+- [x] Backend: `POST /api/auth/login` `{email, password}` → `{token, expires_at}`. Env-bootstrap tek admin: `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (argon2id PHC; üretmek için `cargo run --bin hash_password`) veya dev için `ADMIN_PASSWORD` (düz, startup warn). Yanlış kimlik → 401 (alan söylenmez, sabit zamanlı karşılaştırma), env tanımsız → 503. Denemeler audit log'da, şifre asla loglanmaz (testli). JWT: `sub=admin-bootstrap`, `role=admin`, `plan=streamer`, 12 saat. <!-- backend/src/auth/bootstrap.rs + bin/hash_password.rs -->
+- [x] Backend testleri: `tests/auth_api.rs` (login→token→/admin/ping gerçekten açılıyor; 401; 503; audit'te şifre sızıntısı yok) + bootstrap unit testleri (argon2/plain/malformed hash/from_env).
+- [x] Frontend: login formu client component (`AdminLoginForm`) — POST `/api/auth/login` (`NEXT_PUBLIC_API_URL`), token `localStorage["sd.admin.token"]`, başarıda `/{locale}/admin`'e redirect, 401/503/ağ hataları için ayrı sözlük mesajları. Eski GET-form stub'ı (şifreyi query-string'e koyuyordu) kaldırıldı. 2FA verify sayfası akış dışı görsel stub (SMTP → V10).
+- [x] `.env.example`: `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_PASSWORD`; frontend: `NEXT_PUBLIC_API_URL`. `src/lib/api.ts`: API_URL + admin token helper'ları + `adminFetch` (sonraki sayfalar bunu kullanır).
+- [x] Ek: `AppState::skeleton()` test kurucusu — bundan sonra AppState'e alan eklemek test dosyalarında churn yaratmaz.
+- Yayıncı login'i (users tablosu, signup, e-posta doğrulama, 2FA) bu maddenin DIŞINDA — 1.4'ün kendi işi.
 
 #### V3 — /admin/secrets frontend sayfası (canlı API, maskeli görünüm)
 - [ ] Admin console'a `secrets` sayfası: `GET /admin/secrets` canlı listelenir (Bearer: `sd.admin.token`); her satır: ad (Geist Mono), durum rozeti (panel/env/vault/unset), **maskeli değer** (`dg_l…9876`), yeni değer girişi + Kaydet (PUT), override'ı temizle (DELETE, onaylı). Tam değer hiçbir zaman DOM'a gelmez (API zaten göndermiyor).
@@ -742,6 +742,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 > SDK gömülü RTMP relay motoru Faz 1.6'da kuruldu; burada klonlanmış sesle ikili yayın eklenir.
 
 #### 2.4 Twitch Extension
+- [x] Twitch Extension policy ve uyumluluk dokümanı  <!-- Codex 2026-07-03: docs/twitch-extension-policy.md; Faz 2 öncesi policy gate, review checklist, EBS/JWT, audio, UGC, Bits, mobile ve submission kuralları -->
 - [ ] Component overlay extension
 - [ ] İzleyici dil seçim butonu
 - [ ] Twitch review başvurusu (erken başla — 2–4 hafta)

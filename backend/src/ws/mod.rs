@@ -326,20 +326,7 @@ mod tests {
         let mut gw = Gateway::new(Arc::clone(&config));
         gw.register_stt(Arc::new(MockStt::new("deepgram")));
         gw.register_translate(Arc::new(MockTranslate::new("deepl")));
-        AppState {
-            jwt: Arc::new(jwt()),
-            gateway: Arc::new(gw),
-            service_config: config,
-            integrations: Arc::new(crate::integrations::Integrations::empty()),
-            billing: Arc::new(crate::billing::Billing::empty()),
-            overlay: Arc::new(crate::overlay::OverlayHub::new()),
-            plans: Arc::new(crate::plans::PlanRegistry::with_defaults()),
-            usage: Arc::new(crate::usage::UsageTracker::new()),
-            logger: Arc::new(crate::logging::Logger::in_memory(Arc::new(
-                ServiceConfig::with_defaults(),
-            ))),
-            secrets: Arc::new(crate::secrets::ManagedSecrets::env()),
-        }
+        AppState::skeleton(jwt(), config, gw)
     }
 
     #[test]

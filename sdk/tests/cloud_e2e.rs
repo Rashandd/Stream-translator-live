@@ -28,18 +28,7 @@ async fn spawn_backend() -> SocketAddr {
     gateway.register_stt(Arc::new(MockStt::new("deepgram")));
     gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
 
-    let state = AppState {
-        jwt: Arc::new(Jwt::new(SECRET)),
-        gateway: Arc::new(gateway),
-        logger: Arc::new(streamdubber_backend::logging::Logger::in_memory(Arc::clone(&service_config))),
-        service_config,
-        integrations: Arc::new(streamdubber_backend::integrations::Integrations::empty()),
-        billing: Arc::new(streamdubber_backend::billing::Billing::empty()),
-        overlay: Arc::new(streamdubber_backend::overlay::OverlayHub::new()),
-        plans: Arc::new(streamdubber_backend::plans::PlanRegistry::with_defaults()),
-        usage: Arc::new(streamdubber_backend::usage::UsageTracker::new()),
-        secrets: Arc::new(streamdubber_backend::secrets::ManagedSecrets::env()),
-    };
+    let state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("addr");
