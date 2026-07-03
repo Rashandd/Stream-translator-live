@@ -71,5 +71,5 @@ docker-compose.override.yml
 *.pid
 
 # --- Agent session notes ---
-docs/sessions/codex.md
-docs/sessions/claude.md
+codex.md
+claude.md

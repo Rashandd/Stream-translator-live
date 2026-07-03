@@ -604,9 +604,11 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleriyle doğrulanmış, ancak gerçek sağlayıcı hesabı, gerçek cihaz veya gerçek platform ile HİÇ canlı test edilmemiş. MVP çıkışından önce bunların tek tek doğrulanması gerekiyor:
 
+> **Canlı smoke (Claude, 2026-07-03): `bash scripts/smoke.sh` GEÇTİ** — gerçek backend binary'si geçici ortamla ayağa kaldırılıp CANLI doğrulandı: /health, admin login (yanlış şifre 401), panelden secret girme + sadece-maskeli okuma (anonim 401), restart'sız config toggle, pairing kodu → SDK token → relay hedef senkronu, audit logları (stream key sızıntısı yok), **restart sonrası kalıcılık** (secret panel+maskeli kaldı, relay hedefi durdu, diskteki dosyalar şifreli — düz metin yok). Lokalde doğrulanabilir her şey canlı doğrulandı; kalan maddeler gerçek hesap/cihaz/platform gerektirir.
+
 ### Güvenlik / Altyapı (1.2)
-- [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı, henüz yapılmadı — NOT: MVP için artık zorunlu değil; key'ler admin panelden de girilebiliyor, bir alttaki maddeye bkz.)
-- [ ] AES-256 DB şifrelemesinin `_encrypted` kolonlara gerçek uygulanması (Cipher hazır, kolonlara henüz bağlanmadı)
+- [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı — aracı hazır: `scripts/vault-seed.sh`; MVP için zorunlu DEĞİL, key'ler admin panelden giriliyor ve şifreli kalıcı)
+- [x] AES-256 at-rest şifrelemesinin gerçek veriye uygulanması <!-- Claude 2026-07-03 (V8/V9): Cipher artık gerçek at-rest veriye bağlı — OAuth token'ları (TOKENS_FILE), SDK relay stream key'leri (RELAY_FILE) ve panel secret'ları (SECRETS_FILE) AES-256-GCM şifreli; smoke testi diskte düz metin olmadığını doğruluyor. DB _encrypted KOLONLARINA (users.totp_secret_encrypted, platform_accounts.*) uygulama, tabloları dolduran user sistemi (1.4) ile aynı Cipher üzerinden yapılacak. -->
 - [x] **Admin panelden secret yönetimi (restart'sız, maskeli okuma)** — `GET/PUT/DELETE /admin/secrets[/{AD}]` (sadece admin): sağlayıcı key'leri (Deepgram/AssemblyAI/DeepL/Google/ElevenLabs, Streamlabs/YouTube OAuth client'ları, Stripe secret+webhook) panelden girilir, **sadece baş+son maskeli okunur** (`sk_l…3456` — tam değer hiçbir API yanıtında yer almaz). Girilen key çağrı-anı çözümleme sayesinde restart GEREKMEDEN devreye girer: STT/çeviri/OAuth/Stripe client'ları key'i her istekte `SecretStore`'dan okur (`SecretRef`). Kalıcılık: `SECRETS_FILE` env'i verilirse AES-256-GCM şifreli dosya (anahtar `SECRETS_ENC_KEY`, yoksa JWT_SECRET'tan SHA-256 türetme). Key yokken davranış `providers.mock_fallback` config'ine bağlı: `true` (dev/CI) → mock cevap, `false` (üretim) → açık hata; admin panelden değiştirilebilir. Secret güncellemeleri audit log'a düşer (kim/hangi ad/ne zaman — değer asla loglanmaz). `JWT_SECRET` bilinçli olarak panel dışında (runtime'da değişmesi oturumları ve dosya anahtarını bozar; deploy-zamanı env/Vault işi). <!-- Claude 2026-07-03: backend/src/secrets/mod.rs (ManagedSecrets+SecretRef+mask+MemorySecretStore), crypto::derive_key, app.rs /admin/secrets rotaları, main.rs build_managed_secrets + tüm sağlayıcılar managed(store) kuruculu (deepgram/assemblyai/deepl/google/StripeClient/Integrations), gateway'e MockFallbackStt/MockFallbackTranslate. 21 yeni test: unit (maske/whitelist/şifreli persist+reload/yanlış anahtar reddi) + tests/secrets_api.rs e2e (RBAC 401/403, maskeli okuma, tam değer sızıntısı yok, audit izi) + runtime mock→real geçişi. Toplam workspace 238 test + clippy -D warnings temiz. -->
 
 ### SDK (1.3)
@@ -617,17 +619,18 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [ ] SDK ↔ bulut mTLS client-cert connector — SDK'nın cloud client'ına gerçek istemci sertifikası bağlanması + canlı karşılıklı doğrulama testi (1.2'de sunucu tarafı hazır; SDK tarafında connector TODO — bkz. 1.3 "AES-256 şifreli sadece-ses akışı" notu)
 
 ### Dashboard / Backend Wiring (1.4, 1.5)
-- [ ] Platform OAuth token exchange (YouTube/Twitch/Kick) — gerçek OAuth akışı backend'e bağlanmalı
-- [ ] Stream key senkronizasyonu SDK'ya — gerçek backend wiring
-- [ ] Pairing backend endpoint'i — 6 haneli kod ile SDK ↔ hesap eşleştirmesinin backend ucu (SDK tarafı `core/pairing.rs` hazır; backend endpoint'i hiç yazılmadı — 1.3 "Web panel ile eşleşme" notunda 1.4'e bırakılmıştı)
-- [ ] Admin panel canlı veri + servis start/stop + mail gönderimi (2FA mailleri dahil, şu an stub SMTP)
+- [ ] Platform OAuth token exchange (YouTube/Twitch/Kick) — çekirdek + şifreli token persist + YouTube offline params HAZIR (V8; streamlabs+youtube kayıtlı); KALAN: gerçek Google/Streamlabs uygulamalarıyla canlı akış; Twitch/Kick OAuth sağlayıcı kayıtları native özellik gerektiğinde eklenir (Faz 1 dağıtımı SDK relay ile — hesap bağlamak yayın için şart değil)
+- [x] Stream key senkronizasyonu SDK'ya — gerçek backend wiring <!-- Claude 2026-07-03 (V9): PUT/GET /api/relay/targets, stream key'ler AES-256 şifreli kalıcı (RELAY_FILE), SDK pairing token'ıyla okuyor — canlı smoke doğrulandı. SDK'nın GET'i RelayEngine'e bağlaması 1.6 NOT 2'deki desktop-shell wiring (ayrı iş). -->
+- [x] Pairing backend endpoint'i — 6 haneli kod ile SDK ↔ hesap eşleştirmesi <!-- Claude 2026-07-03 (V9): POST /api/pairing/code (panel) + /api/pairing/claim (SDK, PairingRequest sözleşmesiyle birebir) → 30 günlük cihaz JWT'si; tek kullanımlık kod, TTL 10dk; canlı smoke doğrulandı. -->
+- [x] Admin panel canlı veri + mail gönderimi <!-- Claude 2026-07-03 (V2/V3/V5/V10): gerçek admin login; /admin/secrets tam canlı (maskeli+test butonu); /admin/logs canlı fetch (filtreli, Live/Sample rozetli); /admin genel bakış canlı durum şeridi; SMTP gerçek (lettre STARTTLS, panelden girilir) + POST /admin/mail/test. KALAN: servis start/stop Faz 1 kapsamı dışında bırakıldı (süreç yönetimi Railway/console'da; uygulama içi tüm toggle'lar zaten restart'sız config'te), 2FA mail AKIŞI user sistemi (1.4) ile bağlanır. -->
 
 ### Multistream (1.6)
 - [ ] SDK RTMP relay'in gerçek OBS + gerçek YouTube/Twitch/Kick ile canlı fan-out testi (şu an sadece TCP loopback simülasyonu)
-- [ ] Streamlabs OAuth — token persist + gerçek Streamlabs API çağrısı
+- [ ] Streamlabs OAuth — token persist TAMAM (V8: şifreli TOKENS_FILE, connected durumu gerçek); KALAN: gerçek Streamlabs hesabı ile canlı akış + gerçek Streamlabs API çağrısı
 - [ ] Yerel TCP listener'ın OBS'in bağlanacağı porta gerçek bağlanması (main.rs/Tauri tarafı wiring)
 
 ### STT / Çeviri (1.7, 1.8)
+> Araç hazır (V5): key admin panelden girilir, satırdaki **Test** butonu (`POST /admin/providers/{ad}/test`) gerçek sağlayıcı API'sine canlı doğrulama çağrısı yapar. Aşağıdakiler için tek eksik: gerçek hesap/key (user).
 - [ ] Deepgram gerçek key ile canlı STT testi (TR dil kalitesi dahil)
 - [ ] AssemblyAI fallback canlı testi
 - [ ] DeepL gerçek key ile canlı çeviri testi
@@ -636,13 +639,13 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 ### Overlay / YouTube (1.9, 1.10)
 - [ ] OBS Browser Source altyazısının 3 platformda (YouTube/Twitch/Kick) canlı testi
 - [ ] 2 saniye altı latency ölçümü (canlı yayında)
-- [ ] YouTube Live CC — gerçek Google Cloud Console app + offline refresh token ile canlı doğrulama
+- [ ] YouTube Live CC — gerçek Google Cloud Console app ile canlı doğrulama (offline refresh token parametreleri V8'de eklendi: access_type=offline&prompt=consent)
 
 ### Ödeme (1.11)
 - [ ] Gerçek Stripe hesabıyla canlı checkout + webhook testi
-- [ ] Webhook event'lerinin `subscriptions`/`users.stripe_customer_id`'ye DB persist edilmesi (şu an sadece loglanıyor)
-- [ ] Plans tablosundaki gerçek `stripe_price_id`'lerin admin panelden girilmesi
-- [ ] Kullanım takibinin (UsageTracker) kalıcı hale getirilmesi — şu an bellek içi, restart'ta sıfırlanıyor
+- [x] Webhook event'lerinin `subscriptions`/`users.stripe_customer_id`'ye DB persist edilmesi <!-- Claude 2026-07-03 (V6): checkout.session.completed → müşteri eşleme, subscription created/updated → upsert (price→plan config'ten), deleted → canceled; eşleşmeyen kullanıcı/plan soft-miss warn. Deploy öncesi bir kez TEST_DATABASE_URL ile #[ignore] roundtrip testi koşulmalı (bu makinede Postgres yoktu). -->
+- [ ] Plans tablosundaki gerçek `stripe_price_id`'lerin admin panelden girilmesi (mekanizma hazır: `PUT /admin/config` `billing.plan.<plan>.stripe_price_id`; gerçek price_id'ler Stripe hesabı açılınca girilir — ops)
+- [x] Kullanım takibinin (UsageTracker) kalıcı hale getirilmesi <!-- Claude 2026-07-03 (V7): USAGE_FILE JSONL persist + boot restore + kompaksiyon; DATABASE_URL varsa usage_records dakika-bazlı upsert. Restart kalıcılığı testli. -->
 
 ---
 
@@ -709,6 +712,20 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] `/admin` genel bakış: `AdminLiveStatus` — `/health` + `/config` + `/api/plans` canlı durum şeridi (API sağlığı, stt/translate sağlayıcısı, mock_fallback uyarı rozeti [on=warn/off=ok], plan sayısı). Diğer admin sayfaları bu deseni izler.
 - [x] SMTP: `mail::send` (lettre; STARTTLS varsayılan, `mail.smtp.tls=none` test/dahili relay) — SMTP_HOST/PORT/USERNAME/PASSWORD/MAIL_FROM MANAGED secret listesine eklendi (panelden girilir, restart'sız) + `POST /admin/mail/test` gerçek test maili atar (503 yapılandırılmamış / ok:false gönderim hatası). Testler: mini SMTP mock sunucusuyla tam konuşma (zarf+konu+gövde doğrulanır), yapılandırılmamış/geçersiz adres/ulaşılamayan sunucu. 2FA mail akışı 1.4 user sistemiyle bu Mailer'a bağlanır. vault-seed.sh names listesi senkronlandı.
 - [x] Workspace 279 test + clippy temiz; frontend 43 test + lint + tsc temiz.
+
+#### V11 — Production operator handoff + no-code kurulum rehberi
+> Hedef: production'da kullanıcı/operator teknik işlem yapmadan admin panelden değer girerek sistemi ayağa kaldırabilsin. AI agentlar kod, wiring, validation ve dokümantasyonu tamamlar; kullanıcı sadece gerçek hesap/key/client oluşturur, panele girer ve canlı smoke yapar.
+- [x] Production operator dokümantasyonu oluşturuldu: `docs/production-operator-guide.md`  <!-- Sorumluluk ayrımı (operator vs AI agent), deploy/provider/broadcaster profile yapısı, Google/YouTube OAuth, Stripe, Streamlabs, provider key smoke ve canlı yayın checklist'i. Google resmi OAuth dokümanına göre redirect URI birebir eşleşme, youtube.force-ssl scope ve offline refresh token gereksinimi notlandı. -->
+- [ ] AI Agent: Admin panelde "Production Setup" sihirbazı ekle  <!-- Durum kartları: deploy profile, admin secrets, provider tests, Stripe price IDs, integration.redirect_base, mock_fallback, pairing, relay targets, logs. Operator kırmızı/sarı/yeşil durumdan ne eksik görmeli. -->
+- [ ] AI Agent: Provider profile UI modelini tamamla  <!-- Provider başına environment=production, owner/account, callback URL, secret names, status, last_tested_at, connect/test aksiyonları; değerler kodda değil config/secret store'da. -->
+- [ ] AI Agent: Google/YouTube Connect akışını dashboard'a tam bağla  <!-- /api/integrations/youtube/authorize URL'i, callback sonrası connected durumu, token refresh/persist, hata mesajları; gerçek Google app ile canlı doğrulama user/ops adımı. -->
+- [ ] AI Agent: Stripe price ID yönetimini admin UI'dan yapılır hale getir  <!-- billing.plan.<plan>.stripe_price_id config anahtarlarını form üzerinden düzenle; webhook/test checkout sonuçlarını admin panelde göster. -->
+- [ ] AI Agent: SDK desktop relay wiring'i tamamla  <!-- Localhost RTMP TCP listener, web panelden GET /api/relay/targets, RelayEngine'e aktarma, OBS local smoke. -->
+- [ ] Kullanıcı/Operator: Production deploy profile değerlerini gir  <!-- JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD_HASH, DATABASE_URL, REDIS_URL, SECRETS_FILE/TOKENS_FILE/RELAY_FILE/USAGE_FILE/LOG_FILE/SECRETS_ENC_KEY. -->
+- [ ] Kullanıcı/Operator: Google production profile'ı oluştur  <!-- Google Cloud project, OAuth branding, authorized domain, YouTube/Google APIs enable, Web OAuth client, redirect URI: https://api.<domain>/api/integrations/youtube/callback; YOUTUBE_CLIENT_ID/SECRET ve GOOGLE_TRANSLATE_KEY admin panelden girilir. -->
+- [ ] Kullanıcı/Operator: Stripe production profile'ı oluştur  <!-- Products/prices, webhook endpoint https://api.<domain>/webhooks/stripe, STRIPE_SECRET_KEY/WEBHOOK_SECRET, price_id'ler admin panelden girilir. -->
+- [ ] Kullanıcı/Operator: Deepgram/DeepL/AssemblyAI/Streamlabs key/client bilgilerini admin panelden gir ve Test/Connect smoke yap  <!-- Test geçmeden providers.mock_fallback=false yapılmaz; testler geçince mock fallback kapatılır. -->
+- [ ] Kullanıcı/Operator: Gerçek OBS + SDK + YouTube/Twitch/Kick canlı smoke'u yap  <!-- Fan-out, overlay, latency, loglarda secret sızıntısı yok, Stripe checkout/webhook, YouTube CC doğrulaması. -->
 
 ---
 
