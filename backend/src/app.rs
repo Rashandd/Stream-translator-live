@@ -212,6 +212,8 @@ pub fn router(state: AppState) -> Router {
             "/admin/providers/{name}/test",
             post(crate::provider_check::test_provider),
         )
+        // SMTP canlı testi: panelden girilen SMTP ayarlarıyla gerçek mail atar.
+        .route("/admin/mail/test", post(crate::mail::mail_test))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

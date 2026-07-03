@@ -96,6 +96,8 @@ impl ServiceConfig {
             // Sağlayıcı key'i yokken mock'a düşülsün mü? Dev/CI: true.
             // Üretimde false yapılır — key eksikse sessiz mock yerine açık hata.
             ("providers.mock_fallback", "true"),
+            // SMTP TLS kipi: starttls (üretim) | none (test/dahili relay).
+            ("mail.smtp.tls", "starttls"),
         ];
         let map = defaults
             .into_iter()

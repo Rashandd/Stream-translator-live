@@ -704,11 +704,11 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] Testler: pairing unit (üretim/tek kullanım/eski kod iptali/expiry) + relay unit (roundtrip, doğrulama, şifreli persist+reload, yanlış anahtar reddi) + `tests/pairing_api.rs` e2e (tam akış: kod→claim→SDK token'ıyla hedef çekme; token claim'leri doğru; kod tek kullanımlık; kullanıcı izolasyonu; stream key'in /admin/logs çıktısında OLMADIĞI). Workspace 275 test + clippy temiz. Compose/railway/.env.example: `RELAY_FILE=/data/relay.enc`.
 - Doğrulama listesi karşılıkları: "Pairing backend endpoint'i" KAPANDI; "Stream key senkronizasyonu SDK'ya" backend ucu KAPANDI (SDK'nın GET'i çağırıp RelayEngine'e bağlaması = 1.6 NOT 2'deki desktop-shell wiring, ayrı iş).
 
-#### V10 — Admin panel canlı veri başlangıcı + kalan wiring
-- [ ] `/admin/logs` sayfası canlı `GET /admin/logs`'a bağlanır (Bearer token; fetch başarısızsa sözlük mock satırlarına düşer — testler bozulmaz). Arama+seviye/servis filtreleri query param'lara bağlanır.
-- [ ] `/admin` genel bakış: `/health` + `/config` + `/api/plans`'tan canlı durum kartları (ilk canlı-veri deseni; diğer sayfalar aynı deseni izler).
-- [ ] SMTP: `mail::Mailer` (lettre, STARTTLS; SMTP_HOST/PORT/USERNAME/PASSWORD/MAIL_FROM — hepsi MANAGED secret listesine eklenir, panelden girilir) + `POST /admin/mail/test` → kendi adresine test maili. 2FA mail akışı user sistemi (1.4) ile bağlanır.
-- [ ] Bu plan bittikçe: yukarıdaki doğrulama listesinde kapananlar işaretlenir; kalan SALT-MANUEL maddeler (gerçek OBS/Windows WASAPI/sertifikalar/canlı platform yayını/gerçek Stripe hesabı/latency ölçümü) zaten kullanıcı+ops gerektirir, kod tarafı yok.
+#### V10 — Admin panel canlı veri başlangıcı + kalan wiring — TAMAMLANDI
+- [x] `/admin/logs` canlı: `AdminLogsPanel` (client) `GET /admin/logs?level=&service=&limit=200`'e Bearer ile bağlanır; seviye/servis filtreleri query param'a, arama client-side; "Live" / "Sample data" rozetiyle hangi modda olduğu görünür; API yoksa sözlük örnek satırlarına düşer (testler bozulmaz); 401'de login yönlendirmesi; son hatalar paneli canlı veriden türetilir.
+- [x] `/admin` genel bakış: `AdminLiveStatus` — `/health` + `/config` + `/api/plans` canlı durum şeridi (API sağlığı, stt/translate sağlayıcısı, mock_fallback uyarı rozeti [on=warn/off=ok], plan sayısı). Diğer admin sayfaları bu deseni izler.
+- [x] SMTP: `mail::send` (lettre; STARTTLS varsayılan, `mail.smtp.tls=none` test/dahili relay) — SMTP_HOST/PORT/USERNAME/PASSWORD/MAIL_FROM MANAGED secret listesine eklendi (panelden girilir, restart'sız) + `POST /admin/mail/test` gerçek test maili atar (503 yapılandırılmamış / ok:false gönderim hatası). Testler: mini SMTP mock sunucusuyla tam konuşma (zarf+konu+gövde doğrulanır), yapılandırılmamış/geçersiz adres/ulaşılamayan sunucu. 2FA mail akışı 1.4 user sistemiyle bu Mailer'a bağlanır. vault-seed.sh names listesi senkronlandı.
+- [x] Workspace 279 test + clippy temiz; frontend 43 test + lint + tsc temiz.
 
 ---
 

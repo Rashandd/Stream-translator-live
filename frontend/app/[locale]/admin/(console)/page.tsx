@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AdminLiveStatus } from "@/src/components/admin-live-status";
 import { MetricCard, PageHeader } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
@@ -21,6 +22,7 @@ export default async function AdminOverviewPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader subtitle={overview.subtitle} title={overview.title} />
+      <AdminLiveStatus labels={overview.live} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {overview.metrics.map((metric) => (
           <MetricCard hint={metric.hint} icon={metric.icon} key={metric.label} label={metric.label} value={metric.value} />

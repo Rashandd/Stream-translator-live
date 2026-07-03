@@ -1094,7 +1094,20 @@
           "hint": "failed sessions",
           "icon": "ShieldCheck"
         }
-      ]
+      ],
+      "live": {
+        "title": "Live status",
+        "apiLabel": "API",
+        "healthy": "healthy",
+        "unreachable": "unreachable",
+        "sttLabel": "stt.provider",
+        "translateLabel": "translate.provider",
+        "mockLabel": "mock fallback",
+        "mockOn": "on (dev)",
+        "mockOff": "off (production)",
+        "plansLabel": "plans",
+        "checking": "Checking backend status..."
+      }
     },
     "users": {
       "title": "Users",
@@ -1458,7 +1471,11 @@
         }
       ],
       "levelNote": "Minimum level is read from the log.level config key — change it from Service routing without a restart.",
-      "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend."
+      "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend.",
+      "liveBadge": "Live",
+      "fallbackBadge": "Sample data (API unreachable)",
+      "unauthorized": "Your admin session is missing or expired. Sign in again to view live logs.",
+      "signInLabel": "Go to admin sign-in"
     },
     "secrets": {
       "title": "Secrets",

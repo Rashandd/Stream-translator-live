@@ -12,6 +12,7 @@ pub mod db;
 pub mod gateway;
 pub mod integrations;
 pub mod logging;
+pub mod mail;
 pub mod overlay;
 pub mod pairing;
 pub mod pipeline;

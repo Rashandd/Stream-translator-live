@@ -42,6 +42,13 @@ pub mod names {
     pub const STRIPE_SECRET_KEY: &str = "STRIPE_SECRET_KEY";
     pub const STRIPE_WEBHOOK_SECRET: &str = "STRIPE_WEBHOOK_SECRET";
 
+    // SMTP (2FA/işlem mailleri) — panelden girilir, restart gerekmez.
+    pub const SMTP_HOST: &str = "SMTP_HOST";
+    pub const SMTP_PORT: &str = "SMTP_PORT";
+    pub const SMTP_USERNAME: &str = "SMTP_USERNAME";
+    pub const SMTP_PASSWORD: &str = "SMTP_PASSWORD";
+    pub const MAIL_FROM: &str = "MAIL_FROM";
+
     /// Admin panelden yönetilebilen secret'lar. `JWT_SECRET` bilinçli olarak
     /// dışarıda: runtime'da değişmesi tüm oturumları ve secrets dosyası
     /// anahtar türetimini geçersiz kılar — o, deploy zamanı env/Vault işidir.
@@ -57,6 +64,11 @@ pub mod names {
         YOUTUBE_CLIENT_SECRET,
         STRIPE_SECRET_KEY,
         STRIPE_WEBHOOK_SECRET,
+        SMTP_HOST,
+        SMTP_PORT,
+        SMTP_USERNAME,
+        SMTP_PASSWORD,
+        MAIL_FROM,
     ];
 }
 

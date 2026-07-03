@@ -35,6 +35,7 @@ axum-server.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true
 reqwest.workspace = true
+lettre.workspace = true
 hmac.workspace = true
 sha2.workspace = true
 hex.workspace = true
