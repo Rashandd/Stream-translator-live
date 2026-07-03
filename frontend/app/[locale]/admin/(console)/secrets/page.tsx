@@ -33,6 +33,8 @@ export default async function AdminSecretsPage({ params }: Props) {
           savingLabel: secrets.savingLabel,
           clearLabel: secrets.clearLabel,
           confirmClear: secrets.confirmClear,
+          testLabel: secrets.testLabel,
+          testingLabel: secrets.testingLabel,
           loading: secrets.loading,
           empty: secrets.empty,
           errors: secrets.errors,

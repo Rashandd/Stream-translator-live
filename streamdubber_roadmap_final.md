@@ -676,10 +676,10 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] `scripts/vault-seed.sh`: `.env`'deki bilinen adları KV v2'ye HTTP ile yazar (backend'in okuduğu şemayla birebir: `{mount}/data/{NAME}` → `.data.data.value`); boşları atlar; names listesi `secrets::names` ile senkron. Doğrulama listesindeki "Vault populate" adımının aracı (panel varken opsiyonel).
 - [x] Doğrulama: `bash -n` script; `docker compose config` geçerli; `npm run build` standalone çıktı veriyor. (Compose'un tam `up` koşusu ilk gerçek deploy'da — imaj build'i uzun, davranış Dockerfile'larla sabitlendi.)
 
-#### V5 — Sağlayıcı canlı bağlantı testi endpoint'i + panel Test butonu
-- [ ] `POST /admin/providers/{name}/test` (sadece admin): girilen key ile GERÇEK sağlayıcı API'sine hafif bir doğrulama çağrısı — deepgram: `GET /v1/projects`; assemblyai: `GET /v2/transcript?limit=1`; deepl: `GET /v2/usage`; google: mini `translate` çağrısı; stripe: `GET /v1/balance`. Dönüş: `{ok, provider, detail}`; key yoksa 503, key geçersizse 401'i `ok:false+detail`e çevir.
-- [ ] Sağlayıcı test URL'leri config'ten override edilebilir (`providers.<name>.test_base_url` benzeri) → mock-server ile e2e testlenebilir (doğru key → ok, yanlış key → ok:false, unset → 503).
-- [ ] Frontend: /admin/secrets satırlarına "Test" butonu (sonuç rozeti: success/danger). Roadmap 560 "Her bağlantı için test aracı" maddesinin backend yarısını kapatır; deploy sonrası canlı key doğrulaması bu butonla yapılır (STT/Çeviri canlı doğrulama listesi maddelerinin aracı).
+#### V5 — Sağlayıcı canlı bağlantı testi endpoint'i + panel Test butonu — TAMAMLANDI
+- [x] `POST /admin/providers/{name}/test` (sadece admin): deepgram `GET /v1/projects`, assemblyai `GET /v2/transcript?limit=1`, deepl `GET /v2/usage` (`:fx` key'de free host'a otomatik geçiş), google `GET /v2/languages?key=`, stripe `GET /v1/balance`. Dönüş `{provider, ok, status, detail}`: key yoksa 503 (panele yönlendiren mesaj), sağlayıcı reddi/ağ hatası `ok:false` ile HTTP 200 (test koştu, sonuç negatif). Sonuçlar audit log'a düşer. <!-- backend/src/provider_check/mod.rs -->
+- [x] Test URL'leri `providers.<ad>.test_url` config'inden override edilebilir → mock-server testleri: doğru key ok / yanlış key ok:false(401) / unset 503 / bilinmeyen sağlayıcı 404 / ağ hatası ok:false (7 test).
+- [x] Frontend: /admin/secrets satırlarında yapılandırılmış+test-edilebilir secret'lar için "Test" butonu (Wifi ikonu) + success/danger sonuç rozeti (detay title'da); secret→sağlayıcı eşlemesi backend `provider_for_secret` ile senkron. Roadmap 560 "Her bağlantı için test aracı"nın backend yarısı kapandı; canlı key doğrulaması artık panelden tek tıkla.
 
 #### V6 — Stripe webhook → DB persist (subscriptions + users.stripe_customer_id)
 - [ ] `AppState`'e opsiyonel `db: Option<sqlx::PgPool>` (main.rs'te kurulan pool state'e taşınır; tüm test AppState literallerine `db: None` eklenecek).

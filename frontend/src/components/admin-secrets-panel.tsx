@@ -19,11 +19,25 @@ type Labels = {
   savingLabel: string;
   clearLabel: string;
   confirmClear: string;
+  testLabel: string;
+  testingLabel: string;
   loading: string;
   empty: string;
   errors: { unauthorized: string; network: string; saveFailed: string };
   signInLabel: string;
 };
+
+/** Canlı test butonu olan secret'lar → backend sağlayıcı test adı
+ *  (backend/src/provider_check `provider_for_secret` ile senkron). */
+const testableProviders: Record<string, string> = {
+  DEEPGRAM_KEY: "deepgram",
+  ASSEMBLYAI_KEY: "assemblyai",
+  DEEPL_KEY: "deepl",
+  GOOGLE_TRANSLATE_KEY: "google",
+  STRIPE_SECRET_KEY: "stripe",
+};
+
+type TestOutcome = { ok: boolean; detail: string };
 
 type Props = {
   labels: Labels;
@@ -44,6 +58,8 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unauthorized, setUnauthorized] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestOutcome>>({});
 
   const applyResponse = useCallback(
     async (response: Response) => {
@@ -94,6 +110,32 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
       setError(labels.errors.network);
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function runTest(name: string) {
+    const provider = testableProviders[name];
+    if (!provider) {
+      return;
+    }
+    setTesting(name);
+    try {
+      const response = await adminFetch(`/admin/providers/${provider}/test`, { method: "POST" });
+      if (response.status === 401 || response.status === 403) {
+        setUnauthorized(true);
+        return;
+      }
+      if (response.ok) {
+        const outcome = (await response.json()) as TestOutcome;
+        setTestResults((current) => ({ ...current, [name]: outcome }));
+      } else {
+        const detail = await response.text();
+        setTestResults((current) => ({ ...current, [name]: { ok: false, detail } }));
+      }
+    } catch {
+      setError(labels.errors.network);
+    } finally {
+      setTesting(null);
     }
   }
 
@@ -193,6 +235,29 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
                           <Icon className="h-3.5 w-3.5" name="X" />
                           {labels.clearLabel}
                         </button>
+                      ) : null}
+                      {testableProviders[row.name] && row.configured ? (
+                        <button
+                          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-blue/40 px-3 text-xs font-semibold text-ink transition hover:bg-blue/10 disabled:opacity-50"
+                          disabled={testing === row.name}
+                          onClick={() => void runTest(row.name)}
+                          type="button"
+                        >
+                          <Icon className="h-3.5 w-3.5" name="Wifi" />
+                          {testing === row.name ? labels.testingLabel : labels.testLabel}
+                        </button>
+                      ) : null}
+                      {testResults[row.name] ? (
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold text-ink ${
+                            testResults[row.name].ok
+                              ? "border-success/25 bg-success/10"
+                              : "border-danger/25 bg-danger/10"
+                          }`}
+                          title={testResults[row.name].detail}
+                        >
+                          {testResults[row.name].detail}
+                        </span>
                       ) : null}
                     </div>
                   </td>

@@ -199,6 +199,11 @@ pub fn router(state: AppState) -> Router {
             "/admin/secrets/{name}",
             put(put_secret).delete(delete_secret),
         )
+        // Sağlayıcı canlı bağlantı testi: girilen key gerçek API'ye karşı denenir.
+        .route(
+            "/admin/providers/{name}/test",
+            post(crate::provider_check::test_provider),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

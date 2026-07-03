@@ -1479,6 +1479,8 @@
       "saveLabel": "Save",
       "savingLabel": "Saving...",
       "clearLabel": "Clear override",
+      "testLabel": "Test",
+      "testingLabel": "Testing...",
       "confirmClear": "Remove the panel override? The env or Vault value, if any, takes over on the next call.",
       "loading": "Loading secrets...",
       "empty": "The API returned no managed secrets.",

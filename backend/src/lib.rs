@@ -15,6 +15,7 @@ pub mod logging;
 pub mod overlay;
 pub mod pipeline;
 pub mod plans;
+pub mod provider_check;
 pub mod secrets;
 pub mod state;
 pub mod tls;
