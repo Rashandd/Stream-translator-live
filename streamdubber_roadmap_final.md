@@ -177,7 +177,7 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **Çeviri** | DeepL API | HY-MT1.5 (local) + DeepL fallback | Yaygın diller local, nadir diller API |
 | **TTS / Ses klonlama** | ElevenLabs API | XTTS-v2 (local) + ElevenLabs premium | Kalite → maliyet dengesi |
 | **Multistream** | SDK gömülü RTMP relay (yayıncı interneti) | + bulut multistream (premium) | Video buluta çıkmaz, Gbit sunucu gerekmez |
-| **Altyapı** | Railway (MVP) | Hetzner GPU + Cloudflare edge | Geliştirme → üretim ölçeği |
+| **Altyapı** | BAsic Vps (MVP) | Hetzner GPU + Cloudflare edge | Geliştirme → üretim ölçeği |
 | **Ödeme** | Stripe | (aynı) | Standart |
 | **Twitch izleyici** | — | Twitch Extension (React) | İzleyici dil seçimi |
 | **Kick izleyici** | — | Chrome Extension (Manifest V3) | İzleyici dil seçimi |
@@ -605,8 +605,9 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleriyle doğrulanmış, ancak gerçek sağlayıcı hesabı, gerçek cihaz veya gerçek platform ile HİÇ canlı test edilmemiş. MVP çıkışından önce bunların tek tek doğrulanması gerekiyor:
 
 ### Güvenlik / Altyapı (1.2)
-- [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı, henüz yapılmadı)
+- [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı, henüz yapılmadı — NOT: MVP için artık zorunlu değil; key'ler admin panelden de girilebiliyor, bir alttaki maddeye bkz.)
 - [ ] AES-256 DB şifrelemesinin `_encrypted` kolonlara gerçek uygulanması (Cipher hazır, kolonlara henüz bağlanmadı)
+- [x] **Admin panelden secret yönetimi (restart'sız, maskeli okuma)** — `GET/PUT/DELETE /admin/secrets[/{AD}]` (sadece admin): sağlayıcı key'leri (Deepgram/AssemblyAI/DeepL/Google/ElevenLabs, Streamlabs/YouTube OAuth client'ları, Stripe secret+webhook) panelden girilir, **sadece baş+son maskeli okunur** (`sk_l…3456` — tam değer hiçbir API yanıtında yer almaz). Girilen key çağrı-anı çözümleme sayesinde restart GEREKMEDEN devreye girer: STT/çeviri/OAuth/Stripe client'ları key'i her istekte `SecretStore`'dan okur (`SecretRef`). Kalıcılık: `SECRETS_FILE` env'i verilirse AES-256-GCM şifreli dosya (anahtar `SECRETS_ENC_KEY`, yoksa JWT_SECRET'tan SHA-256 türetme). Key yokken davranış `providers.mock_fallback` config'ine bağlı: `true` (dev/CI) → mock cevap, `false` (üretim) → açık hata; admin panelden değiştirilebilir. Secret güncellemeleri audit log'a düşer (kim/hangi ad/ne zaman — değer asla loglanmaz). `JWT_SECRET` bilinçli olarak panel dışında (runtime'da değişmesi oturumları ve dosya anahtarını bozar; deploy-zamanı env/Vault işi). <!-- Claude 2026-07-03: backend/src/secrets/mod.rs (ManagedSecrets+SecretRef+mask+MemorySecretStore), crypto::derive_key, app.rs /admin/secrets rotaları, main.rs build_managed_secrets + tüm sağlayıcılar managed(store) kuruculu (deepgram/assemblyai/deepl/google/StripeClient/Integrations), gateway'e MockFallbackStt/MockFallbackTranslate. 21 yeni test: unit (maske/whitelist/şifreli persist+reload/yanlış anahtar reddi) + tests/secrets_api.rs e2e (RBAC 401/403, maskeli okuma, tam değer sızıntısı yok, audit izi) + runtime mock→real geçişi. Toplam workspace 238 test + clippy -D warnings temiz. -->
 
 ### SDK (1.3)
 - [ ] Gerçek WASAPI cihaz I/O — Windows'ta gerçek mikrofon ile capture testi (şu an stub/NotImplemented)
@@ -642,6 +643,73 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [ ] Webhook event'lerinin `subscriptions`/`users.stripe_customer_id`'ye DB persist edilmesi (şu an sadece loglanıyor)
 - [ ] Plans tablosundaki gerçek `stripe_price_id`'lerin admin panelden girilmesi
 - [ ] Kullanım takibinin (UsageTracker) kalıcı hale getirilmesi — şu an bellek içi, restart'ta sıfırlanıyor
+
+---
+
+## Faz 1 — Cloud Deploy Hazırlık Planı (detaylı, sıralı)
+
+> Claude 2026-07-03: "Doğrulama listesini hallet, her şey cloud'da deploy'a hazır olsun,
+> .env/secret'lar admin panelden girilsin (maskeli okunsun)" talebinin iş planı.
+> V1 (admin secrets backend'i) TAMAMLANDI (yukarıda 1.2 altında işaretli).
+> Aşağıdakiler tasarımı kararlaştırılmış, sıralı bekleyen işlerdir — her biri
+> ayrı task/commit. Tamamlandıkça hem burada hem yukarıdaki doğrulama
+> listesindeki karşılığı işaretlenmeli.
+
+#### V2 — Minimal admin login (env-bootstrap) + frontend login wiring
+- [ ] **Neden:** Backend'de hiç login endpoint'i yok; cloud'da admin JWT alınamadığı için `/admin/secrets` panelden KULLANILAMAZ. Mevcut frontend admin login formu saf UI stub — üstelik GET form olduğu için şifreyi query-string'e koyuyor (düzeltilecek).
+- [ ] Backend: `POST /api/auth/login` `{email, password}` → `{token}`. Kaynak: env-bootstrap tek admin — `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (argon2id; `argon2` crate eklenecek). Dev kolaylığı: `ADMIN_PASSWORD` (düz) da kabul edilir ama startup'ta warn loglanır. Yanlış kimlik → 401 (hangi alanın yanlış olduğu söylenmez), yapılandırılmamışsa → 503. Başarılı/başarısız denemeler logger'a düşer (şifre asla loglanmaz). JWT claims: `sub=admin-bootstrap`, `role=admin`, `plan=streamer`, `exp=+12h`.
+- [ ] Backend testleri: doğru şifre → 200+geçerli token (verify ile role=admin), yanlış şifre/email → 401, env yokken → 503, hash ve düz şifre yolları.
+- [ ] Frontend: admin login sayfası client component olur; POST `/api/auth/login` (taban: `NEXT_PUBLIC_API_URL`), token `localStorage["sd.admin.token"]`, başarıda `/admin`'e redirect, 401/503 için sözlükten hata mesajı. 2FA verify sayfası şimdilik akış dışı (SMTP gelince bağlanır — V10 notu).
+- [ ] `.env.example`: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` (+nasıl üretileceği: `echo -n 'pass' | argon2 somesalt -id -e`), frontend `.env.example`: `NEXT_PUBLIC_API_URL`.
+- [ ] Yayıncı login'i (users tablosu, signup, e-posta doğrulama, 2FA) bu maddenin DIŞINDA — 1.4'ün kendi işi.
+
+#### V3 — /admin/secrets frontend sayfası (canlı API, maskeli görünüm)
+- [ ] Admin console'a `secrets` sayfası: `GET /admin/secrets` canlı listelenir (Bearer: `sd.admin.token`); her satır: ad (Geist Mono), durum rozeti (panel/env/vault/unset), **maskeli değer** (`dg_l…9876`), yeni değer girişi + Kaydet (PUT), override'ı temizle (DELETE, onaylı). Tam değer hiçbir zaman DOM'a gelmez (API zaten göndermiyor).
+- [ ] 401'de login'e yönlendirme; hata durumlarında (404/400/503) sözlükten mesaj. Kaydetme sonrası liste yenilenir, girilen değer input'tan silinir.
+- [ ] Nav'a girdi (`KeyRound` lucide ikonu), `en.json` sözlüğüne `admin.secrets.*` anahtarları (i18n-hazır), dictionary contract testleri (admin-logs.test.ts deseni: nav varlığı, kolonlar, emoji yasağı).
+- [ ] DESIGN.md uyumu: pill butonlar, hairline border'lı tablo, Geist Mono maskeli değerler, lucide ikonlar, 360px'te taşmasız (tablo `overflow-x-auto`).
+
+#### V4 — Cloud deploy paketi (Dockerfile'lar, compose, Railway rehberi, vault seed)
+- [ ] `frontend/Dockerfile`: multi-stage (deps → build → runner), `next.config.mjs`'e `output: "standalone"`, non-root user, `HEALTHCHECK` (`wget -qO- localhost:3000` yerine node tabanlı basit check), `NEXT_PUBLIC_*` build-arg'ları. (docs/docker-config.md "nginx" diyor ama SSR/route'lar için node standalone gerekli — doc bu maddede güncellenecek.)
+- [ ] `infra/docker-compose.yml`: `frontend` servisi eklenir (backend'e depends_on, healthcheck, env: `NEXT_PUBLIC_API_URL=http://localhost:8080`).
+- [ ] Backend compose/Dockerfile: `SECRETS_FILE` ve `LOG_FILE` için named volume (`sd-data:/data`) — panel secret'ları ve loglar restart'ta korunur.
+- [ ] `infra/railway.md` deploy rehberi: iki Railway servisi (backend Dockerfile + frontend Dockerfile), Postgres/Redis eklentileri, zorunlu env listesi (JWT_SECRET, DATABASE_URL, ADMIN_EMAIL/ADMIN_PASSWORD_HASH, SECRETS_FILE=/data/secrets.enc + volume, LOG_FILE=/data/logs.jsonl, BIND_ADDR, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_OVERLAY_WS_URL), healthcheck yolları (`/health`), deploy-sonrası adımlar (admin login → /admin/secrets'ten key'leri gir → V5 test butonuyla doğrula → `providers.mock_fallback=false` yap).
+- [ ] `scripts/vault-seed.sh`: `.env`'deki bilinen secret'ları Vault KV v2'ye yazar (`vault kv put secret/DEEPGRAM_KEY value=...`) — doğrulama listesindeki "Vault populate" ops adımının aracı (opsiyonel yol; panel varken zorunlu değil).
+- [ ] Doğrulama: `docker compose up` ile backend+frontend+postgres+redis+vault'un healthy olduğu; `npm run build`'in standalone çıktı verdiği.
+
+#### V5 — Sağlayıcı canlı bağlantı testi endpoint'i + panel Test butonu
+- [ ] `POST /admin/providers/{name}/test` (sadece admin): girilen key ile GERÇEK sağlayıcı API'sine hafif bir doğrulama çağrısı — deepgram: `GET /v1/projects`; assemblyai: `GET /v2/transcript?limit=1`; deepl: `GET /v2/usage`; google: mini `translate` çağrısı; stripe: `GET /v1/balance`. Dönüş: `{ok, provider, detail}`; key yoksa 503, key geçersizse 401'i `ok:false+detail`e çevir.
+- [ ] Sağlayıcı test URL'leri config'ten override edilebilir (`providers.<name>.test_base_url` benzeri) → mock-server ile e2e testlenebilir (doğru key → ok, yanlış key → ok:false, unset → 503).
+- [ ] Frontend: /admin/secrets satırlarına "Test" butonu (sonuç rozeti: success/danger). Roadmap 560 "Her bağlantı için test aracı" maddesinin backend yarısını kapatır; deploy sonrası canlı key doğrulaması bu butonla yapılır (STT/Çeviri canlı doğrulama listesi maddelerinin aracı).
+
+#### V6 — Stripe webhook → DB persist (subscriptions + users.stripe_customer_id)
+- [ ] `AppState`'e opsiyonel `db: Option<sqlx::PgPool>` (main.rs'te kurulan pool state'e taşınır; tüm test AppState literallerine `db: None` eklenecek).
+- [ ] `billing/persist.rs`: saf eşleme fonksiyonu `event → SubscriptionAction` (checkout.session.completed → customer_id+client_reference_id eşle; customer.subscription.created/updated → status/period upsert; deleted → canceled) — UNIT test (DB'siz). SQL katmanı: runtime `sqlx::query` (compile-time macro DEĞİL — CI'da DATABASE_URL yok), `ON CONFLICT (stripe_subscription_id)` upsert; kullanıcı eşleşmesi `client_reference_id`(user UUID) üzerinden, `users` kaydı yoksa logla-geç (user sistemi 1.4'te).
+- [ ] Webhook handler: pool varsa persist + log; yoksa mevcut davranış (sadece log). `#[ignore]`'lu entegrasyon testi `TEST_DATABASE_URL` ile (docker postgres'te elle koşulur).
+
+#### V7 — UsageTracker kalıcılığı (USAGE_FILE + usage_records)
+- [ ] `USAGE_FILE` env: Logger deseninde append-only JSONL (`{user_id, period, used_seconds}` snapshot satırları) — boot'ta geri yüklenir, her `record()` güncellemesi flush edilir; boşsa mevcut bellek-içi davranış + startup warn.
+- [ ] `DATABASE_URL` varsa ek olarak `usage_records` upsert (`UNIQUE(user_id, period)` mevcut) — write-behind, hata loglanır ama pipeline'ı düşürmez.
+- [ ] Testler: dosya persist + reload (restart simülasyonu: yeni UsageTracker aynı dosyayla eski sayacı görür), dönem değişince sıfırlanma korunur; DB yolu `#[ignore]` TEST_DATABASE_URL.
+- [ ] `.env.example`: `USAGE_FILE` (+V4 rehberine `/data/usage.jsonl`).
+
+#### V8 — OAuth offline params + token'ların AES-256 şifreli persist'i
+- [ ] `OAuthProvider`'a `extra_authorize_params: Vec<(String,String)>` — YouTube'a `access_type=offline&prompt=consent` (refresh token için ZORUNLU; 1.10 notundaki eksik). Authorize URL testleri.
+- [ ] Token persist: `integrations/token_store.rs` — `(user_id, provider) → {access_token, refresh_token, expires_at, scopes}` kaydı `crypto::Cipher` ile şifrelenip `TOKENS_FILE`'a yazılır (SECRETS_FILE ile aynı format/anahtar stratejisi; anahtar `SECRETS_ENC_KEY`/JWT türetme). `complete()` başarılı token değişiminden sonra store'a yazar; `GET /api/integrations` artık gerçek `connected` durumunu döner. DB `platform_accounts` tablosuna geçiş, users FK'sı gerektirdiğinden 1.4 user sistemi sonrası (tablo hazır).
+- [ ] Doğrulama listesi karşılıkları: "Streamlabs OAuth — token persist" + "AES-256 _encrypted uygulanması"nın token ayağı + YouTube offline refresh.
+- [ ] Testler: persist+reload, şifreli dosyada düz token yok, mock OAuth akışıyla e2e connected=true.
+
+#### V9 — Pairing backend ucu + SDK relay hedef senkronizasyonu
+- [ ] Önce `sdk/src/core/pairing.rs` sözleşmesi okunacak; ona göre: `POST /api/pairing/code` (yayıncı, auth) → 6 haneli tek-kullanımlık kod (TTL ~10dk, `sdk_sessions.pairing_code` semantiği; DB yoksa bellek içi store) ve `POST /api/pairing/claim` (SDK, kod ile) → SDK oturum token'ı (JWT, role=broadcaster, sub=user).
+- [ ] Relay hedef senkronu: `PUT /api/relay/targets` (yayıncı; `[{platform, rtmp_url, stream_key}]` — stream key'ler `crypto::Cipher` ile şifreli saklanır) + `GET /api/relay/targets` (eşleşmiş SDK token'ı ile; TLS üstünden döner). SDK'nın RelayEngine hedef listesi buradan beslenecek (1.6 NOT 2'deki kalan (2). madde).
+- [ ] Testler: kod üretme/claim/yanlış-süresi geçmiş kod, RBAC, stream key'in at-rest şifreli olduğu (store dump'ında düz key yok), SDK'nın GET ile aynı listeyi aldığı.
+- [ ] Doğrulama listesi karşılıkları: "Pairing backend endpoint'i" + "Stream key senkronizasyonu SDK'ya".
+
+#### V10 — Admin panel canlı veri başlangıcı + kalan wiring
+- [ ] `/admin/logs` sayfası canlı `GET /admin/logs`'a bağlanır (Bearer token; fetch başarısızsa sözlük mock satırlarına düşer — testler bozulmaz). Arama+seviye/servis filtreleri query param'lara bağlanır.
+- [ ] `/admin` genel bakış: `/health` + `/config` + `/api/plans`'tan canlı durum kartları (ilk canlı-veri deseni; diğer sayfalar aynı deseni izler).
+- [ ] SMTP: `mail::Mailer` (lettre, STARTTLS; SMTP_HOST/PORT/USERNAME/PASSWORD/MAIL_FROM — hepsi MANAGED secret listesine eklenir, panelden girilir) + `POST /admin/mail/test` → kendi adresine test maili. 2FA mail akışı user sistemi (1.4) ile bağlanır.
+- [ ] Bu plan bittikçe: yukarıdaki doğrulama listesinde kapananlar işaretlenir; kalan SALT-MANUEL maddeler (gerçek OBS/Windows WASAPI/sertifikalar/canlı platform yayını/gerçek Stripe hesabı/latency ölçümü) zaten kullanıcı+ops gerektirir, kod tarafı yok.
 
 ---
 

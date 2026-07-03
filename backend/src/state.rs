@@ -12,6 +12,7 @@ use crate::integrations::Integrations;
 use crate::logging::Logger;
 use crate::overlay::OverlayHub;
 use crate::plans::PlanRegistry;
+use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
@@ -26,6 +27,7 @@ pub struct AppState {
     pub plans: Arc<PlanRegistry>,
     pub usage: Arc<UsageTracker>,
     pub logger: Arc<Logger>,
+    pub secrets: Arc<ManagedSecrets>,
 }
 
 impl FromRef<AppState> for Arc<Jwt> {
@@ -79,5 +81,11 @@ impl FromRef<AppState> for Arc<UsageTracker> {
 impl FromRef<AppState> for Arc<Logger> {
     fn from_ref(state: &AppState) -> Self {
         state.logger.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ManagedSecrets> {
+    fn from_ref(state: &AppState) -> Self {
+        state.secrets.clone()
     }
 }

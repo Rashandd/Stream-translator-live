@@ -45,6 +45,7 @@ async fn spawn_server() -> (SocketAddr, Arc<Logger>, Arc<ServiceConfig>) {
         overlay: Arc::new(OverlayHub::new()),
         plans: Arc::new(PlanRegistry::with_defaults()),
         usage: Arc::new(UsageTracker::new()),
+        secrets: Arc::new(streamdubber_backend::secrets::ManagedSecrets::env()),
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");

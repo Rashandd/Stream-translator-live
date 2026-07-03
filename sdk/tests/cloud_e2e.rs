@@ -38,6 +38,7 @@ async fn spawn_backend() -> SocketAddr {
         overlay: Arc::new(streamdubber_backend::overlay::OverlayHub::new()),
         plans: Arc::new(streamdubber_backend::plans::PlanRegistry::with_defaults()),
         usage: Arc::new(streamdubber_backend::usage::UsageTracker::new()),
+        secrets: Arc::new(streamdubber_backend::secrets::ManagedSecrets::env()),
     };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");

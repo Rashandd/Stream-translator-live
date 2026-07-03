@@ -21,25 +21,26 @@ use serde::{Deserialize, Serialize};
 use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::logging::{LogLevel, Logger};
-use crate::secrets::{names, SecretStore};
+use crate::secrets::{names, SecretRef, SecretStore};
 use stripe::{StripeClient, StripeError};
 
 /// Stripe client'ı + webhook secret'ı taşıyan paylaşılan state.
+///
+/// Secret'lar çağrı anında çözülür — admin panelden girilen key/secret
+/// restart gerektirmeden devreye girer.
 pub struct Billing {
     client: StripeClient,
-    webhook_secret: Option<String>,
+    webhook_secret: SecretRef,
 }
 
 impl Billing {
-    /// Sağlayıcı kimliklerini `SecretStore`'dan çözümleyerek kurar. Secret
-    /// eksikse ilgili işlem (checkout/webhook) "yapılandırılmamış" olarak
-    /// reddedilir.
-    pub async fn from_secrets(secrets: &dyn SecretStore) -> Self {
-        let secret_key = secrets.get(names::STRIPE_SECRET_KEY).await.ok();
-        let webhook_secret = secrets.get(names::STRIPE_WEBHOOK_SECRET).await.ok();
+    /// Secret'ları çağrı anında `SecretStore`'dan çözecek şekilde kurar.
+    /// Secret eksikse ilgili işlem (checkout/webhook) "yapılandırılmamış"
+    /// olarak reddedilir.
+    pub fn from_secrets(secrets: Arc<dyn SecretStore>) -> Self {
         Billing {
-            client: StripeClient::new(secret_key),
-            webhook_secret,
+            client: StripeClient::managed(Arc::clone(&secrets)),
+            webhook_secret: SecretRef::store(secrets, names::STRIPE_WEBHOOK_SECRET),
         }
     }
 
@@ -48,14 +49,17 @@ impl Billing {
     pub fn empty() -> Self {
         Billing {
             client: StripeClient::new(None),
-            webhook_secret: None,
+            webhook_secret: SecretRef::none(),
         }
     }
 
     /// Test/manuel kurulum için doğrudan client ile.
     #[cfg(test)]
     fn from_parts(client: StripeClient, webhook_secret: Option<String>) -> Self {
-        Billing { client, webhook_secret }
+        Billing {
+            client,
+            webhook_secret: SecretRef::Fixed(webhook_secret),
+        }
     }
 }
 
@@ -134,7 +138,8 @@ pub async fn webhook(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let secret = billing
         .webhook_secret
-        .as_deref()
+        .resolve()
+        .await
         .ok_or((StatusCode::SERVICE_UNAVAILABLE, "stripe webhook not configured".to_string()))?;
 
     let sig_header = headers
@@ -142,7 +147,7 @@ pub async fn webhook(
         .and_then(|v| v.to_str().ok())
         .ok_or((StatusCode::BAD_REQUEST, "missing Stripe-Signature header".to_string()))?;
 
-    stripe::verify_signature(&body, sig_header, secret).map_err(|err| {
+    stripe::verify_signature(&body, sig_header, &secret).map_err(|err| {
         logger.log(
             LogLevel::Warn,
             "billing",

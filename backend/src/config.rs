@@ -93,6 +93,9 @@ impl ServiceConfig {
             ("billing.cancel_url", "http://localhost:3000/dashboard/billing?checkout=canceled"),
             // Loglama (1.12): asgari seviye admin panelden değişir, restart gerekmez.
             ("log.level", "info"),
+            // Sağlayıcı key'i yokken mock'a düşülsün mü? Dev/CI: true.
+            // Üretimde false yapılır — key eksikse sessiz mock yerine açık hata.
+            ("providers.mock_fallback", "true"),
         ];
         let map = defaults
             .into_iter()

@@ -10,16 +10,21 @@ use streamdubber_backend::{
     auth::jwt::Jwt,
     billing::Billing,
     config::{Config, ServiceConfig},
-    db,
+    crypto, db,
     gateway::{
-        assemblyai::AssemblyAiStt, deepgram::DeepgramStt, deepl::DeeplTranslate,
-        google_translate::GoogleTranslate, stt::MockStt, translate::MockTranslate, Gateway,
+        assemblyai::AssemblyAiStt,
+        deepgram::DeepgramStt,
+        deepl::DeeplTranslate,
+        google_translate::GoogleTranslate,
+        stt::{MockFallbackStt, SttProvider},
+        translate::{MockFallbackTranslate, TranslateProvider},
+        Gateway,
     },
     integrations::Integrations,
     logging::Logger,
     overlay::OverlayHub,
     plans::PlanRegistry,
-    secrets::{names, EnvSecretStore, SecretStore, VaultSecretStore},
+    secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     usage::UsageTracker,
     tls::{self, TlsSettings},
@@ -53,17 +58,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env()?;
 
-    // Secret kaynağı — VAULT_ADDR+VAULT_TOKEN varsa Vault, yoksa env (local dev).
-    let secrets: Box<dyn SecretStore> = match VaultSecretStore::from_env() {
-        Some(vault) => {
-            tracing::info!("using Vault secret store");
-            Box::new(vault)
-        }
-        None => {
-            tracing::info!("using env secret store (VAULT_ADDR/VAULT_TOKEN not set)");
-            Box::new(EnvSecretStore)
-        }
-    };
+    // Taban secret kaynağı — VAULT_ADDR+VAULT_TOKEN varsa Vault, yoksa env.
+    let (base_store, base_label): (Box<dyn SecretStore>, &'static str) =
+        match VaultSecretStore::from_env() {
+            Some(vault) => {
+                tracing::info!("using Vault secret store");
+                (Box::new(vault), "vault")
+            }
+            None => {
+                tracing::info!("using env secret store (VAULT_ADDR/VAULT_TOKEN not set)");
+                (Box::new(EnvSecretStore), "env")
+            }
+        };
+
+    // Admin panel katmanı: panelden girilen secret'lar tabanın önüne geçer.
+    // SECRETS_FILE verilirse AES-256 şifreli kalıcıdır (restart'ta korunur).
+    let secrets = Arc::new(build_managed_secrets(base_store, base_label).await?);
 
     // DATABASE_URL verilmişse bağlan + migration uygula.
     if let Some(url) = &config.database_url {
@@ -74,7 +84,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tracing::warn!("DATABASE_URL not set — running without database");
     }
 
-    let state = build_state(secrets.as_ref()).await?;
+    let state = build_state(secrets).await?;
     let router = app::router(state);
 
     match TlsSettings::from_env() {
@@ -88,70 +98,110 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// `SECRETS_FILE`/`SECRETS_ENC_KEY` env'ine göre [`ManagedSecrets`] kurar.
+///
+/// - `SECRETS_FILE` boş → kalıcılık yok (panel girişleri restart'ta kaybolur).
+/// - `SECRETS_ENC_KEY` (base64 veya hex, 32 byte) → dosya şifreleme anahtarı.
+/// - `SECRETS_ENC_KEY` yoksa anahtar `JWT_SECRET`'tan türetilir (SHA-256).
+async fn build_managed_secrets(
+    base: Box<dyn SecretStore>,
+    base_label: &'static str,
+) -> Result<ManagedSecrets, Box<dyn std::error::Error>> {
+    let path = std::env::var("SECRETS_FILE").ok().filter(|p| !p.is_empty());
+    let Some(path) = path else {
+        tracing::warn!("SECRETS_FILE not set — admin-entered secrets are lost on restart");
+        return Ok(ManagedSecrets::new(base, base_label));
+    };
+
+    let key: [u8; crypto::KEY_LEN] = match std::env::var("SECRETS_ENC_KEY").ok().filter(|k| !k.is_empty()) {
+        Some(encoded) => parse_enc_key(&encoded)?,
+        None => {
+            tracing::info!("SECRETS_ENC_KEY not set — deriving secrets file key from JWT_SECRET");
+            let jwt_secret = base.get(names::JWT_SECRET).await?;
+            crypto::derive_key(jwt_secret.as_bytes(), "streamdubber.secrets.v1")
+        }
+    };
+
+    tracing::info!(%path, "secret store: encrypted persistent file");
+    Ok(ManagedSecrets::with_file(base, base_label, path, &key)?)
+}
+
+/// `SECRETS_ENC_KEY` değerini çözer: 64 karakter hex veya base64, 32 byte.
+fn parse_enc_key(encoded: &str) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::error::Error>> {
+    use base64::Engine;
+    let bytes = if encoded.len() == crypto::KEY_LEN * 2 {
+        hex::decode(encoded).map_err(|e| format!("SECRETS_ENC_KEY invalid hex: {e}"))?
+    } else {
+        base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|e| format!("SECRETS_ENC_KEY invalid base64: {e}"))?
+    };
+    let len = bytes.len();
+    bytes
+        .try_into()
+        .map_err(|_| format!("SECRETS_ENC_KEY must be {} bytes, got {len}", crypto::KEY_LEN).into())
+}
+
 /// Paylaşılan state'i kurar ve sağlayıcıları kaydeder.
 ///
 /// JWT secret ve sağlayıcı key'leri [`SecretStore`]'dan çekilir — koda gömülmez.
-/// Faz 1 iskeleti: mock STT/çeviri. Gerçek Deepgram (1.7) ve DeepL (1.8)
-/// entegrasyonu aynı trait'leri implemente edip burada kaydedilecek.
-async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std::error::Error>> {
+/// Sağlayıcı key'leri **çağrı anında** çözülür: admin panelden girilen key
+/// restart gerektirmeden devreye girer. Key yokken `providers.mock_fallback`
+/// config'ine göre mock cevap (dev/CI) veya açık hata (üretim) üretilir.
+async fn build_state(secrets: Arc<ManagedSecrets>) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
 
     let service_config = Arc::new(ServiceConfig::with_defaults());
+    let store: Arc<dyn SecretStore> = Arc::clone(&secrets) as Arc<dyn SecretStore>;
 
     let mut gateway = Gateway::new(Arc::clone(&service_config));
 
-    // STT: DEEPGRAM_KEY varsa gerçek Deepgram, yoksa mock (dev/CI).
-    match secrets.get(names::DEEPGRAM_KEY).await {
-        Ok(key) => {
-            tracing::info!("stt: Deepgram (nova-2) registered");
-            gateway.register_stt(Arc::new(DeepgramStt::new(key)));
-        }
-        Err(_) => {
-            tracing::warn!("stt: DEEPGRAM_KEY not set — using mock provider");
-            gateway.register_stt(Arc::new(MockStt::new("deepgram")));
-        }
-    }
-    // STT fallback: ASSEMBLYAI_KEY varsa gerçek AssemblyAI, yoksa mock.
-    match secrets.get(names::ASSEMBLYAI_KEY).await {
-        Ok(key) => {
-            tracing::info!("stt fallback: AssemblyAI registered");
-            gateway.register_stt(Arc::new(AssemblyAiStt::new(key)));
-        }
-        Err(_) => {
-            tracing::warn!("stt fallback: ASSEMBLYAI_KEY not set — using mock provider");
-            gateway.register_stt(Arc::new(MockStt::new("assemblyai")));
-        }
-    }
+    // Key'i store'dan çözen sağlayıcı + mock fallback sarmalayıcısı.
+    let stt = |name: &'static str, key: &'static str, real: Arc<dyn SttProvider>| {
+        MockFallbackStt::new(
+            name,
+            SecretRef::store(Arc::clone(&store), key),
+            real,
+            Arc::clone(&service_config),
+        )
+    };
+    let translate = |name: &'static str, key: &'static str, real: Arc<dyn TranslateProvider>| {
+        MockFallbackTranslate::new(
+            name,
+            SecretRef::store(Arc::clone(&store), key),
+            real,
+            Arc::clone(&service_config),
+        )
+    };
 
-    // Çeviri: DEEPL_KEY varsa gerçek DeepL, yoksa mock.
-    match secrets.get(names::DEEPL_KEY).await {
-        Ok(key) => {
-            tracing::info!("translate: DeepL registered");
-            gateway.register_translate(Arc::new(DeeplTranslate::new(key)));
-        }
-        Err(_) => {
-            tracing::warn!("translate: DEEPL_KEY not set — using mock provider");
-            gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
-        }
-    }
-    // Çeviri fallback: GOOGLE_TRANSLATE_KEY varsa gerçek Google, yoksa mock.
-    match secrets.get(names::GOOGLE_TRANSLATE_KEY).await {
-        Ok(key) => {
-            tracing::info!("translate fallback: Google registered");
-            gateway.register_translate(Arc::new(GoogleTranslate::new(key)));
-        }
-        Err(_) => {
-            tracing::warn!("translate fallback: GOOGLE_TRANSLATE_KEY not set — using mock provider");
-            gateway.register_translate(Arc::new(MockTranslate::new("google")));
-        }
-    }
+    gateway.register_stt(Arc::new(stt(
+        "deepgram",
+        names::DEEPGRAM_KEY,
+        Arc::new(DeepgramStt::managed(Arc::clone(&store))),
+    )));
+    gateway.register_stt(Arc::new(stt(
+        "assemblyai",
+        names::ASSEMBLYAI_KEY,
+        Arc::new(AssemblyAiStt::managed(Arc::clone(&store))),
+    )));
+    gateway.register_translate(Arc::new(translate(
+        "deepl",
+        names::DEEPL_KEY,
+        Arc::new(DeeplTranslate::managed(Arc::clone(&store))),
+    )));
+    gateway.register_translate(Arc::new(translate(
+        "google",
+        names::GOOGLE_TRANSLATE_KEY,
+        Arc::new(GoogleTranslate::managed(Arc::clone(&store))),
+    )));
+    tracing::info!("providers registered (keys resolved per-call from secret store)");
 
-    // Multistream OAuth (1.6): sağlayıcı client id/secret'ları secret'lardan çözülür.
-    let integrations = Arc::new(Integrations::from_secrets(secrets).await);
+    // Multistream OAuth (1.6): client id/secret çağrı anında çözülür.
+    let integrations = Arc::new(Integrations::from_secrets(Arc::clone(&store)));
 
-    // Stripe (1.11): STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET yoksa checkout/webhook
-    // "yapılandırılmamış" (503) döner; DEEPGRAM_KEY/DEEPL_KEY ile aynı desen.
-    let billing = Arc::new(Billing::from_secrets(secrets).await);
+    // Stripe (1.11): secret'lar çağrı anında çözülür; yoksa checkout/webhook
+    // "yapılandırılmamış" (503) döner.
+    let billing = Arc::new(Billing::from_secrets(Arc::clone(&store)));
 
     // Merkezi log deposu (1.12): LOG_FILE verilirse kalıcı JSONL, yoksa bellek
     // içi (restart'ta kaybolur — üretimde LOG_FILE bekleniyor).
@@ -177,6 +227,7 @@ async fn build_state(secrets: &dyn SecretStore) -> Result<AppState, Box<dyn std:
         plans: Arc::new(PlanRegistry::with_defaults()),
         usage: Arc::new(UsageTracker::new()),
         logger,
+        secrets,
     })
 }
 

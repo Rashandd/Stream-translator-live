@@ -6,9 +6,13 @@
 //! HMAC-SHA256). `secret_key`/`webhook_secret` `SecretStore`'dan gelir, koda
 //! gömülmez.
 
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::secrets::{names, SecretRef, SecretStore};
 
 const DEFAULT_BASE_URL: &str = "https://api.stripe.com";
 const DEFAULT_TOLERANCE_SECS: i64 = 300;
@@ -56,7 +60,7 @@ pub struct StripeEventData {
 
 /// Stripe REST client'ı.
 pub struct StripeClient {
-    secret_key: Option<String>,
+    key: SecretRef,
     base_url: String,
     http: reqwest::Client,
 }
@@ -66,7 +70,17 @@ impl StripeClient {
     /// [`StripeError::NotConfigured`] döner (ağa hiç çıkmaz).
     pub fn new(secret_key: Option<String>) -> Self {
         StripeClient {
-            secret_key,
+            key: SecretRef::Fixed(secret_key),
+            base_url: DEFAULT_BASE_URL.to_string(),
+            http: reqwest::Client::new(),
+        }
+    }
+
+    /// Key'i her çağrıda store'dan (`STRIPE_SECRET_KEY`) çözerek kurar —
+    /// admin panelden girilen key restart gerektirmeden devreye girer.
+    pub fn managed(store: Arc<dyn SecretStore>) -> Self {
+        StripeClient {
+            key: SecretRef::store(store, names::STRIPE_SECRET_KEY),
             base_url: DEFAULT_BASE_URL.to_string(),
             http: reqwest::Client::new(),
         }
@@ -76,15 +90,15 @@ impl StripeClient {
     #[cfg(test)]
     fn with_base_url(secret_key: impl Into<String>, base_url: impl Into<String>) -> Self {
         StripeClient {
-            secret_key: Some(secret_key.into()),
+            key: SecretRef::fixed(secret_key),
             base_url: base_url.into(),
             http: reqwest::Client::new(),
         }
     }
 
     /// `STRIPE_SECRET_KEY` çözümlendi mi?
-    pub fn is_configured(&self) -> bool {
-        self.secret_key.is_some()
+    pub async fn is_configured(&self) -> bool {
+        self.key.resolve().await.is_some()
     }
 
     /// `mode=subscription` bir Checkout Session oluşturur.
@@ -99,7 +113,7 @@ impl StripeClient {
         client_reference_id: &str,
         customer_email: Option<&str>,
     ) -> Result<CheckoutSession, StripeError> {
-        let secret_key = self.secret_key.as_deref().ok_or(StripeError::NotConfigured)?;
+        let secret_key = self.key.resolve().await.ok_or(StripeError::NotConfigured)?;
 
         let mut params = vec![
             ("mode", "subscription".to_string()),
@@ -116,7 +130,7 @@ impl StripeClient {
         let resp = self
             .http
             .post(format!("{}/v1/checkout/sessions", self.base_url))
-            .basic_auth(secret_key, Some(""))
+            .basic_auth(&secret_key, Some(""))
             .form(&params)
             .send()
             .await

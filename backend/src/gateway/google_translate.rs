@@ -4,24 +4,36 @@
 //! değil, basit API key akışı). API key koda gömülmez, `SecretStore`'dan
 //! (`GOOGLE_TRANSLATE_KEY`) gelir.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use super::translate::{TranslateError, TranslateProvider};
+use crate::secrets::{names, SecretRef, SecretStore};
 
 const DEFAULT_ENDPOINT: &str = "https://translation.googleapis.com/language/translate/v2";
 
 /// Google Cloud Translate REST client'ı.
 pub struct GoogleTranslate {
-    api_key: String,
+    key: SecretRef,
     endpoint: String,
     client: reqwest::Client,
 }
 
 impl GoogleTranslate {
-    /// Üretim endpoint'iyle kurar.
+    /// Üretim endpoint'iyle kurar (sabit key).
     pub fn new(api_key: impl Into<String>) -> Self {
         GoogleTranslate {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
+            endpoint: DEFAULT_ENDPOINT.to_string(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Key'i her çağrıda store'dan (`GOOGLE_TRANSLATE_KEY`) çözerek kurar.
+    pub fn managed(store: Arc<dyn SecretStore>) -> Self {
+        GoogleTranslate {
+            key: SecretRef::store(store, names::GOOGLE_TRANSLATE_KEY),
             endpoint: DEFAULT_ENDPOINT.to_string(),
             client: reqwest::Client::new(),
         }
@@ -30,7 +42,7 @@ impl GoogleTranslate {
     /// Test veya self-host için özel endpoint ile kurar.
     pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
         GoogleTranslate {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
             endpoint: endpoint.into(),
             client: reqwest::Client::new(),
         }
@@ -53,10 +65,14 @@ impl TranslateProvider for GoogleTranslate {
             return Err(TranslateError::Request("empty text".into()));
         }
 
+        let api_key = self.key.resolve().await.ok_or_else(|| {
+            TranslateError::Unavailable("GOOGLE_TRANSLATE_KEY not configured".into())
+        })?;
+
         let resp = self
             .client
             .post(&self.endpoint)
-            .query(&[("key", self.api_key.as_str())])
+            .query(&[("key", api_key.as_str())])
             .json(&serde_json::json!({
                 "q": text,
                 "source": source,

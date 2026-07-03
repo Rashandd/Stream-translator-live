@@ -338,6 +338,7 @@ mod tests {
             logger: Arc::new(crate::logging::Logger::in_memory(Arc::new(
                 ServiceConfig::with_defaults(),
             ))),
+            secrets: Arc::new(crate::secrets::ManagedSecrets::env()),
         }
     }
 

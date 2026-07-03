@@ -12,6 +12,10 @@
 //! Bu modül OAuth **akışını** (authorize → callback → token değişimi) sağlar.
 //! Alınan token'ın AES ile şifrelenip DB'ye (`platform_accounts`) yazılması ve
 //! bağlantı testinin gerçek sağlayıcı API'siyle yapılması follow-up'tır.
+//!
+//! İstemci kimlikleri (`client_id`/`client_secret`) açılışta değil **çağrı
+//! anında** [`SecretStore`]'dan çözülür — admin panelden girilen kimlik
+//! restart gerektirmeden devreye girer.
 
 pub mod oauth;
 pub mod youtube;
@@ -27,19 +31,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
-use crate::secrets::{names, SecretStore};
+use crate::secrets::{names, SecretRef, SecretStore};
 use oauth::{exchange_code, OAuthError, OAuthProvider, StateStore};
 
-/// Bir sağlayıcının uç noktaları + (varsa) çözümlenmiş istemci kimlikleri.
+/// Bir sağlayıcının uç noktaları + çağrı anında çözülen istemci kimlikleri.
 struct ProviderCreds {
     provider: OAuthProvider,
-    client_id: Option<String>,
-    client_secret: Option<String>,
+    client_id: SecretRef,
+    client_secret: SecretRef,
 }
 
 impl ProviderCreds {
-    fn is_configured(&self) -> bool {
-        self.client_id.is_some() && self.client_secret.is_some()
+    async fn is_configured(&self) -> bool {
+        self.client_id.resolve().await.is_some() && self.client_secret.resolve().await.is_some()
     }
 }
 
@@ -93,19 +97,18 @@ fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'stat
 }
 
 impl Integrations {
-    /// Sağlayıcı kimliklerini `SecretStore`'dan çözümleyerek registry kurar.
-    /// Kimliği eksik sağlayıcı "yapılandırılmamış" olarak işaretlenir.
-    pub async fn from_secrets(secrets: &dyn SecretStore) -> Self {
+    /// Sağlayıcı kimliklerini çağrı anında `SecretStore`'dan çözecek şekilde
+    /// registry kurar. Kimliği eksik sağlayıcı "yapılandırılmamış" görünür;
+    /// kimlik admin panelden girildiği anda restart'sız aktifleşir.
+    pub fn from_secrets(secrets: Arc<dyn SecretStore>) -> Self {
         let mut providers = HashMap::new();
         for (name, provider, id_key, secret_key) in default_providers() {
-            let client_id = secrets.get(id_key).await.ok();
-            let client_secret = secrets.get(secret_key).await.ok();
             providers.insert(
                 name.to_string(),
                 ProviderCreds {
                     provider,
-                    client_id,
-                    client_secret,
+                    client_id: SecretRef::store(Arc::clone(&secrets), id_key),
+                    client_secret: SecretRef::store(Arc::clone(&secrets), secret_key),
                 },
             );
         }
@@ -144,13 +147,16 @@ impl Integrations {
     }
 
     /// Sağlayıcının istemci kimliği yapılandırılmış mı?
-    pub fn is_configured(&self, name: &str) -> bool {
-        self.providers.get(name).is_some_and(ProviderCreds::is_configured)
+    pub async fn is_configured(&self, name: &str) -> bool {
+        match self.providers.get(name) {
+            Some(creds) => creds.is_configured().await,
+            None => false,
+        }
     }
 
     /// authorize adımını başlatır: plan/erişim doğrular, `state` üretir ve
     /// yayıncının yönlendirileceği authorize URL'sini döndürür.
-    pub fn begin(
+    pub async fn begin(
         &self,
         user_id: &str,
         plan: &str,
@@ -164,7 +170,8 @@ impl Integrations {
 
         let client_id = creds
             .client_id
-            .as_deref()
+            .resolve()
+            .await
             .ok_or_else(|| OAuthError::NotConfigured(provider_name.to_string()))?;
 
         let plans = cfg
@@ -185,7 +192,7 @@ impl Integrations {
         let state = self.states.issue(user_id, provider_name, &redirect_uri);
         Ok(creds
             .provider
-            .authorize_redirect(client_id, &redirect_uri, &state))
+            .authorize_redirect(&client_id, &redirect_uri, &state))
     }
 
     /// callback adımı: `state`'i doğrular, `code`'u token'a çevirir.
@@ -208,17 +215,18 @@ impl Integrations {
             .providers
             .get(provider_name)
             .ok_or_else(|| OAuthError::UnknownProvider(provider_name.to_string()))?;
-        let (Some(client_id), Some(client_secret)) =
-            (creds.client_id.as_deref(), creds.client_secret.as_deref())
-        else {
+        let (Some(client_id), Some(client_secret)) = (
+            creds.client_id.resolve().await,
+            creds.client_secret.resolve().await,
+        ) else {
             return Err(OAuthError::NotConfigured(provider_name.to_string()));
         };
 
         let token = exchange_code(
             &self.http,
             &creds.provider,
-            client_id,
-            client_secret,
+            &client_id,
+            &client_secret,
             code,
             &redirect_uri,
         )
@@ -263,21 +271,18 @@ pub async fn list(
     State(cfg): State<Arc<ServiceConfig>>,
 ) -> Json<Vec<ProviderStatus>> {
     let plan = &user.claims.plan;
-    let items = integ
-        .provider_names()
-        .into_iter()
-        .map(|name| {
-            let plans = cfg
-                .get(&format!("integration.{name}.plans"))
-                .unwrap_or_default();
-            ProviderStatus {
-                configured: integ.is_configured(&name),
-                enabled_for_plan: oauth::plan_allowed(&plans, plan),
-                plans,
-                name,
-            }
-        })
-        .collect();
+    let mut items = Vec::new();
+    for name in integ.provider_names() {
+        let plans = cfg
+            .get(&format!("integration.{name}.plans"))
+            .unwrap_or_default();
+        items.push(ProviderStatus {
+            configured: integ.is_configured(&name).await,
+            enabled_for_plan: oauth::plan_allowed(&plans, plan),
+            plans,
+            name,
+        });
+    }
     Json(items)
 }
 
@@ -294,7 +299,10 @@ pub async fn authorize(
     State(integ): State<Arc<Integrations>>,
     State(cfg): State<Arc<ServiceConfig>>,
 ) -> Result<Json<AuthorizeResponse>, (StatusCode, String)> {
-    match integ.begin(&user.claims.sub, &user.claims.plan, &provider, &cfg) {
+    match integ
+        .begin(&user.claims.sub, &user.claims.plan, &provider, &cfg)
+        .await
+    {
         Ok(authorize_url) => Ok(Json(AuthorizeResponse { authorize_url })),
         Err(err) => Err((oauth_status(&err), err.to_string())),
     }
@@ -358,6 +366,13 @@ mod tests {
     use std::collections::HashMap as Map;
 
     fn provider_at(token_url: &str, configured: bool) -> ProviderCreds {
+        let secret_ref = |v: &str| {
+            if configured {
+                SecretRef::fixed(v)
+            } else {
+                SecretRef::none()
+            }
+        };
         ProviderCreds {
             provider: OAuthProvider {
                 name: "streamlabs".into(),
@@ -365,8 +380,8 @@ mod tests {
                 token_url: token_url.into(),
                 scopes: vec!["socket.token".into()],
             },
-            client_id: configured.then(|| "cid".to_string()),
-            client_secret: configured.then(|| "sec-1".to_string()),
+            client_id: secret_ref("cid"),
+            client_secret: secret_ref("sec-1"),
         }
     }
 
@@ -403,7 +418,7 @@ mod tests {
         let cfg = cfg();
 
         // begin: URL üretilmeli ve içinde bir state olmalı.
-        let url = integ.begin("user-1", "pro", "streamlabs", &cfg).unwrap();
+        let url = integ.begin("user-1", "pro", "streamlabs", &cfg).await.unwrap();
         let state = reqwest::Url::parse(&url)
             .unwrap()
             .query_pairs()
@@ -419,27 +434,52 @@ mod tests {
         assert!(conn.has_refresh);
     }
 
-    #[test]
-    fn begin_rejects_plan_without_access() {
+    #[tokio::test]
+    async fn begin_rejects_plan_without_access() {
         let integ = integrations_with("http://unused", true);
         let cfg = cfg();
         // integration.streamlabs.plans = "pro" → "starter" reddedilir.
-        let err = integ.begin("u", "starter", "streamlabs", &cfg).unwrap_err();
+        let err = integ
+            .begin("u", "starter", "streamlabs", &cfg)
+            .await
+            .unwrap_err();
         assert!(matches!(err, OAuthError::PlanNotAllowed { .. }));
     }
 
-    #[test]
-    fn begin_rejects_unknown_and_unconfigured() {
+    #[tokio::test]
+    async fn begin_rejects_unknown_and_unconfigured() {
         let cfg = cfg();
         let integ = integrations_with("http://unused", false);
         assert!(matches!(
-            integ.begin("u", "pro", "ghost", &cfg),
+            integ.begin("u", "pro", "ghost", &cfg).await,
             Err(OAuthError::UnknownProvider(_))
         ));
         assert!(matches!(
-            integ.begin("u", "pro", "streamlabs", &cfg),
+            integ.begin("u", "pro", "streamlabs", &cfg).await,
             Err(OAuthError::NotConfigured(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn creds_set_at_runtime_activate_without_restart() {
+        use crate::secrets::MemorySecretStore;
+
+        // Boş store ile kur → yapılandırılmamış.
+        let store = Arc::new(MemorySecretStore::new());
+        let integ = Integrations::from_secrets(Arc::clone(&store) as Arc<dyn SecretStore>);
+        let cfg = cfg();
+        assert!(!integ.is_configured("streamlabs").await);
+        assert!(matches!(
+            integ.begin("u", "pro", "streamlabs", &cfg).await,
+            Err(OAuthError::NotConfigured(_))
+        ));
+
+        // Admin panel kimliği girdi (restart yok) → authorize URL üretilir.
+        store.insert(names::STREAMLABS_CLIENT_ID, "cid-live");
+        store.insert(names::STREAMLABS_CLIENT_SECRET, "sec-live");
+        assert!(integ.is_configured("streamlabs").await);
+        let url = integ.begin("u", "pro", "streamlabs", &cfg).await.unwrap();
+        assert!(url.contains("client_id=cid-live"));
     }
 
     #[tokio::test]
@@ -454,7 +494,7 @@ mod tests {
         let token_url = spawn_token_mock().await;
         let integ = integrations_with(&token_url, true);
         let cfg = cfg();
-        let url = integ.begin("u", "pro", "streamlabs", &cfg).unwrap();
+        let url = integ.begin("u", "pro", "streamlabs", &cfg).await.unwrap();
         let state = reqwest::Url::parse(&url)
             .unwrap()
             .query_pairs()

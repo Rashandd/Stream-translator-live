@@ -5,32 +5,49 @@
 //! `SecretStore`'dan (`DEEPL_KEY`) gelir. Free key'ler `:fx` ile biter ve
 //! `api-free.deepl.com` endpoint'ini kullanır.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use super::translate::{TranslateError, TranslateProvider};
+use crate::secrets::{names, SecretRef, SecretStore};
 
 const FREE_ENDPOINT: &str = "https://api-free.deepl.com/v2/translate";
 const PRO_ENDPOINT: &str = "https://api.deepl.com/v2/translate";
 
+/// Free key'ler `:fx` ile biter ve free endpoint'ini kullanır.
+fn endpoint_for_key(api_key: &str) -> &'static str {
+    if api_key.ends_with(":fx") {
+        FREE_ENDPOINT
+    } else {
+        PRO_ENDPOINT
+    }
+}
+
 /// DeepL REST client'ı.
 pub struct DeeplTranslate {
-    api_key: String,
-    endpoint: String,
+    key: SecretRef,
+    /// `None` = endpoint çağrı anında key'e göre seçilir (free/pro).
+    endpoint: Option<String>,
     client: reqwest::Client,
 }
 
 impl DeeplTranslate {
-    /// API key'e göre free/pro endpoint'ini seçerek kurar.
+    /// API key'e göre free/pro endpoint'ini seçerek kurar (sabit key).
     pub fn new(api_key: impl Into<String>) -> Self {
-        let api_key = api_key.into();
-        let endpoint = if api_key.ends_with(":fx") {
-            FREE_ENDPOINT
-        } else {
-            PRO_ENDPOINT
-        };
         DeeplTranslate {
-            api_key,
-            endpoint: endpoint.to_string(),
+            key: SecretRef::fixed(api_key),
+            endpoint: None,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Key'i her çağrıda store'dan (`DEEPL_KEY`) çözerek kurar; endpoint de
+    /// o anki key'e göre (free/pro) seçilir.
+    pub fn managed(store: Arc<dyn SecretStore>) -> Self {
+        DeeplTranslate {
+            key: SecretRef::store(store, names::DEEPL_KEY),
+            endpoint: None,
             client: reqwest::Client::new(),
         }
     }
@@ -38,8 +55,8 @@ impl DeeplTranslate {
     /// Test veya self-host için özel endpoint ile kurar.
     pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
         DeeplTranslate {
-            api_key: api_key.into(),
-            endpoint: endpoint.into(),
+            key: SecretRef::fixed(api_key),
+            endpoint: Some(endpoint.into()),
             client: reqwest::Client::new(),
         }
     }
@@ -61,6 +78,16 @@ impl TranslateProvider for DeeplTranslate {
             return Err(TranslateError::Request("empty text".into()));
         }
 
+        let api_key = self
+            .key
+            .resolve()
+            .await
+            .ok_or_else(|| TranslateError::Unavailable("DEEPL_KEY not configured".into()))?;
+        let endpoint = self
+            .endpoint
+            .clone()
+            .unwrap_or_else(|| endpoint_for_key(&api_key).to_string());
+
         // DeepL dil kodları büyük harf (EN, DE, TR).
         let params = [
             ("text", text.to_string()),
@@ -70,8 +97,8 @@ impl TranslateProvider for DeeplTranslate {
 
         let resp = self
             .client
-            .post(&self.endpoint)
-            .header("Authorization", format!("DeepL-Auth-Key {}", self.api_key))
+            .post(&endpoint)
+            .header("Authorization", format!("DeepL-Auth-Key {api_key}"))
             .form(&params)
             .send()
             .await
@@ -165,11 +192,40 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn free_key_selects_free_endpoint() {
+        // Endpoint artık çağrı anında key'e göre seçilir (managed key'ler
+        // runtime'da değişebildiği için yapım anında sabitlenemez).
+        assert_eq!(endpoint_for_key("abc:fx"), FREE_ENDPOINT);
+        assert_eq!(endpoint_for_key("abc"), PRO_ENDPOINT);
+    }
+
     #[tokio::test]
-    async fn free_key_selects_free_endpoint() {
-        let tr = DeeplTranslate::new("abc:fx");
-        assert_eq!(tr.endpoint, FREE_ENDPOINT);
-        let pro = DeeplTranslate::new("abc");
-        assert_eq!(pro.endpoint, PRO_ENDPOINT);
+    async fn managed_key_set_at_runtime_reaches_real_endpoint() {
+        use crate::secrets::{MemorySecretStore, SecretStore};
+        use std::sync::Arc;
+
+        // Store'a bağlı client: key sonradan girilse de çağrı anında çözülür.
+        let endpoint = spawn_deepl_mock().await;
+        let store = Arc::new(MemorySecretStore::new());
+        let tr = DeeplTranslate {
+            key: crate::secrets::SecretRef::store(
+                Arc::clone(&store) as Arc<dyn SecretStore>,
+                "DEEPL_KEY",
+            ),
+            endpoint: Some(endpoint),
+            client: reqwest::Client::new(),
+        };
+
+        // Key yok → Unavailable (gateway fallback'ini tetikleyen tür).
+        assert!(matches!(
+            tr.translate("merhaba", "tr", "en").await,
+            Err(TranslateError::Unavailable(_))
+        ));
+
+        // Key girildi (admin panel) → restart'sız gerçek endpoint'e ulaşır.
+        store.insert("DEEPL_KEY", "test-key");
+        let out = tr.translate("merhaba", "tr", "en").await.unwrap();
+        assert_eq!(out, "EN:merhaba");
     }
 }

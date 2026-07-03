@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, post, put},
     Json, Router,
@@ -16,9 +16,10 @@ use crate::auth::authz::AdminUser;
 use crate::billing;
 use crate::config::ServiceConfig;
 use crate::integrations;
-use crate::logging::{LogEntry, Logger, LogQuery};
+use crate::logging::{LogEntry, Logger, LogLevel, LogQuery};
 use crate::overlay;
 use crate::plans::{PlanDefinition, PlanRegistry};
+use crate::secrets::{ManagedSecrets, SecretError, SecretStatus};
 use crate::state::AppState;
 use crate::ws::ws_handler;
 
@@ -77,6 +78,75 @@ async fn get_logs(
     Json(logger.query(&query))
 }
 
+/// Yönetilen secret'ların durumunu listeler (sadece admin) — değerler asla
+/// dönmez, sadece baş+son maskeli önizleme (`sk_l…3456`).
+async fn get_secrets(
+    _admin: AdminUser,
+    State(secrets): State<Arc<ManagedSecrets>>,
+) -> Json<Vec<SecretStatus>> {
+    Json(secrets.status().await)
+}
+
+/// Secret güncelleme gövdesi.
+#[derive(Deserialize)]
+struct SecretUpdate {
+    value: String,
+}
+
+/// `SecretError` → HTTP durum kodu.
+fn secret_status_code(err: &SecretError) -> StatusCode {
+    match err {
+        SecretError::NotFound(_) => StatusCode::NOT_FOUND,
+        SecretError::Backend(_) => StatusCode::BAD_REQUEST,
+    }
+}
+
+/// Bir secret'ı admin panelden ayarlar (sadece admin).
+///
+/// Yalnızca yönetilen adlar (`secrets::names::MANAGED`) yazılabilir; değer
+/// derhal devreye girer (restart yok) ve `SECRETS_FILE` yapılandırıldıysa
+/// AES-256 şifreli kalıcıdır. Yanıt maskeli durum listesidir — değer dönmez.
+async fn put_secret(
+    admin: AdminUser,
+    Path(name): Path<String>,
+    State(secrets): State<Arc<ManagedSecrets>>,
+    State(logger): State<Arc<Logger>>,
+    Json(update): Json<SecretUpdate>,
+) -> Result<Json<Vec<SecretStatus>>, (StatusCode, String)> {
+    secrets
+        .set(&name, &update.value)
+        .map_err(|err| (secret_status_code(&err), err.to_string()))?;
+    // Audit: kim, hangi secret'ı, ne zaman — değer asla loglanmaz.
+    logger.log(
+        LogLevel::Info,
+        "secrets",
+        &format!("secret updated: {name}"),
+        Some(&admin.claims.sub),
+        None,
+    );
+    Ok(Json(secrets.status().await))
+}
+
+/// Bir secret'ın panel override'ını kaldırır (env/Vault değerine geri düşer).
+async fn delete_secret(
+    admin: AdminUser,
+    Path(name): Path<String>,
+    State(secrets): State<Arc<ManagedSecrets>>,
+    State(logger): State<Arc<Logger>>,
+) -> Result<Json<Vec<SecretStatus>>, (StatusCode, String)> {
+    secrets
+        .clear(&name)
+        .map_err(|err| (secret_status_code(&err), err.to_string()))?;
+    logger.log(
+        LogLevel::Info,
+        "secrets",
+        &format!("secret override cleared: {name}"),
+        Some(&admin.claims.sub),
+        None,
+    );
+    Ok(Json(secrets.status().await))
+}
+
 /// Plan listesini okur (public) — fiyatlandırma sayfası ve yayıncı paneli
 /// buradan okur, koda gömülü fiyat/limit olmaz.
 async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefinition>> {
@@ -121,6 +191,12 @@ pub fn router(state: AppState) -> Router {
         .route("/admin/plans", put(put_plan))
         // Loglama (1.12): merkezi log deposu araması, sadece admin.
         .route("/admin/logs", get(get_logs))
+        // Secret yönetimi: admin panelden girilir, sadece maskeli okunur.
+        .route("/admin/secrets", get(get_secrets))
+        .route(
+            "/admin/secrets/{name}",
+            put(put_secret).delete(delete_secret),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

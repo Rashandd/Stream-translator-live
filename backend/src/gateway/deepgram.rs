@@ -8,26 +8,40 @@
 //!
 //! API key koda gömülmez, `SecretStore`'dan (`DEEPGRAM_KEY`) gelir.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use super::stt::{SttError, SttProvider, Transcript};
+use crate::secrets::{names, SecretRef, SecretStore};
 
 const DEFAULT_ENDPOINT: &str = "https://api.deepgram.com/v1/listen";
 const DEFAULT_MODEL: &str = "nova-2";
 
 /// Deepgram prerecorded REST client'ı.
 pub struct DeepgramStt {
-    api_key: String,
+    key: SecretRef,
     endpoint: String,
     model: String,
     client: reqwest::Client,
 }
 
 impl DeepgramStt {
-    /// Nova-2 modeliyle üretim endpoint'ini kullanarak kurar.
+    /// Nova-2 modeliyle üretim endpoint'ini kullanarak kurar (sabit key).
     pub fn new(api_key: impl Into<String>) -> Self {
         DeepgramStt {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
+            endpoint: DEFAULT_ENDPOINT.to_string(),
+            model: DEFAULT_MODEL.to_string(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Key'i her çağrıda store'dan (`DEEPGRAM_KEY`) çözerek kurar — admin
+    /// panelden girilen key restart gerektirmeden devreye girer.
+    pub fn managed(store: Arc<dyn SecretStore>) -> Self {
+        DeepgramStt {
+            key: SecretRef::store(store, names::DEEPGRAM_KEY),
             endpoint: DEFAULT_ENDPOINT.to_string(),
             model: DEFAULT_MODEL.to_string(),
             client: reqwest::Client::new(),
@@ -37,7 +51,7 @@ impl DeepgramStt {
     /// Test veya self-host için özel endpoint ile kurar.
     pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
         DeepgramStt {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
             endpoint: endpoint.into(),
             model: DEFAULT_MODEL.to_string(),
             client: reqwest::Client::new(),
@@ -56,6 +70,12 @@ impl SttProvider for DeepgramStt {
             return Err(SttError::Request("empty audio".into()));
         }
 
+        let api_key = self
+            .key
+            .resolve()
+            .await
+            .ok_or_else(|| SttError::Unavailable("DEEPGRAM_KEY not configured".into()))?;
+
         let url = format!(
             "{}?model={}&language={}",
             self.endpoint, self.model, source_lang
@@ -64,7 +84,7 @@ impl SttProvider for DeepgramStt {
         let resp = self
             .client
             .post(&url)
-            .header("Authorization", format!("Token {}", self.api_key))
+            .header("Authorization", format!("Token {api_key}"))
             .body(audio.to_vec())
             .send()
             .await

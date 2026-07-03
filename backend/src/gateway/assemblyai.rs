@@ -7,12 +7,14 @@
 //!
 //! API key koda gömülmez, `SecretStore`'dan (`ASSEMBLYAI_KEY`) gelir.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Deserialize;
 
 use super::stt::{SttError, SttProvider, Transcript};
+use crate::secrets::{names, SecretRef, SecretStore};
 
 const DEFAULT_BASE_URL: &str = "https://api.assemblyai.com";
 const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -35,7 +37,7 @@ struct TranscriptResponse {
 
 /// AssemblyAI prerecorded REST client'ı.
 pub struct AssemblyAiStt {
-    api_key: String,
+    key: SecretRef,
     base_url: String,
     client: reqwest::Client,
     poll_interval: Duration,
@@ -43,10 +45,21 @@ pub struct AssemblyAiStt {
 }
 
 impl AssemblyAiStt {
-    /// Üretim endpoint'i ve varsayılan poll ayarlarıyla kurar.
+    /// Üretim endpoint'i ve varsayılan poll ayarlarıyla kurar (sabit key).
     pub fn new(api_key: impl Into<String>) -> Self {
         AssemblyAiStt {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
+            base_url: DEFAULT_BASE_URL.to_string(),
+            client: reqwest::Client::new(),
+            poll_interval: DEFAULT_POLL_INTERVAL,
+            max_polls: DEFAULT_MAX_POLLS,
+        }
+    }
+
+    /// Key'i her çağrıda store'dan (`ASSEMBLYAI_KEY`) çözerek kurar.
+    pub fn managed(store: Arc<dyn SecretStore>) -> Self {
+        AssemblyAiStt {
+            key: SecretRef::store(store, names::ASSEMBLYAI_KEY),
             base_url: DEFAULT_BASE_URL.to_string(),
             client: reqwest::Client::new(),
             poll_interval: DEFAULT_POLL_INTERVAL,
@@ -58,7 +71,7 @@ impl AssemblyAiStt {
     #[cfg(test)]
     fn with_config(api_key: impl Into<String>, base_url: impl Into<String>, poll_interval: Duration, max_polls: u32) -> Self {
         AssemblyAiStt {
-            api_key: api_key.into(),
+            key: SecretRef::fixed(api_key),
             base_url: base_url.into(),
             client: reqwest::Client::new(),
             poll_interval,
@@ -78,10 +91,16 @@ impl SttProvider for AssemblyAiStt {
             return Err(SttError::Request("empty audio".into()));
         }
 
+        let api_key = self
+            .key
+            .resolve()
+            .await
+            .ok_or_else(|| SttError::Unavailable("ASSEMBLYAI_KEY not configured".into()))?;
+
         let upload: UploadResponse = self
             .client
             .post(format!("{}/v2/upload", self.base_url))
-            .header("authorization", &self.api_key)
+            .header("authorization", &api_key)
             .body(audio.to_vec())
             .send()
             .await
@@ -95,7 +114,7 @@ impl SttProvider for AssemblyAiStt {
         let created: TranscriptResponse = self
             .client
             .post(format!("{}/v2/transcript", self.base_url))
-            .header("authorization", &self.api_key)
+            .header("authorization", &api_key)
             .json(&serde_json::json!({
                 "audio_url": upload.upload_url,
                 "language_code": source_lang,
@@ -109,20 +128,20 @@ impl SttProvider for AssemblyAiStt {
             .await
             .map_err(|e| SttError::Request(e.to_string()))?;
 
-        self.poll_until_done(&created.id).await
+        self.poll_until_done(&created.id, &api_key).await
     }
 }
 
 impl AssemblyAiStt {
     /// Transkript job'ı bitene kadar poll eder. `completed` → metin, `error` →
     /// sağlayıcı hatası, tur sınırı aşılırsa zaman aşımı hatası.
-    async fn poll_until_done(&self, id: &str) -> Result<Transcript, SttError> {
+    async fn poll_until_done(&self, id: &str, api_key: &str) -> Result<Transcript, SttError> {
         let url = format!("{}/v2/transcript/{id}", self.base_url);
         for _ in 0..self.max_polls {
             let poll: TranscriptResponse = self
                 .client
                 .get(&url)
-                .header("authorization", &self.api_key)
+                .header("authorization", api_key)
                 .send()
                 .await
                 .map_err(|e| SttError::Request(e.to_string()))?

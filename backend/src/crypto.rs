@@ -15,6 +15,7 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
+use sha2::{Digest, Sha256};
 
 /// AES-256 anahtar uzunluğu (byte).
 pub const KEY_LEN: usize = 32;
@@ -34,6 +35,19 @@ pub enum CryptoError {
     Malformed(&'static str),
     #[error("failed to generate nonce: {0}")]
     Nonce(#[from] getrandom::Error),
+}
+
+/// Bir ana malzemeden (ör. `JWT_SECRET`) bağlama özel 32 byte anahtar türetir.
+///
+/// `SHA-256(context || 0x00 || material)` — farklı `context` değerleri aynı
+/// malzemeden bağımsız anahtarlar üretir (secrets dosyası, token store, ...).
+/// Açık bir `*_ENC_KEY` env değişkeni verilmediğinde fallback olarak kullanılır.
+pub fn derive_key(material: &[u8], context: &str) -> [u8; KEY_LEN] {
+    let mut hasher = Sha256::new();
+    hasher.update(context.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(material);
+    hasher.finalize().into()
 }
 
 /// AES-256-GCM şifreleyici. Anahtar bellekte tutulur (kaynağı Vault/env).
@@ -163,5 +177,18 @@ mod tests {
         let c = Cipher::new(&key()).expect("cipher");
         let short = B64.encode([0u8; 4]);
         assert!(matches!(c.decrypt(&short), Err(CryptoError::Malformed(_))));
+    }
+
+    #[test]
+    fn derive_key_is_deterministic_and_context_separated() {
+        let a = derive_key(b"jwt-secret", "streamdubber.secrets.v1");
+        let b = derive_key(b"jwt-secret", "streamdubber.secrets.v1");
+        let c = derive_key(b"jwt-secret", "streamdubber.tokens.v1");
+        let d = derive_key(b"other-secret", "streamdubber.secrets.v1");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(a, d);
+        // Türetilen anahtar doğrudan Cipher'a takılabilmeli.
+        assert!(Cipher::new(&a).is_ok());
     }
 }
