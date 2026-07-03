@@ -12,7 +12,9 @@ use crate::gateway::Gateway;
 use crate::integrations::Integrations;
 use crate::logging::Logger;
 use crate::overlay::OverlayHub;
+use crate::pairing::PairingStore;
 use crate::plans::PlanRegistry;
+use crate::relay::RelayTargetStore;
 use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
 
@@ -34,6 +36,10 @@ pub struct AppState {
     /// PostgreSQL havuzu (`DATABASE_URL` verilmişse). `None` → persist
     /// isteyen yollar (Stripe webhook, usage) sadece loglar.
     pub db: Option<sqlx::PgPool>,
+    /// SDK ↔ hesap eşleştirme kodları (bellek içi, kısa ömürlü).
+    pub pairing: Arc<PairingStore>,
+    /// SDK relay hedefleri (stream key'ler şifreli kalıcı).
+    pub relay: Arc<RelayTargetStore>,
 }
 
 impl AppState {
@@ -54,6 +60,8 @@ impl AppState {
             secrets: Arc::new(ManagedSecrets::env()),
             bootstrap_admin: Arc::new(None),
             db: None,
+            pairing: Arc::new(PairingStore::new()),
+            relay: Arc::new(RelayTargetStore::in_memory()),
         }
     }
 }
@@ -127,5 +135,17 @@ impl FromRef<AppState> for Arc<Option<BootstrapAdmin>> {
 impl FromRef<AppState> for Option<sqlx::PgPool> {
     fn from_ref(state: &AppState) -> Self {
         state.db.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<PairingStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.pairing.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<RelayTargetStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.relay.clone()
     }
 }

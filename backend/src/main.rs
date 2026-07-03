@@ -24,7 +24,9 @@ use streamdubber_backend::{
     integrations::{token_store::TokenVault, Integrations},
     logging::Logger,
     overlay::OverlayHub,
+    pairing::PairingStore,
     plans::PlanRegistry,
+    relay::RelayTargetStore,
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     usage::UsageTracker,
@@ -235,6 +237,21 @@ async fn build_state(
     // "yapılandırılmamış" (503) döner.
     let billing = Arc::new(Billing::from_secrets(Arc::clone(&store)));
 
+    // SDK relay hedefleri: RELAY_FILE verilirse stream key'ler AES-256
+    // şifreli kalıcı; yoksa bellek içi (restart'ta yeniden girilir).
+    let relay_file = std::env::var("RELAY_FILE").ok().filter(|p| !p.is_empty());
+    let relay = match relay_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.relay.v1").await?;
+            tracing::info!(%path, "relay target store: encrypted persistent file");
+            Arc::new(RelayTargetStore::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("RELAY_FILE not set — relay targets are lost on restart");
+            Arc::new(RelayTargetStore::in_memory())
+        }
+    };
+
     // Kullanım sayaçları: USAGE_FILE verilirse kalıcı JSONL (restart'a
     // dayanır); DB pool'u varsa dakika sınırlarında usage_records upsert'i.
     let usage_file = std::env::var("USAGE_FILE").ok().filter(|p| !p.is_empty());
@@ -285,6 +302,8 @@ async fn build_state(
         secrets,
         bootstrap_admin: Arc::new(bootstrap_admin),
         db: db_pool,
+        pairing: Arc::new(PairingStore::new()),
+        relay,
     })
 }
 

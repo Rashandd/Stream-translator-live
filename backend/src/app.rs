@@ -186,6 +186,14 @@ pub fn router(state: AppState) -> Router {
         // Stripe (1.11): yayıncı checkout başlatır, Stripe webhook'la olay bildirir.
         .route("/api/billing/checkout", post(billing::checkout))
         .route("/webhooks/stripe", post(billing::webhook))
+        // SDK eşleştirme (1.4): panel kod üretir, SDK kodla token alır.
+        .route("/api/pairing/code", post(crate::pairing::create_code))
+        .route("/api/pairing/claim", post(crate::pairing::claim))
+        // SDK relay hedefleri (1.6): panel yazar, eşleşmiş SDK okur.
+        .route(
+            "/api/relay/targets",
+            put(crate::relay::put_targets).get(crate::relay::get_targets),
+        )
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

@@ -27,6 +27,7 @@ Dockerfile), Railway **PostgreSQL** ve **Redis** eklentileri. Video buluta
 | `LOG_FILE` | `/data/logs.jsonl` — /admin/logs kalıcı deposu |
 | `USAGE_FILE` | `/data/usage.jsonl` — plan limiti sayaçları kalıcı |
 | `TOKENS_FILE` | `/data/tokens.enc` — OAuth token'ları şifreli kalıcı |
+| `RELAY_FILE` | `/data/relay.enc` — SDK relay hedefleri (stream key) şifreli |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
