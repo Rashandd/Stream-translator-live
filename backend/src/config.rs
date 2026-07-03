@@ -82,6 +82,11 @@ impl ServiceConfig {
             ("integration.streamlabs.plans", "pro"),
             ("integration.youtube.plans", "free,pro"),
             ("integration.redirect_base", "http://localhost:8080/api/integrations"),
+            // OAuth callback tamamlandığında frontend'e geri yönlendirme tabanı.
+            // Boş = geriye dönük uyumlu JSON yanıt (callback endpoint doğrudan
+            // çağrılıyormuş gibi). Admin panelden ayarlanınca Production Setup
+            // sayfasına 302 redirect ile (?provider=...&connected=1) döner.
+            ("integration.frontend_base", ""),
             // Stripe (1.11): plan → Stripe Price ID eşlemesi. Boş = henüz Stripe'ta
             // ürün/fiyat oluşturulmadı; checkout o plan için 503 döner. Admin panelden
             // Stripe Dashboard'da oluşturulan gerçek price_id'lerle doldurulur.

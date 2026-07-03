@@ -30,7 +30,7 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::authz::AuthUser;
+use crate::auth::authz::{AdminUser, AuthUser};
 use crate::config::ServiceConfig;
 use crate::secrets::{names, SecretRef, SecretStore};
 use oauth::{exchange_code, OAuthError, OAuthProvider, StateStore};
@@ -182,6 +182,30 @@ impl Integrations {
         provider_name: &str,
         cfg: &ServiceConfig,
     ) -> Result<String, OAuthError> {
+        self.begin_inner(user_id, provider_name, cfg, Some(plan)).await
+    }
+
+    /// Admin doğrulama bağlantısı: plan erişim kontrolünü atlar. Faz 1'de
+    /// broadcaster kullanıcı sistemi henüz yok — admin, kendi bootstrap
+    /// hesabıyla (plan="streamer") bir sağlayıcının OAuth akışının uçtan
+    /// uca çalıştığını doğrulamak için bağlanabilir. `Production Setup`
+    /// sayfasındaki "Connect" aksiyonu bunu kullanır.
+    pub async fn begin_admin(
+        &self,
+        user_id: &str,
+        provider_name: &str,
+        cfg: &ServiceConfig,
+    ) -> Result<String, OAuthError> {
+        self.begin_inner(user_id, provider_name, cfg, None).await
+    }
+
+    async fn begin_inner(
+        &self,
+        user_id: &str,
+        provider_name: &str,
+        cfg: &ServiceConfig,
+        plan_check: Option<&str>,
+    ) -> Result<String, OAuthError> {
         let creds = self
             .providers
             .get(provider_name)
@@ -193,14 +217,16 @@ impl Integrations {
             .await
             .ok_or_else(|| OAuthError::NotConfigured(provider_name.to_string()))?;
 
-        let plans = cfg
-            .get(&format!("integration.{provider_name}.plans"))
-            .unwrap_or_default();
-        if !oauth::plan_allowed(&plans, plan) {
-            return Err(OAuthError::PlanNotAllowed {
-                provider: provider_name.to_string(),
-                plan: plan.to_string(),
-            });
+        if let Some(plan) = plan_check {
+            let plans = cfg
+                .get(&format!("integration.{provider_name}.plans"))
+                .unwrap_or_default();
+            if !oauth::plan_allowed(&plans, plan) {
+                return Err(OAuthError::PlanNotAllowed {
+                    provider: provider_name.to_string(),
+                    plan: plan.to_string(),
+                });
+            }
         }
 
         let base = cfg
@@ -335,6 +361,24 @@ pub async fn authorize(
     }
 }
 
+/// `GET /admin/integrations/{provider}/authorize` (sadece admin).
+///
+/// Yayıncı akışındaki plan/erişim kontrolünü atlar (bkz. [`Integrations::begin_admin`]).
+/// Production Setup sayfasındaki "Connect" aksiyonu operatörün kendi
+/// bootstrap admin hesabıyla bir OAuth sağlayıcısının uçtan uca çalıştığını
+/// doğrulaması için bunu çağırır.
+pub async fn authorize_admin(
+    admin: AdminUser,
+    Path(provider): Path<String>,
+    State(integ): State<Arc<Integrations>>,
+    State(cfg): State<Arc<ServiceConfig>>,
+) -> Result<Json<AuthorizeResponse>, (StatusCode, String)> {
+    match integ.begin_admin(&admin.claims.sub, &provider, &cfg).await {
+        Ok(authorize_url) => Ok(Json(AuthorizeResponse { authorize_url })),
+        Err(err) => Err((oauth_status(&err), err.to_string())),
+    }
+}
+
 /// callback query parametreleri.
 #[derive(Debug, Deserialize)]
 pub struct CallbackQuery {
@@ -346,18 +390,38 @@ pub struct CallbackQuery {
 /// `GET /api/integrations/{provider}/callback` (sağlayıcıdan yönlendirme).
 ///
 /// Kimlik `state`'ten çözülür (issue anında kullanıcıya bağlandı); ayrı auth
-/// başlığı beklenmez.
+/// başlığı beklenmez. `integration.frontend_base` config'i doluysa (admin
+/// panelden ayarlanır) sonucu JSON yerine frontend'e 302 redirect ile
+/// bildirir (`?provider=...&connected=1` veya `&error=...`) — Production
+/// Setup sayfası "Connect" akışını böyle tamamlar. Boşsa (varsayılan) geriye
+/// dönük uyumlu JSON gövdesi döner.
 pub async fn callback(
     Path(provider): Path<String>,
     Query(q): Query<CallbackQuery>,
     State(integ): State<Arc<Integrations>>,
+    State(cfg): State<Arc<ServiceConfig>>,
     State(logger): State<Arc<crate::logging::Logger>>,
-) -> Result<Json<Connection>, (StatusCode, String)> {
+) -> axum::response::Response {
+    use axum::response::{IntoResponse, Redirect};
+
+    let frontend_base = cfg.get("integration.frontend_base").unwrap_or_default();
+    let respond_error = |status: StatusCode, message: String| -> axum::response::Response {
+        if frontend_base.is_empty() {
+            (status, message).into_response()
+        } else {
+            let url = format!(
+                "{frontend_base}/admin/production-setup?provider={provider}&error={}",
+                urlencoding_light(&message)
+            );
+            Redirect::to(&url).into_response()
+        }
+    };
+
     if let Some(err) = q.error {
-        return Err((StatusCode::BAD_REQUEST, format!("provider error: {err}")));
+        return respond_error(StatusCode::BAD_REQUEST, format!("provider error: {err}"));
     }
     let (Some(code), Some(state)) = (q.code, q.state) else {
-        return Err((StatusCode::BAD_REQUEST, "missing code or state".to_string()));
+        return respond_error(StatusCode::BAD_REQUEST, "missing code or state".to_string());
     };
 
     match integ.complete(&provider, &code, &state).await {
@@ -369,7 +433,12 @@ pub async fn callback(
                 Some(&conn.user_id),
                 None,
             );
-            Ok(Json(conn))
+            if frontend_base.is_empty() {
+                Json(conn).into_response()
+            } else {
+                let url = format!("{frontend_base}/admin/production-setup?provider={provider}&connected=1");
+                Redirect::to(&url).into_response()
+            }
         }
         Err(err) => {
             logger.log(
@@ -379,9 +448,27 @@ pub async fn callback(
                 None,
                 None,
             );
-            Err((oauth_status(&err), err.to_string()))
+            respond_error(oauth_status(&err), err.to_string())
         }
     }
+}
+
+/// Redirect query değeri için minimal URL-encode (bağımlılık eklemeden) —
+/// sadece boşluk/`&`/`=`/`#` gibi URL'i bozan karakterleri kaçırır. Hata
+/// mesajları operatöre gösterilecek kısa İngilizce metinlerdir, kullanıcı
+/// girdisi taşımaz (secret asla bu yola girmez — bkz. `OAuthError` varyantları).
+fn urlencoding_light(input: &str) -> String {
+    input
+        .chars()
+        .map(|c| match c {
+            ' ' => "%20".to_string(),
+            '&' => "%26".to_string(),
+            '=' => "%3D".to_string(),
+            '#' => "%23".to_string(),
+            '%' => "%25".to_string(),
+            other => other.to_string(),
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -547,6 +634,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn begin_admin_skips_plan_check() {
+        let integ = integrations_with("http://unused", true);
+        let cfg = cfg();
+        // integration.streamlabs.plans = "pro" — broadcaster "starter" ile
+        // reddedilirdi (bkz. begin_rejects_plan_without_access); admin bunu
+        // atlar çünkü sadece bağlantıyı doğrulamak istiyor.
+        let url = integ
+            .begin_admin("admin-bootstrap", "streamlabs", &cfg)
+            .await
+            .expect("admin bypasses plan gate");
+        assert!(url.contains("client_id=cid"));
+    }
+
+    #[tokio::test]
     async fn complete_rejects_provider_mismatch() {
         let token_url = spawn_token_mock().await;
         let integ = integrations_with(&token_url, true);
@@ -561,5 +662,59 @@ mod tests {
         // state streamlabs için üretildi; başka sağlayıcı adıyla tüketmeye çalış → reddedilir.
         let err = integ.complete("other", "code", &state).await.unwrap_err();
         assert!(matches!(err, OAuthError::InvalidState));
+    }
+
+    async fn body_text(resp: axum::response::Response) -> String {
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8_lossy(&bytes).to_string()
+    }
+
+    #[tokio::test]
+    async fn callback_returns_json_by_default_on_missing_code() {
+        let integ = Arc::new(integrations_with("http://unused", true));
+        let cfg = Arc::new(ServiceConfig::with_defaults()); // integration.frontend_base = "" (varsayılan)
+        let logger = Arc::new(crate::logging::Logger::in_memory(Arc::clone(&cfg)));
+
+        let resp = callback(
+            Path("streamlabs".to_string()),
+            Query(CallbackQuery { code: None, state: None, error: None }),
+            State(integ),
+            State(cfg),
+            State(logger),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert!(resp.headers().get("location").is_none(), "should not redirect by default");
+        assert!(body_text(resp).await.contains("missing code or state"));
+    }
+
+    #[tokio::test]
+    async fn callback_redirects_to_frontend_when_configured() {
+        let integ = Arc::new(integrations_with("http://unused", true));
+        let cfg = Arc::new(ServiceConfig::with_defaults());
+        cfg.set("integration.frontend_base", "https://panel.example.com");
+        let logger = Arc::new(crate::logging::Logger::in_memory(Arc::clone(&cfg)));
+
+        let resp = callback(
+            Path("streamlabs".to_string()),
+            Query(CallbackQuery { code: None, state: None, error: Some("access_denied".to_string()) }),
+            State(integ),
+            State(cfg),
+            State(logger),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        assert!(location.starts_with("https://panel.example.com/admin/production-setup?"));
+        assert!(location.contains("provider=streamlabs"));
+        assert!(location.contains("error="));
     }
 }

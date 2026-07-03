@@ -183,6 +183,12 @@ pub fn router(state: AppState) -> Router {
             "/api/integrations/{provider}/callback",
             get(integrations::callback),
         )
+        // Admin doğrulama bağlantısı (V11): plan-gate atlanır, operatör kendi
+        // bootstrap hesabıyla sağlayıcının OAuth akışını uçtan uca test eder.
+        .route(
+            "/admin/integrations/{provider}/authorize",
+            get(integrations::authorize_admin),
+        )
         // Stripe (1.11): yayıncı checkout başlatır, Stripe webhook'la olay bildirir.
         .route("/api/billing/checkout", post(billing::checkout))
         .route("/webhooks/stripe", post(billing::webhook))
