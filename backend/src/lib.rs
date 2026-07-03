@@ -20,6 +20,7 @@ pub mod plans;
 pub mod provider_check;
 pub mod relay;
 pub mod secrets;
+pub mod setup_status;
 pub mod state;
 pub mod tls;
 pub mod usage;

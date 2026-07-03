@@ -11,7 +11,8 @@
 //! hard-coded değildir; testlerde mock sunucuya yönlendirilir. Key
 //! [`SecretStore`]'dan çağrı anında çözülür; yoksa `NotConfigured`.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -118,6 +119,53 @@ pub fn provider_for_secret(secret_name: &str) -> Option<&'static str> {
         .map(|d| d.provider)
 }
 
+/// Test edilebilir (API-key stili) sağlayıcıların adı + secret adı çiftleri.
+/// Admin "Production Setup" sayfası provider profil listesini bundan kurar.
+pub fn provider_defs() -> Vec<(&'static str, &'static str)> {
+    defs().iter().map(|d| (d.provider, d.secret_name)).collect()
+}
+
+/// Bir canlı testin en son sonucu — "last tested at" görünürlüğü için.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderTestRecord {
+    pub ok: bool,
+    pub detail: String,
+    pub tested_at_ms: i64,
+}
+
+/// Sağlayıcı başına en son test sonucunu bellek içinde tutar. Test
+/// stateless'tir (`run_check` her çağrıda ağa çıkar); bu store sadece
+/// "en son ne zaman, ne sonuçla test edildi" sorusuna cevap vermek için var
+/// (admin panel üzerinde görünürlük — Faz 1'de kalıcılık gerekmiyor,
+/// restart'ta sıfırlanması zararsız).
+#[derive(Default)]
+pub struct ProviderTestStore(RwLock<HashMap<String, ProviderTestRecord>>);
+
+impl ProviderTestStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bir sağlayıcı için en son test sonucunu kaydeder.
+    pub fn record(&self, provider: &str, ok: bool, detail: &str) {
+        if let Ok(mut map) = self.0.write() {
+            map.insert(
+                provider.to_string(),
+                ProviderTestRecord {
+                    ok,
+                    detail: detail.to_string(),
+                    tested_at_ms: chrono::Utc::now().timestamp_millis(),
+                },
+            );
+        }
+    }
+
+    /// Bir sağlayıcının en son test sonucunu okur (hiç test edilmediyse `None`).
+    pub fn get(&self, provider: &str) -> Option<ProviderTestRecord> {
+        self.0.read().ok().and_then(|map| map.get(provider).cloned())
+    }
+}
+
 /// Testi koşar. Key store'dan çözülür; URL config'ten (yoksa varsayılan).
 pub async fn run_check(
     provider: &str,
@@ -189,6 +237,7 @@ pub async fn test_provider(
     State(secrets): State<Arc<ManagedSecrets>>,
     State(cfg): State<Arc<ServiceConfig>>,
     State(logger): State<Arc<Logger>>,
+    State(test_store): State<Arc<ProviderTestStore>>,
 ) -> Result<Json<CheckOutcome>, (StatusCode, String)> {
     let http = reqwest::Client::new();
     match run_check(&name, &secrets, &cfg, &http).await {
@@ -204,6 +253,7 @@ pub async fn test_provider(
                 Some(&admin.claims.sub),
                 None,
             );
+            test_store.record(&outcome.provider, outcome.ok, &outcome.detail);
             Ok(Json(outcome))
         }
         Err(err @ CheckError::UnknownProvider(_)) => Err((StatusCode::NOT_FOUND, err.to_string())),
@@ -331,6 +381,33 @@ mod tests {
         assert_eq!(provider_for_secret(names::STRIPE_SECRET_KEY), Some("stripe"));
         assert_eq!(provider_for_secret(names::STRIPE_WEBHOOK_SECRET), None);
         assert_eq!(provider_for_secret(names::YOUTUBE_CLIENT_ID), None);
+    }
+
+    #[test]
+    fn provider_defs_lists_all_testable_providers_with_secret_names() {
+        let defs = provider_defs();
+        assert_eq!(defs.len(), 5);
+        assert!(defs.contains(&("deepgram", names::DEEPGRAM_KEY)));
+        assert!(defs.contains(&("stripe", names::STRIPE_SECRET_KEY)));
+    }
+
+    #[test]
+    fn provider_test_store_roundtrips_and_defaults_to_none() {
+        let store = ProviderTestStore::new();
+        assert!(store.get("deepgram").is_none());
+
+        store.record("deepgram", true, "provider responded 200 OK");
+        let record = store.get("deepgram").expect("recorded");
+        assert!(record.ok);
+        assert_eq!(record.detail, "provider responded 200 OK");
+        assert!(record.tested_at_ms > 0);
+
+        // Yeniden test → en son sonuçla üzerine yazar.
+        store.record("deepgram", false, "provider rejected the key (401)");
+        let record = store.get("deepgram").expect("recorded");
+        assert!(!record.ok);
+
+        assert!(store.get("stripe").is_none());
     }
 
     #[tokio::test]

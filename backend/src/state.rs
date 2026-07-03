@@ -14,6 +14,7 @@ use crate::logging::Logger;
 use crate::overlay::OverlayHub;
 use crate::pairing::PairingStore;
 use crate::plans::PlanRegistry;
+use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
 use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
@@ -40,6 +41,8 @@ pub struct AppState {
     pub pairing: Arc<PairingStore>,
     /// SDK relay hedefleri (stream key'ler şifreli kalıcı).
     pub relay: Arc<RelayTargetStore>,
+    /// Sağlayıcı canlı testlerinin en son sonucu (bellek içi — "last tested at").
+    pub provider_tests: Arc<ProviderTestStore>,
 }
 
 impl AppState {
@@ -62,6 +65,7 @@ impl AppState {
             db: None,
             pairing: Arc::new(PairingStore::new()),
             relay: Arc::new(RelayTargetStore::in_memory()),
+            provider_tests: Arc::new(ProviderTestStore::new()),
         }
     }
 }
@@ -147,5 +151,11 @@ impl FromRef<AppState> for Arc<PairingStore> {
 impl FromRef<AppState> for Arc<RelayTargetStore> {
     fn from_ref(state: &AppState) -> Self {
         state.relay.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ProviderTestStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.provider_tests.clone()
     }
 }

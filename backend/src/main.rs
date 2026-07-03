@@ -26,6 +26,7 @@ use streamdubber_backend::{
     overlay::OverlayHub,
     pairing::PairingStore,
     plans::PlanRegistry,
+    provider_check::ProviderTestStore,
     relay::RelayTargetStore,
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
@@ -304,6 +305,7 @@ async fn build_state(
         db: db_pool,
         pairing: Arc::new(PairingStore::new()),
         relay,
+        provider_tests: Arc::new(ProviderTestStore::new()),
     })
 }
 

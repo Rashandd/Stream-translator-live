@@ -214,6 +214,12 @@ pub fn router(state: AppState) -> Router {
         )
         // SMTP canlı testi: panelden girilen SMTP ayarlarıyla gerçek mail atar.
         .route("/admin/mail/test", post(crate::mail::mail_test))
+        // Production Setup sihirbazı (V11): deploy/secret/provider/Stripe/OAuth
+        // durumunu tek yanıtta toplar.
+        .route(
+            "/admin/setup/status",
+            get(crate::setup_status::get_setup_status),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
