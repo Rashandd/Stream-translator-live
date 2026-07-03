@@ -5,9 +5,11 @@
 //! gibi burada da secret'lar (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) `SecretStore`'dan
 //! (env/Vault) gelir.
 //!
-//! Webhook event'lerinin abonelik durumunu DB'ye (`subscriptions`, `users.stripe_customer_id`)
-//! yazması follow-up'tır — bu modül event'i doğrulayıp ayrıştırır ve loglar.
+//! Webhook event'leri doğrulanıp ayrıştırılır; `DATABASE_URL` verilmişse
+//! [`persist`] katmanı `users.stripe_customer_id` + `subscriptions`
+//! tablolarına yazar (pool yoksa sadece loglanır).
 
+pub mod persist;
 pub mod stripe;
 
 use std::sync::Arc;
@@ -133,6 +135,8 @@ pub async fn checkout(
 pub async fn webhook(
     State(billing): State<Arc<Billing>>,
     State(logger): State<Arc<Logger>>,
+    State(cfg): State<Arc<ServiceConfig>>,
+    State(db): State<Option<sqlx::PgPool>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -160,9 +164,6 @@ pub async fn webhook(
 
     let event = stripe::parse_event(&body).map_err(|err| (stripe_status(&err), err.to_string()))?;
 
-    // TODO(follow-up): event türüne göre `subscriptions`/`users.stripe_customer_id`
-    // güncelle (checkout.session.completed, customer.subscription.updated/deleted).
-    // Şimdilik sadece doğrulanmış event loglanır.
     tracing::info!(event_id = %event.id, event_type = %event.event_type, "stripe webhook received");
     logger.log(
         LogLevel::Info,
@@ -171,6 +172,34 @@ pub async fn webhook(
         None,
         None,
     );
+
+    // DB varsa persist et. Hatalar loglanır ama yanıt 200 kalır — imzası
+    // doğrulanmış bir event için Stripe'ın sonsuz retry'ı yerine log/alarm.
+    let action = persist::action_for_event(&event);
+    match &db {
+        Some(pool) => {
+            if let Err(err) = persist::apply(pool, &action, &cfg, &logger).await {
+                logger.log(
+                    LogLevel::Error,
+                    "billing",
+                    &format!("stripe persist failed for {}: {err}", event.id),
+                    None,
+                    None,
+                );
+            }
+        }
+        None => {
+            if action != persist::SubscriptionAction::Ignore {
+                logger.log(
+                    LogLevel::Warn,
+                    "billing",
+                    "stripe event not persisted (DATABASE_URL not set)",
+                    None,
+                    None,
+                );
+            }
+        }
+    }
 
     Ok(StatusCode::OK)
 }
@@ -204,6 +233,11 @@ mod tests {
     impl FromRef<TestState> for Arc<Logger> {
         fn from_ref(s: &TestState) -> Self {
             s.logger.clone()
+        }
+    }
+    impl FromRef<TestState> for Option<sqlx::PgPool> {
+        fn from_ref(_s: &TestState) -> Self {
+            None
         }
     }
 

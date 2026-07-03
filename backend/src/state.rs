@@ -31,6 +31,9 @@ pub struct AppState {
     pub secrets: Arc<ManagedSecrets>,
     /// Env-bootstrap admin (`ADMIN_EMAIL`+şifre). `None` → login 503.
     pub bootstrap_admin: Arc<Option<BootstrapAdmin>>,
+    /// PostgreSQL havuzu (`DATABASE_URL` verilmişse). `None` → persist
+    /// isteyen yollar (Stripe webhook, usage) sadece loglar.
+    pub db: Option<sqlx::PgPool>,
 }
 
 impl AppState {
@@ -50,6 +53,7 @@ impl AppState {
             usage: Arc::new(UsageTracker::new()),
             secrets: Arc::new(ManagedSecrets::env()),
             bootstrap_admin: Arc::new(None),
+            db: None,
         }
     }
 }
@@ -117,5 +121,11 @@ impl FromRef<AppState> for Arc<ManagedSecrets> {
 impl FromRef<AppState> for Arc<Option<BootstrapAdmin>> {
     fn from_ref(state: &AppState) -> Self {
         state.bootstrap_admin.clone()
+    }
+}
+
+impl FromRef<AppState> for Option<sqlx::PgPool> {
+    fn from_ref(state: &AppState) -> Self {
+        state.db.clone()
     }
 }

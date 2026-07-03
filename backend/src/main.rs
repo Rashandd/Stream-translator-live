@@ -76,16 +76,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // SECRETS_FILE verilirse AES-256 şifreli kalıcıdır (restart'ta korunur).
     let secrets = Arc::new(build_managed_secrets(base_store, base_label).await?);
 
-    // DATABASE_URL verilmişse bağlan + migration uygula.
-    if let Some(url) = &config.database_url {
-        let pool = db::connect(url).await?;
-        db::run_migrations(&pool).await?;
-        tracing::info!("database migrations applied");
-    } else {
-        tracing::warn!("DATABASE_URL not set — running without database");
-    }
+    // DATABASE_URL verilmişse bağlan + migration uygula; pool state'e girer
+    // (Stripe webhook persist, usage kalıcılığı).
+    let db_pool = match &config.database_url {
+        Some(url) => {
+            let pool = db::connect(url).await?;
+            db::run_migrations(&pool).await?;
+            tracing::info!("database migrations applied");
+            Some(pool)
+        }
+        None => {
+            tracing::warn!("DATABASE_URL not set — running without database");
+            None
+        }
+    };
 
-    let state = build_state(secrets).await?;
+    let state = build_state(secrets, db_pool).await?;
     let router = app::router(state);
 
     match TlsSettings::from_env() {
@@ -149,7 +155,10 @@ fn parse_enc_key(encoded: &str) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::er
 /// Sağlayıcı key'leri **çağrı anında** çözülür: admin panelden girilen key
 /// restart gerektirmeden devreye girer. Key yokken `providers.mock_fallback`
 /// config'ine göre mock cevap (dev/CI) veya açık hata (üretim) üretilir.
-async fn build_state(secrets: Arc<ManagedSecrets>) -> Result<AppState, Box<dyn std::error::Error>> {
+async fn build_state(
+    secrets: Arc<ManagedSecrets>,
+    db_pool: Option<sqlx::PgPool>,
+) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
 
     let service_config = Arc::new(ServiceConfig::with_defaults());
@@ -238,6 +247,7 @@ async fn build_state(secrets: Arc<ManagedSecrets>) -> Result<AppState, Box<dyn s
         logger,
         secrets,
         bootstrap_admin: Arc::new(bootstrap_admin),
+        db: db_pool,
     })
 }
 
