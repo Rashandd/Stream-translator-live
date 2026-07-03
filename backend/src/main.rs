@@ -21,7 +21,7 @@ use streamdubber_backend::{
         translate::{MockFallbackTranslate, TranslateProvider},
         Gateway,
     },
-    integrations::Integrations,
+    integrations::{token_store::TokenVault, Integrations},
     logging::Logger,
     overlay::OverlayHub,
     plans::PlanRegistry,
@@ -120,17 +120,26 @@ async fn build_managed_secrets(
         return Ok(ManagedSecrets::new(base, base_label));
     };
 
-    let key: [u8; crypto::KEY_LEN] = match std::env::var("SECRETS_ENC_KEY").ok().filter(|k| !k.is_empty()) {
-        Some(encoded) => parse_enc_key(&encoded)?,
-        None => {
-            tracing::info!("SECRETS_ENC_KEY not set — deriving secrets file key from JWT_SECRET");
-            let jwt_secret = base.get(names::JWT_SECRET).await?;
-            crypto::derive_key(jwt_secret.as_bytes(), "streamdubber.secrets.v1")
-        }
-    };
+    let key = resolve_enc_key(base.as_ref(), "streamdubber.secrets.v1").await?;
 
     tracing::info!(%path, "secret store: encrypted persistent file");
     Ok(ManagedSecrets::with_file(base, base_label, path, &key)?)
+}
+
+/// Şifreli dosyalar (secrets/tokens) için anahtar: `SECRETS_ENC_KEY` verilmişse
+/// o, yoksa `JWT_SECRET`'tan bağlama özel türetme.
+async fn resolve_enc_key(
+    store: &dyn SecretStore,
+    context: &str,
+) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::error::Error>> {
+    match std::env::var("SECRETS_ENC_KEY").ok().filter(|k| !k.is_empty()) {
+        Some(encoded) => parse_enc_key(&encoded),
+        None => {
+            tracing::info!(%context, "SECRETS_ENC_KEY not set — deriving key from JWT_SECRET");
+            let jwt_secret = store.get(names::JWT_SECRET).await?;
+            Ok(crypto::derive_key(jwt_secret.as_bytes(), context))
+        }
+    }
 }
 
 /// `SECRETS_ENC_KEY` değerini çözer: 64 karakter hex veya base64, 32 byte.
@@ -207,7 +216,20 @@ async fn build_state(
     tracing::info!("providers registered (keys resolved per-call from secret store)");
 
     // Multistream OAuth (1.6): client id/secret çağrı anında çözülür.
-    let integrations = Arc::new(Integrations::from_secrets(Arc::clone(&store)));
+    // Token'lar TOKENS_FILE verilirse AES-256 şifreli kalıcıdır.
+    let tokens_file = std::env::var("TOKENS_FILE").ok().filter(|p| !p.is_empty());
+    let token_vault = match tokens_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.tokens.v1").await?;
+            tracing::info!(%path, "oauth token store: encrypted persistent file");
+            Arc::new(TokenVault::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("TOKENS_FILE not set — oauth connections are lost on restart");
+            Arc::new(TokenVault::in_memory())
+        }
+    };
+    let integrations = Arc::new(Integrations::from_secrets(Arc::clone(&store), token_vault));
 
     // Stripe (1.11): secret'lar çağrı anında çözülür; yoksa checkout/webhook
     // "yapılandırılmamış" (503) döner.

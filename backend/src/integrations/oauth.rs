@@ -17,19 +17,25 @@ pub struct OAuthProvider {
     pub authorize_url: String,
     pub token_url: String,
     pub scopes: Vec<String>,
+    /// Sağlayıcıya özgü ek authorize parametreleri — örn. Google'ın offline
+    /// refresh token'ı için `access_type=offline&prompt=consent`.
+    pub extra_authorize_params: Vec<(String, String)>,
 }
 
 impl OAuthProvider {
     /// authorize adımı için tam yönlendirme URL'sini (query encode'lu) kurar.
     pub fn authorize_redirect(&self, client_id: &str, redirect_uri: &str, state: &str) -> String {
         let scope = self.scopes.join(" ");
-        let params = [
+        let mut params = vec![
             ("response_type", "code"),
             ("client_id", client_id),
             ("redirect_uri", redirect_uri),
             ("scope", scope.as_str()),
             ("state", state),
         ];
+        for (key, value) in &self.extra_authorize_params {
+            params.push((key.as_str(), value.as_str()));
+        }
         // reqwest::Url ile güvenli percent-encoding.
         match reqwest::Url::parse_with_params(&self.authorize_url, params) {
             Ok(url) => url.to_string(),
@@ -177,6 +183,7 @@ mod tests {
             authorize_url: "https://streamlabs.com/api/v2.0/authorize".into(),
             token_url: "https://streamlabs.com/api/v2.0/token".into(),
             scopes: vec!["socket.token".into(), "stream.default.read".into()],
+            extra_authorize_params: Vec::new(),
         }
     }
 
@@ -190,6 +197,19 @@ mod tests {
         // redirect_uri ve boşluklu scope percent-encode edilmeli.
         assert!(url.contains("redirect_uri=https%3A%2F%2Fapp%2Fcb"));
         assert!(url.contains("socket.token+stream.default.read"));
+    }
+
+    #[test]
+    fn authorize_redirect_appends_extra_params() {
+        // Google offline refresh token deseni (YouTube Native CC — 1.10).
+        let mut p = provider();
+        p.extra_authorize_params = vec![
+            ("access_type".into(), "offline".into()),
+            ("prompt".into(), "consent".into()),
+        ];
+        let url = p.authorize_redirect("cid", "https://app/cb", "st");
+        assert!(url.contains("access_type=offline"));
+        assert!(url.contains("prompt=consent"));
     }
 
     #[test]

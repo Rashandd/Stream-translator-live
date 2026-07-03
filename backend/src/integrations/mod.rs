@@ -18,6 +18,7 @@
 //! restart gerektirmeden devreye girer.
 
 pub mod oauth;
+pub mod token_store;
 pub mod youtube;
 
 use std::collections::HashMap;
@@ -33,6 +34,7 @@ use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::secrets::{names, SecretRef, SecretStore};
 use oauth::{exchange_code, OAuthError, OAuthProvider, StateStore};
+use token_store::TokenVault;
 
 /// Bir sağlayıcının uç noktaları + çağrı anında çözülen istemci kimlikleri.
 struct ProviderCreds {
@@ -47,11 +49,13 @@ impl ProviderCreds {
     }
 }
 
-/// Kayıtlı OAuth sağlayıcıları + CSRF state deposu + HTTP istemcisi.
+/// Kayıtlı OAuth sağlayıcıları + CSRF state deposu + HTTP istemcisi +
+/// şifreli token deposu.
 pub struct Integrations {
     providers: HashMap<String, ProviderCreds>,
     states: StateStore,
     http: reqwest::Client,
+    tokens: Arc<TokenVault>,
 }
 
 /// Bağlantı sonucu (frontend'e döner). **Token asla dönmez** — sadece durum.
@@ -78,6 +82,7 @@ fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'stat
                 authorize_url: "https://streamlabs.com/api/v2.0/authorize".into(),
                 token_url: "https://streamlabs.com/api/v2.0/token".into(),
                 scopes: vec!["socket.token".into()],
+                extra_authorize_params: Vec::new(),
             },
             names::STREAMLABS_CLIENT_ID,
             names::STREAMLABS_CLIENT_SECRET,
@@ -89,6 +94,12 @@ fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'stat
                 authorize_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
                 token_url: "https://oauth2.googleapis.com/token".into(),
                 scopes: vec!["https://www.googleapis.com/auth/youtube.force-ssl".into()],
+                // Google refresh token'ı sadece offline+consent ile verir
+                // (YouTube Native CC'nin uzun ömürlü erişimi — 1.10 notu).
+                extra_authorize_params: vec![
+                    ("access_type".into(), "offline".into()),
+                    ("prompt".into(), "consent".into()),
+                ],
             },
             names::YOUTUBE_CLIENT_ID,
             names::YOUTUBE_CLIENT_SECRET,
@@ -100,7 +111,7 @@ impl Integrations {
     /// Sağlayıcı kimliklerini çağrı anında `SecretStore`'dan çözecek şekilde
     /// registry kurar. Kimliği eksik sağlayıcı "yapılandırılmamış" görünür;
     /// kimlik admin panelden girildiği anda restart'sız aktifleşir.
-    pub fn from_secrets(secrets: Arc<dyn SecretStore>) -> Self {
+    pub fn from_secrets(secrets: Arc<dyn SecretStore>, tokens: Arc<TokenVault>) -> Self {
         let mut providers = HashMap::new();
         for (name, provider, id_key, secret_key) in default_providers() {
             providers.insert(
@@ -116,6 +127,7 @@ impl Integrations {
             providers,
             states: StateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
+            tokens,
         }
     }
 
@@ -126,7 +138,13 @@ impl Integrations {
             providers: HashMap::new(),
             states: StateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
+            tokens: Arc::new(TokenVault::in_memory()),
         }
+    }
+
+    /// Şifreli token deposu (bağlantı durumu + API çağrıları için).
+    pub fn tokens(&self) -> &TokenVault {
+        &self.tokens
     }
 
     /// Test/manuel kurulum için doğrudan registry.
@@ -136,6 +154,7 @@ impl Integrations {
             providers,
             states: StateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
+            tokens: Arc::new(TokenVault::in_memory()),
         }
     }
 
@@ -232,8 +251,13 @@ impl Integrations {
         )
         .await?;
 
-        // TODO(follow-up): token'ı crypto::Cipher ile şifreleyip
-        // platform_accounts'a yaz. Şu an sadece bağlantı durumu döner.
+        // Token AES-256 şifreli depoya yazılır (TOKENS_FILE ile kalıcı).
+        // Persist hatası bağlantıyı düşürmez — token bu oturumda çalışır;
+        // hata loglanır, restart sonrası yeniden bağlanmak gerekebilir.
+        if let Err(err) = self.tokens.store(&user_id, provider_name, &token) {
+            tracing::warn!(provider = %provider_name, error = %err, "oauth token persist failed");
+        }
+
         Ok(Connection {
             provider: provider_name.to_string(),
             user_id,
@@ -262,6 +286,8 @@ pub struct ProviderStatus {
     pub configured: bool,
     pub plans: String,
     pub enabled_for_plan: bool,
+    /// Bu yayıncının kayıtlı (persist edilmiş) token'ı var mı?
+    pub connected: bool,
 }
 
 /// `GET /api/integrations` — sağlayıcı listesi + plan erişimi (yayıncı).
@@ -279,6 +305,7 @@ pub async fn list(
         items.push(ProviderStatus {
             configured: integ.is_configured(&name).await,
             enabled_for_plan: oauth::plan_allowed(&plans, plan),
+            connected: integ.tokens.connected(&user.claims.sub, &name),
             plans,
             name,
         });
@@ -379,6 +406,7 @@ mod tests {
                 authorize_url: "https://streamlabs.com/api/v2.0/authorize".into(),
                 token_url: token_url.into(),
                 scopes: vec!["socket.token".into()],
+                extra_authorize_params: Vec::new(),
             },
             client_id: secret_ref("cid"),
             client_secret: secret_ref("sec-1"),
@@ -432,6 +460,32 @@ mod tests {
         assert_eq!(conn.user_id, "user-1");
         assert_eq!(conn.expires_in, Some(3600));
         assert!(conn.has_refresh);
+
+        // Token persist edildi: bağlantı durumu artık kalıcı depodan okunur.
+        assert!(integ.tokens().connected("user-1", "streamlabs"));
+        let stored = integ.tokens().get("user-1", "streamlabs").expect("stored token");
+        assert_eq!(stored.access_token, "at");
+        assert_eq!(stored.refresh_token.as_deref(), Some("rt"));
+        assert!(!integ.tokens().connected("user-2", "streamlabs"));
+    }
+
+    #[tokio::test]
+    async fn youtube_authorize_url_requests_offline_refresh_token() {
+        use crate::secrets::MemorySecretStore;
+
+        let store = Arc::new(MemorySecretStore::with([
+            (names::YOUTUBE_CLIENT_ID, "yt-cid"),
+            (names::YOUTUBE_CLIENT_SECRET, "yt-sec"),
+        ]));
+        let integ = Integrations::from_secrets(
+            store as Arc<dyn SecretStore>,
+            Arc::new(TokenVault::in_memory()),
+        );
+        let cfg = cfg();
+        let url = integ.begin("u", "pro", "youtube", &cfg).await.unwrap();
+        // Google refresh token'ı ancak bu iki parametreyle verir (1.10).
+        assert!(url.contains("access_type=offline"), "url: {url}");
+        assert!(url.contains("prompt=consent"), "url: {url}");
     }
 
     #[tokio::test]
@@ -466,7 +520,10 @@ mod tests {
 
         // Boş store ile kur → yapılandırılmamış.
         let store = Arc::new(MemorySecretStore::new());
-        let integ = Integrations::from_secrets(Arc::clone(&store) as Arc<dyn SecretStore>);
+        let integ = Integrations::from_secrets(
+            Arc::clone(&store) as Arc<dyn SecretStore>,
+            Arc::new(TokenVault::in_memory()),
+        );
         let cfg = cfg();
         assert!(!integ.is_configured("streamlabs").await);
         assert!(matches!(

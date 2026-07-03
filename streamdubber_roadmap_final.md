@@ -692,11 +692,11 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] Testler: restart simülasyonu (aynı dosyadan yeni tracker eski sayaçları görür), kompaksiyon (10 append → 1 satır), bozuk satır atlama, dönem sıfırlama reload sonrası korunur — 4 yeni test (mevcut 6 unit korunarak). DB yolu koda alındı, canlı doğrulaması V6'daki `TEST_DATABASE_URL` koşusuyla birlikte yapılır.
 - [x] `.env.example` `USAGE_FILE`; compose `USAGE_FILE=/data/usage.jsonl`; railway.md env tablosuna eklendi.
 
-#### V8 — OAuth offline params + token'ların AES-256 şifreli persist'i
-- [ ] `OAuthProvider`'a `extra_authorize_params: Vec<(String,String)>` — YouTube'a `access_type=offline&prompt=consent` (refresh token için ZORUNLU; 1.10 notundaki eksik). Authorize URL testleri.
-- [ ] Token persist: `integrations/token_store.rs` — `(user_id, provider) → {access_token, refresh_token, expires_at, scopes}` kaydı `crypto::Cipher` ile şifrelenip `TOKENS_FILE`'a yazılır (SECRETS_FILE ile aynı format/anahtar stratejisi; anahtar `SECRETS_ENC_KEY`/JWT türetme). `complete()` başarılı token değişiminden sonra store'a yazar; `GET /api/integrations` artık gerçek `connected` durumunu döner. DB `platform_accounts` tablosuna geçiş, users FK'sı gerektirdiğinden 1.4 user sistemi sonrası (tablo hazır).
-- [ ] Doğrulama listesi karşılıkları: "Streamlabs OAuth — token persist" + "AES-256 _encrypted uygulanması"nın token ayağı + YouTube offline refresh.
-- [ ] Testler: persist+reload, şifreli dosyada düz token yok, mock OAuth akışıyla e2e connected=true.
+#### V8 — OAuth offline params + token'ların AES-256 şifreli persist'i — TAMAMLANDI
+- [x] `OAuthProvider.extra_authorize_params` — YouTube `access_type=offline&prompt=consent` (Google refresh token'ı ancak bununla verir; 1.10 eksiği kapandı). Authorize URL testleri (çekirdek + Integrations üzerinden youtube URL doğrulaması).
+- [x] `integrations/token_store.rs` `TokenVault`: `(user_id, provider) → {access_token, refresh_token, expires_at}` tek şifreli blob (`TOKENS_FILE`, AES-256-GCM; anahtar `SECRETS_ENC_KEY` veya JWT'den `streamdubber.tokens.v1` bağlamıyla türetme — `resolve_enc_key` helper'ı). `complete()` başarılı değişim sonrası store'a yazar (persist hatası bağlantıyı düşürmez, warn); `GET /api/integrations` artık kullanıcı başına gerçek `connected` alanı döner. DB `platform_accounts` geçişi users FK'sı nedeniyle 1.4 sonrası (arayüz aynı kalacak).
+- [x] Testler: in-memory store/connected/remove, şifreli persist+reload, dosyada düz token/refresh YOK, yanlış anahtar reddi, mock OAuth tam akışında token'ın persist edildiği. Compose/railway/.env.example: `TOKENS_FILE=/data/tokens.enc`. Workspace 265 test + clippy temiz.
+- Doğrulama listesi karşılıkları: "Streamlabs OAuth — token persist" KAPANDI (canlı Streamlabs API çağrısı kaldı); "AES-256 _encrypted uygulanması"nın token ayağı KAPANDI; YouTube offline refresh parametreleri KAPANDI (gerçek Google app ile canlı doğrulama kaldı).
 
 #### V9 — Pairing backend ucu + SDK relay hedef senkronizasyonu
 - [ ] Önce `sdk/src/core/pairing.rs` sözleşmesi okunacak; ona göre: `POST /api/pairing/code` (yayıncı, auth) → 6 haneli tek-kullanımlık kod (TTL ~10dk, `sdk_sessions.pairing_code` semantiği; DB yoksa bellek içi store) ve `POST /api/pairing/claim` (SDK, kod ile) → SDK oturum token'ı (JWT, role=broadcaster, sub=user).

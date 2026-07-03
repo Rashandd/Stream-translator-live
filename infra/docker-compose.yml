@@ -18,6 +18,7 @@ services:
       SECRETS_FILE: /data/secrets.enc
       LOG_FILE: /data/logs.jsonl
       USAGE_FILE: /data/usage.jsonl
+      TOKENS_FILE: /data/tokens.enc
     volumes:
       - sddata:/data
     ports:
