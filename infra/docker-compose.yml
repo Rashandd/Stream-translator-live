@@ -7,9 +7,17 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
-    env_file: ../.env
+    env_file:
+      # .env yoksa da compose çalışır (JWT_SECRET vb. environment'tan/panelden).
+      - path: ../.env
+        required: false
     environment:
       BIND_ADDR: 0.0.0.0:8080
+      # Panelden girilen secret'lar + loglar volume'da kalıcı (restart'a dayanır).
+      SECRETS_FILE: /data/secrets.enc
+      LOG_FILE: /data/logs.jsonl
+    volumes:
+      - sddata:/data
     ports:
       - "8080:8080"
     depends_on:
@@ -25,6 +33,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        # Tarayıcıya gömülür — build anında verilir (runtime env yetmez).
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+        NEXT_PUBLIC_OVERLAY_WS_URL: ws://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -71,3 +94,4 @@ services:
 
 volumes:
   pgdata:
+  sddata:
