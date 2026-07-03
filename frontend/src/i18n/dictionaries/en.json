@@ -982,6 +982,11 @@
               "icon": "Gauge"
             },
             {
+              "label": "Production Setup",
+              "href": "/admin/production-setup",
+              "icon": "ShieldCheck"
+            },
+            {
               "label": "Users",
               "href": "/admin/users",
               "icon": "Building2"
@@ -1509,6 +1514,45 @@
       "signInLabel": "Go to admin sign-in",
       "maskNote": "Values are masked server-side: the API returns only the first and last characters of each secret (for example sk_l...3456). The full value never leaves the server.",
       "note": "Keys resolve at call time, so a key saved here activates its provider on the next request. In production set providers.mock_fallback to false under Service routing so missing keys fail loudly instead of producing mock output."
+    },
+    "productionSetup": {
+      "title": "Production Setup",
+      "subtitle": "Everything to check before this deployment takes real traffic — deploy profile, secrets, provider connections and Stripe prices in one place.",
+      "checksTitle": "Readiness checks",
+      "providersTitle": "Provider profiles",
+      "providersColumns": [
+        "Provider",
+        "Kind",
+        "Secrets",
+        "Status",
+        "Last tested",
+        "Actions"
+      ],
+      "kindLabels": {
+        "api_key": "API key",
+        "oauth": "OAuth"
+      },
+      "connectLabel": "Connect",
+      "testLabel": "Test",
+      "testingLabel": "Testing...",
+      "neverTested": "Never tested",
+      "configuredLabel": "Configured",
+      "notConfiguredLabel": "Not configured",
+      "stripeTitle": "Stripe plan price IDs",
+      "stripeSubtitle": "Maps each paid plan to a Stripe Price ID created in your Stripe Dashboard.",
+      "stripeFreeNote": "Free plan — no Stripe price required.",
+      "saveLabel": "Save",
+      "savingLabel": "Saving...",
+      "savedLabel": "Saved",
+      "placeholder": "price_...",
+      "loading": "Loading setup status...",
+      "empty": "The API returned no setup status.",
+      "errors": {
+        "unauthorized": "Your admin session is missing or expired. Sign in again to view production setup.",
+        "network": "Could not reach the API. Check NEXT_PUBLIC_API_URL and that the backend is running.",
+        "saveFailed": "Save failed. The value may be empty or the key is not managed."
+      },
+      "signInLabel": "Go to admin sign-in"
     }
   },
   "statusLabels": {
