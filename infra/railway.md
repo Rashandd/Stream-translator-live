@@ -25,6 +25,7 @@ Dockerfile), Railway **PostgreSQL** ve **Redis** eklentileri. Video buluta
 | `SECRETS_FILE` | `/data/secrets.enc` — panel secret'ları şifreli kalıcı |
 | `SECRETS_ENC_KEY` | 32 byte (64 hex) — boşsa JWT_SECRET'tan türetilir |
 | `LOG_FILE` | `/data/logs.jsonl` — /admin/logs kalıcı deposu |
+| `USAGE_FILE` | `/data/usage.jsonl` — plan limiti sayaçları kalıcı |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client

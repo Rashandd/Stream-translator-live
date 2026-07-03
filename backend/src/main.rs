@@ -213,6 +213,21 @@ async fn build_state(
     // "yapılandırılmamış" (503) döner.
     let billing = Arc::new(Billing::from_secrets(Arc::clone(&store)));
 
+    // Kullanım sayaçları: USAGE_FILE verilirse kalıcı JSONL (restart'a
+    // dayanır); DB pool'u varsa dakika sınırlarında usage_records upsert'i.
+    let usage_file = std::env::var("USAGE_FILE").ok().filter(|p| !p.is_empty());
+    let usage = match usage_file {
+        Some(path) => {
+            tracing::info!(%path, "usage store: persistent JSONL file");
+            UsageTracker::with_file(&path)?
+        }
+        None => {
+            tracing::warn!("USAGE_FILE not set — usage counters reset on restart");
+            UsageTracker::new()
+        }
+    }
+    .with_db(db_pool.clone());
+
     // Merkezi log deposu (1.12): LOG_FILE verilirse kalıcı JSONL, yoksa bellek
     // içi (restart'ta kaybolur — üretimde LOG_FILE bekleniyor).
     let log_file = std::env::var("LOG_FILE").ok().filter(|p| !p.is_empty());
@@ -243,7 +258,7 @@ async fn build_state(
         billing,
         overlay: Arc::new(OverlayHub::new()),
         plans: Arc::new(PlanRegistry::with_defaults()),
-        usage: Arc::new(UsageTracker::new()),
+        usage: Arc::new(usage),
         logger,
         secrets,
         bootstrap_admin: Arc::new(bootstrap_admin),

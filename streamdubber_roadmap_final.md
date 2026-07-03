@@ -686,11 +686,11 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] `billing/persist.rs`: saf `action_for_event` eşlemesi (checkout.session.completed → LinkCustomer; customer.subscription.created/updated → Upsert [price→plan çözümü `billing.plan.<plan>.stripe_price_id` config'inin tersine taranmasıyla — panelden girilir]; deleted → Cancel; eksik alan/bilinmeyen tür → Ignore) — 5 unit test. SQL: runtime `sqlx::query`, `ON CONFLICT (stripe_subscription_id)` upsert, kullanıcı `users.stripe_customer_id` üzerinden; eşleşmeyen kullanıcı/plan soft-miss (warn log, user sistemi 1.4'te doğal kapanır).
 - [x] Webhook handler: imza doğrulandıktan sonra pool varsa persist (hata log'a, yanıt 200 — sonsuz Stripe retry yerine alarm), pool yoksa "not persisted" warn. `#[ignore]` `stripe_persist_roundtrip_against_real_db` testi `TEST_DATABASE_URL` ile koşulur (plan+user seed → link → upsert → cancel). NOT: bu makinede Docker/Postgres kapalı olduğundan SQL canlı koşulMADI — deploy öncesi bir kez `TEST_DATABASE_URL=... cargo test -- --ignored stripe_persist` çalıştırılmalı.
 
-#### V7 — UsageTracker kalıcılığı (USAGE_FILE + usage_records)
-- [ ] `USAGE_FILE` env: Logger deseninde append-only JSONL (`{user_id, period, used_seconds}` snapshot satırları) — boot'ta geri yüklenir, her `record()` güncellemesi flush edilir; boşsa mevcut bellek-içi davranış + startup warn.
-- [ ] `DATABASE_URL` varsa ek olarak `usage_records` upsert (`UNIQUE(user_id, period)` mevcut) — write-behind, hata loglanır ama pipeline'ı düşürmez.
-- [ ] Testler: dosya persist + reload (restart simülasyonu: yeni UsageTracker aynı dosyayla eski sayacı görür), dönem değişince sıfırlanma korunur; DB yolu `#[ignore]` TEST_DATABASE_URL.
-- [ ] `.env.example`: `USAGE_FILE` (+V4 rehberine `/data/usage.jsonl`).
+#### V7 — UsageTracker kalıcılığı (USAGE_FILE + usage_records) — TAMAMLANDI
+- [x] `USAGE_FILE`: append-only JSONL snapshot satırları (`{user_id, period, used_seconds}`); boot'ta geri yüklenir (kullanıcı+dönem başına son satır kazanır) ve dosya kompakte edilir; her gerçek artış append edilir (status() sorguları yazmaz). Boşsa bellek içi + startup warn (eski davranış).
+- [x] `DATABASE_URL` varsa write-behind: her tam dakika sınırında `usage_records` upsert (fire-and-forget tokio task; FK ihlali/eksik users kaydı warn — pipeline asla düşmez).
+- [x] Testler: restart simülasyonu (aynı dosyadan yeni tracker eski sayaçları görür), kompaksiyon (10 append → 1 satır), bozuk satır atlama, dönem sıfırlama reload sonrası korunur — 4 yeni test (mevcut 6 unit korunarak). DB yolu koda alındı, canlı doğrulaması V6'daki `TEST_DATABASE_URL` koşusuyla birlikte yapılır.
+- [x] `.env.example` `USAGE_FILE`; compose `USAGE_FILE=/data/usage.jsonl`; railway.md env tablosuna eklendi.
 
 #### V8 — OAuth offline params + token'ların AES-256 şifreli persist'i
 - [ ] `OAuthProvider`'a `extra_authorize_params: Vec<(String,String)>` — YouTube'a `access_type=offline&prompt=consent` (refresh token için ZORUNLU; 1.10 notundaki eksik). Authorize URL testleri.
