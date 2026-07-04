@@ -523,7 +523,21 @@
           "Enter the code — your channel is linked and captions follow your stream."
         ],
         "codeButton": "Generate link code",
-        "codeNote": "Code generation switches on with broadcaster sign-in as the Phase 2 extension rolls out. Channel linking, live caption delivery, and the viewer overlay are already built and tested end to end.",
+        "generatingLabel": "Generating…",
+        "codeReadyLabel": "Enter this code in the Twitch extension settings",
+        "validForLabel": "Valid for",
+        "copyLabel": "Copy",
+        "copiedLabel": "Copied",
+        "linkedLabel": "Linked Twitch channel",
+        "notLinkedLabel": "No channel linked yet",
+        "unlinkLabel": "Unlink",
+        "confirmUnlink": "Unlink this Twitch channel? Viewers lose captions until you link again.",
+        "signInNote": "Works today with an admin console session (operator verification) — broadcaster sign-in unlocks it for every account as Phase 2 rolls out. Channel linking, live caption delivery, and the viewer overlay are already built and tested end to end.",
+        "disabledNote": "The extension service is currently switched off. Enable ext.twitch.enabled in the admin console — no restart needed.",
+        "errors": {
+          "network": "Could not reach the backend — check your connection and try again.",
+          "failed": "Request failed — try again in a moment."
+        },
         "icon": "Subtitles"
       }
     },

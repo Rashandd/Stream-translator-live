@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { PageHeader } from "@/src/components/dashboard-ui";
+import { TwitchExtensionLink } from "@/src/components/twitch-extension-link";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
 
@@ -104,17 +105,7 @@ export default async function PlatformsPage({ params }: Props) {
           </ol>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white opacity-50"
-            disabled
-            type="button"
-          >
-            <Icon className="h-4 w-4" name="KeyRound" />
-            {extension.codeButton}
-          </button>
-          <p className="text-xs text-muted sm:max-w-md">{extension.codeNote}</p>
-        </div>
+        <TwitchExtensionLink labels={extension} />
       </section>
     </div>
   );
