@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { computeOverlayStyle, OVERLAY_STYLE_DEFAULTS } from "@/src/lib/overlay-style";
 
 type SubtitleTranslation = { lang: string; text: string };
 
@@ -28,11 +29,12 @@ export default function OverlayPage() {
   const [subtitle, setSubtitle] = useState<SubtitleMessage | null>(null);
 
   const lang = search.get("lang");
-  const font = search.get("font") ?? "Inter, system-ui, sans-serif";
-  const size = search.get("size") ?? "32px";
-  const color = search.get("color") ?? "#ffffff";
-  const bg = search.get("bg") ?? "rgba(0,0,0,0.6)";
-  const position = search.get("position") === "top" ? "flex-start" : "flex-end";
+  const font = search.get("font") ?? OVERLAY_STYLE_DEFAULTS.font;
+  const size = search.get("size") ?? OVERLAY_STYLE_DEFAULTS.size;
+  const color = search.get("color") ?? OVERLAY_STYLE_DEFAULTS.color;
+  const bg = search.get("bg") ?? OVERLAY_STYLE_DEFAULTS.bg;
+  const position = search.get("position") ?? OVERLAY_STYLE_DEFAULTS.position;
+  const style = computeOverlayStyle({ font, size, color, bg, position });
 
   useEffect(() => {
     // OBS Browser Source video üstüne bindiği için sayfa arka planı
@@ -79,35 +81,8 @@ export default function OverlayPage() {
   const text = pickText(subtitle, lang);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: position,
-        justifyContent: "center",
-        padding: "5vh 4vw",
-        background: "transparent",
-        pointerEvents: "none",
-      }}
-    >
-      {text ? (
-        <span
-          style={{
-            fontFamily: font,
-            fontSize: size,
-            color,
-            background: bg,
-            padding: "0.4em 0.8em",
-            borderRadius: "0.5em",
-            maxWidth: "90vw",
-            textAlign: "center",
-            lineHeight: 1.3,
-          }}
-        >
-          {text}
-        </span>
-      ) : null}
+    <div style={style.container}>
+      {text ? <span style={style.caption}>{text}</span> : null}
     </div>
   );
 }
