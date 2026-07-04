@@ -4,13 +4,15 @@
 Codex
 
 ## Neredeyim?
-Production operator / AI agent sorumluluk ayrimi roadmap'e eklendi. Production'da teknik is yapmadan admin panelden key/client/price_id girilerek ilerlenmesi icin operator rehberi yazildi.
+Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/solutions` notify-me formları kaldırıldı, enabled solution kartları yalnız tik gösteriyor; ana sayfa "Every setup covered" rozetleri phase/active mantığına çekildi.
 
 ## Degistirdigim Alanlar
-- `docs/twitch-extension-policy.md`
-- `docs/production-operator-guide.md`
-- `docs/sessions/codex.md`
+- `frontend/app/[locale]/solutions/page.tsx`
+- `frontend/app/[locale]/page.tsx`
+- `frontend/src/i18n/dictionaries/en.json`
+- `frontend/src/i18n/dictionaries/marketing.test.ts`
 - `streamdubber_roadmap_final.md`
+- `docs/sessions/codex.md`
 
 ## Son Kararlar
 - Twitch Extension icin yayiniciya SDK/ucuncu parti yazilim kurdurmak policy acisindan mumkun; izleyiciye kurulum zorunlulugu yasak.
@@ -28,15 +30,17 @@ Production operator / AI agent sorumluluk ayrimi roadmap'e eklendi. Production'd
 - 2026-07-03 kontrolu: `cargo test` sandbox disinda temiz gecti (backend 178 passed/1 ignored + API testleri + SDK 65 passed + cloud_e2e 2 passed). `scripts/session-start.sh` sandbox icinde localhost mock bind kısıtı nedeniyle backend testlerini yanlis negatif gosteriyor; frontend testleri 43 passed.
 - V11 roadmap eklendi: operator sadece production profile degerlerini ve gercek provider hesaplarini admin panelden girer; AI agentlar Production Setup wizard, provider profile UI, Google/YouTube Connect, Stripe price ID UI ve SDK desktop relay wiring'i tamamlar.
 - `docs/production-operator-guide.md`: deploy/provider/broadcaster profile yapisi, Google/YouTube OAuth callback URL modeli, Stripe/Streamlabs kurulumlari, provider key smoke ve canli yayin smoke checklist'i.
+- 2026-07-05 frontend UX incelemesi: yayıncı dashboard'u demo/blueprint için iyi, fakat sıfırdan gelen gerçek müşteri için henüz tam hazır değil. En büyük eksikler canlı `/api/me/config` state'i yerine dictionary/mock data kullanımı, SDK/OBS/platform/caption kopyalama butonlarının çoğunun interaktif olmaması, Faz 2/coming-soon vaatlerinin ana yayıncı akışını bulanıklaştırması ve onboarding checklist'inin route'lar arasında dağılması.
+- Bu turda frontend kontrolleri temiz: `npm run lint` geçti; `npm run test` 10 test dosyası / 53 test geçti. `scripts/session-start.sh` frontend testlerini de temiz gösterdi; backend testleri sandbox localhost/mock bind izni nedeniyle `Operation not permitted` ile yanlış negatif verdi.
+- Son commitler ayrıca incelendi: overlay builder (§2) yayıncı dashboard'u için önemli bir iyileştirme; `/dashboard/captions` artık dil/font/renk/arka plan/pozisyon seçip overlay URL üretiyor. Waitlist backend + CTA da coming-soon ürünleri ayrı lead-capture akışına taşıyor. Güncel doğrulama: frontend `npm run lint` geçti, `npm run test` 13 dosya / 67 test geçti, backend `cargo test --test waitlist_api` sandbox dışında 4/4 geçti. Kalan UX sürtünmesi: ortak `CopyRow` hâlâ gerçek clipboard kopyalama yapmıyor.
+- Kullanıcı isteğiyle landing page "Every setup covered" bölümünde `enabled` status yazısı gizlendi; diğer status rozetleri (`beta`, `coming_soon`, `waitlist`) kalıyor. Doğrulama: `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
+- `/en/solutions` kartlarındaki `Notify me` formları ve kullanılmayan `solutions.waitlistCta` copy'si kaldırıldı; public sayfada artık waitlist formu render edilmiyor. Enabled solution kartı metin yerine sadece check icon gösteriyor. Ana sayfada "Every setup covered" rozetleri raw `enabled` yerine `Phase 1 active`, `Phase 2 active`, `Phase 3` dictionary alanlarından geliyor. Regression: marketing testine notify-me render edilmemesi ve raw enabled label kullanılmaması eklendi; `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
+- Roadmap Faz 2/3 katalog notu güncellendi: public waitlist CTA kaldırıldı, backend `POST /api/waitlist` ve Postgres tablosu ileride hesaplı/admin akıştan DB'ye yazmak için korunuyor.
 
 ## Sonraki Adim
-Teknik hatta donulurse iki paralel is var: (1) SDK RTMP relay core'u desktop shell'e bagla — localhost TCP listener, web panelden `GET /api/relay/targets`, RelayEngine'e aktarma, OBS lokal smoke. (2) Admin "Production Setup" wizard'i ekle — eksik secret/config/provider/price_id durumlarini operator'a kirmizi/sari/yesil goster.
-
-Faz 2 Twitch extension'a baslanirken once policy checklist dokumani/ADR hazirla: placement secimi, mobile budget, fetched URL listesi, review channel/demo data, audio default mute, UGC moderation ve Bits kisitlari netlessin.
-Bu dokuman artik hazir: `docs/twitch-extension-policy.md`. Faz 2 baslangicinda ilk is bu policy gate checklist'ini uygulama tasklarina bolmek.
+Yayıncı dashboard'unu müşteri-ready yapmak için ilk somut iş: `/dashboard` üstüne tek bir "setup checklist / wizard" ekle ve 4 adımı canlı state'e bağla: desktop app paired, OBS overlay added/copied, target languages selected, distribution mode/platform readiness. Faz 2 veya canlı olmayan özellikleri ana akışta ayrı "coming soon" alanına taşı.
 
 ## Blokerlar / Dikkat
-- `scripts/session-start.sh` sandbox icinde backend testlerinde localhost/mock server bind izni nedeniyle cok sayida `Operation not permitted` verdi; sandbox disi `cargo test` daha gercek hatayi gosterdi.
-- Sandbox disi `cargo test` artik temiz geciyor; eski `sdk/tests/cloud_e2e.rs` AppState initializer sorunu duzeltilmis.
+- `scripts/session-start.sh` sandbox içinde backend testlerinde localhost/mock server bind izni nedeniyle çok sayıda `Operation not permitted` verdi; frontend bu turda temiz.
 - `docs/SESSION.md` ana koordinasyon dosyasi hala "blueprint" diyor; guncel gercekle uyumsuz. Kullanici acikca isterse kisa koordinasyon ozeti olarak yenilenmeli.
-- Calisma agacinda commit edilmemis durum var; bu turda `docs/production-operator-guide.md`, `streamdubber_roadmap_final.md` ve `docs/sessions/codex.md` guncellendi. Onceden gelen `docs/twitch-extension-policy.md`, `scripts/smoke.sh`, `.gitignore` durumlari da commit bekliyor.
+- Bu turda frontend public sayfaları ve `docs/sessions/codex.md` guncellendi; otomatik commit yok.

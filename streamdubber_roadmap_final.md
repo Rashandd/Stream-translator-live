@@ -1014,13 +1014,14 @@ Bu yayıncılardan premium ücret alınır
 
 > Faz 2/3 katalog NOT (Claude, 2026-07-05): Yukarıdaki 9 kalemin hepsi artık
 > `/solutions`'da statik `coming_soon`/`waitlist` kart olarak görünüyor
-> (`en.json` `solutions.items`, bkz. `docs/overlay-builder-plan.md` §6) ve her
-> kartta gerçek çalışan bir `waitlist-cta.tsx` var (`POST /api/waitlist` →
-> Postgres, `backend/src/waitlist.rs` + `migrations/0003_waitlist.sql`).
+> (`en.json` `solutions.items`, bkz. `docs/overlay-builder-plan.md` §6).
+> Codex 2026-07-05: kullanıcı isteğiyle public `/solutions` kartlarındaki
+> `Notify me` formları kaldırıldı; `POST /api/waitlist` backend'i ve
+> Postgres tablosu ileride hesaplı/admin akıştan DB'ye yazmak için korunuyor.
 > KAPSAM BİLİNÇLİ SINIRLANDI (kullanıcı onayıyla): bu satırlar hâlâ `[ ]` —
 > ayrı sektörel sayfalar, `ui.public.solutions.catalog` DB/admin-config sistemi,
 > Zoom/Teams/Meet marka asset'leri hiçbiri bu işin parçası değil; sadece
-> "tanıtım + lead capture" yapıldı, aşağıdaki "Frontend Coming Soon Kuralları"
+> "tanıtım" yapıldı, aşağıdaki "Frontend Coming Soon Kuralları"
 > tam anlamıyla henüz karşılanmıyor.
 
 ### Frontend Coming Soon Kuralları

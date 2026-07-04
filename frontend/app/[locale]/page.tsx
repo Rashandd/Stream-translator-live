@@ -12,6 +12,7 @@ const edgeStatusTone: Record<string, string> = {
   coming_soon: "border-white/25 bg-white/10 text-white/85",
   disabled: "border-white/15 bg-white/5 text-white/60",
 };
+const activeEdgeStatuses = new Set(["enabled", "beta"]);
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -117,18 +118,26 @@ export default async function HomePage({ params }: HomePageProps) {
           <p className="text-sm font-semibold uppercase tracking-wide text-cyan">{config.home.edge.eyebrow}</p>
           <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-white sm:text-4xl">{config.home.edge.title}</h2>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {config.home.edge.items.map((item) => (
-              <div className="rounded-xl border border-white/12 bg-white/[0.06] p-6" key={item.title}>
-                <div className="flex items-center justify-between gap-2">
-                  <Icon className="h-6 w-6 text-cyan" name={item.icon} />
-                  <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${edgeStatusTone[item.status] ?? edgeStatusTone.disabled}`}>
-                    {config.statusLabels[item.status as keyof typeof config.statusLabels] ?? item.status}
-                  </span>
+            {config.home.edge.items.map((item) => {
+              const active = activeEdgeStatuses.has(item.status);
+              return (
+                <div className="rounded-xl border border-white/12 bg-white/[0.06] p-6" key={item.title}>
+                  <div className="flex items-center justify-between gap-2">
+                    <Icon className="h-6 w-6 text-cyan" name={item.icon} />
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                        active ? "border-success/45 bg-success/20 text-white" : edgeStatusTone[item.status] ?? edgeStatusTone.disabled
+                      }`}
+                    >
+                      {active ? <Icon className="h-3.5 w-3.5" name="CheckCircle2" /> : null}
+                      {item.phaseLabel}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/70">{item.body}</p>
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-white/70">{item.body}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

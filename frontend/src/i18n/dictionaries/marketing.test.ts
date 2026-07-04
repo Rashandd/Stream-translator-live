@@ -8,6 +8,14 @@ const iconSource = readFileSync(
   fileURLToPath(new URL("../../components/icon.tsx", import.meta.url)),
   "utf8",
 );
+const homePageSource = readFileSync(
+  fileURLToPath(new URL("../../../app/[locale]/page.tsx", import.meta.url)),
+  "utf8",
+);
+const solutionsPageSource = readFileSync(
+  fileURLToPath(new URL("../../../app/[locale]/solutions/page.tsx", import.meta.url)),
+  "utf8",
+);
 const iconMapBody = iconSource.match(/const icons[^{]*\{([\s\S]*?)\}/)?.[1] ?? "";
 const registeredIcons = new Set(
   iconMapBody
@@ -50,6 +58,16 @@ describe("landing edge section (the Google-can't wedge)", () => {
 
   it("does not lead the landing page with the machine-local video claim", () => {
     expect(homeText).not.toContain("your video never leaves your machine");
+  });
+
+  it("shows active phase labels instead of the raw enabled status", () => {
+    expect(homePageSource).toContain("phaseLabel");
+    expect(homePageSource).not.toContain("config.statusLabels[item.status");
+    for (const item of edge?.items ?? []) {
+      if ("status" in item && item.status === "enabled") {
+        expect("phaseLabel" in item && String(item.phaseLabel).toLowerCase()).toContain("active");
+      }
+    }
   });
 });
 
@@ -133,5 +151,10 @@ describe("solutions dictionary", () => {
         expect(item.status).not.toBe("enabled");
       }
     }
+  });
+
+  it("does not render notify-me forms on the public solutions page", () => {
+    expect(solutionsPageSource).not.toContain("WaitlistCta");
+    expect(solutionsPageSource).not.toContain("waitlistCta");
   });
 });
