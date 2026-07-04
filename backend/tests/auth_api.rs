@@ -1,8 +1,10 @@
 //! Bootstrap admin login uçtan-uca testleri — `POST /api/auth/login`.
 //!
 //! Sözleşme: doğru kimlik → `role=admin` JWT (admin uçları açılır);
-//! yanlış kimlik → 401 (alan söylenmez); env tanımsız → 503. Şifre asla
-//! loglanmaz.
+//! yanlış kimlik → 401 (alan söylenmez). 1.4 kullanıcı sistemiyle uç
+//! artık yayıncı deposuna da bakar: bootstrap env tanımsızken yanıt
+//! 503 değil 401'dir (hesap varlığı sızdırılmaz). Şifre asla loglanmaz.
+//! Yayıncı akışları `tests/users_api.rs`'te.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -122,18 +124,22 @@ async fn wrong_credentials_are_401_and_password_never_logged() {
         .unwrap()
         .to_string();
     let (_, logs) = http(addr, &get_with_token("/admin/logs?service=auth", &token)).await;
-    assert!(logs.contains("admin login failed"), "logs: {logs}");
+    // Birleşik uç (1.4) mesajı "login failed" — admin/yayıncı ayrımı yapılmaz.
+    assert!(logs.contains("login failed"), "logs: {logs}");
     assert!(!logs.contains("wrong-pass-xyz"), "password leaked: {logs}");
     assert!(!logs.contains("correct-pass"), "password leaked: {logs}");
 }
 
 #[tokio::test]
-async fn unconfigured_login_is_503() {
+async fn unconfigured_bootstrap_falls_through_to_401() {
+    // 1.4 öncesi bu durum 503'tü ("admin login not configured"). Artık uç
+    // yayıncı deposuna da baktığı için bilinmeyen kimlik her koşulda 401 —
+    // hesap/konfigürasyon varlığı dışarı sızmaz.
     let addr = spawn_server(None).await;
     let (status, _) = http(
         addr,
         &post_login(r#"{"email":"a@b.c","password":"x"}"#),
     )
     .await;
-    assert_eq!(status, 503);
+    assert_eq!(status, 401);
 }

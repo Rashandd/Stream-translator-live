@@ -20,6 +20,7 @@ services:
       USAGE_FILE: /data/usage.jsonl
       TOKENS_FILE: /data/tokens.enc
       RELAY_FILE: /data/relay.enc
+      USERS_FILE: /data/users.enc
     volumes:
       - sddata:/data
     ports:

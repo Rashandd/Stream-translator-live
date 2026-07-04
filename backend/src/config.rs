@@ -116,6 +116,12 @@ impl ServiceConfig {
             ("providers.mock_fallback", "true"),
             // SMTP TLS kipi: starttls (üretim) | none (test/dahili relay).
             ("mail.smtp.tls", "starttls"),
+            // Yayıncı login 2FA kipi (1.4): auto (SMTP yapılandırıldıysa kod
+            // maillenir, yoksa dev modunda atlanır) | required (SMTP yoksa
+            // login 503 — üretim sıkılaştırması) | off.
+            ("auth.email_2fa", "auto"),
+            // Signup'ta atanan plan — admin panelden değiştirilebilir.
+            ("auth.default_plan", "free"),
         ];
         let map = defaults
             .into_iter()

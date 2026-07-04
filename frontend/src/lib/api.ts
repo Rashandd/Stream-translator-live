@@ -44,3 +44,37 @@ export async function adminFetch(path: string, init: RequestInit = {}): Promise<
   }
   return fetch(`${API_URL}${path}`, { ...init, headers });
 }
+
+const USER_TOKEN_KEY = "sd.user.token";
+
+export function getUserToken(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(USER_TOKEN_KEY);
+}
+
+export function setUserToken(token: string): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(USER_TOKEN_KEY, token);
+  }
+}
+
+export function clearUserToken(): void {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(USER_TOKEN_KEY);
+  }
+}
+
+/** Yayıncı token'lı fetch — dashboard sayfaları bunu kullanır. */
+export async function userFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = getUserToken();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  return fetch(`${API_URL}${path}`, { ...init, headers });
+}

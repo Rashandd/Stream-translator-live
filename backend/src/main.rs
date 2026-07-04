@@ -33,6 +33,7 @@ use streamdubber_backend::{
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     usage::UsageTracker,
+    users::{TwoFactorStore, UserStore},
     tls::{self, TlsSettings},
     waitlist::WaitlistLimiter,
 };
@@ -256,6 +257,22 @@ async fn build_state(
         }
     };
 
+    // Yayıncı hesapları (1.4): USERS_FILE verilirse AES-256 şifreli kalıcı;
+    // DB pool'u varsa users tablosuna best-effort yansıtılır.
+    let users_file = std::env::var("USERS_FILE").ok().filter(|p| !p.is_empty());
+    let users = match users_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.users.v1").await?;
+            tracing::info!(%path, "user store: encrypted persistent file");
+            UserStore::with_file(path, &key)?
+        }
+        None => {
+            tracing::warn!("USERS_FILE not set — user accounts are lost on restart");
+            UserStore::in_memory()
+        }
+    }
+    .with_db(db_pool.clone());
+
     // Kullanım sayaçları: USAGE_FILE verilirse kalıcı JSONL (restart'a
     // dayanır); DB pool'u varsa dakika sınırlarında usage_records upsert'i.
     let usage_file = std::env::var("USAGE_FILE").ok().filter(|p| !p.is_empty());
@@ -319,6 +336,8 @@ async fn build_state(
         bindings: channel_bindings,
         active_streams: Arc::new(ActiveStreams::new()),
         waitlist: Arc::new(WaitlistLimiter::new()),
+        users: Arc::new(users),
+        twofactor: Arc::new(TwoFactorStore::new()),
     })
 }
 

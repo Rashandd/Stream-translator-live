@@ -203,8 +203,12 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ws/stream", get(ws_handler))
-        // Env-bootstrap admin girişi (kullanıcı sistemi 1.4'te genişler).
-        .route("/api/auth/login", post(crate::auth::bootstrap::login))
+        // Tek giriş ucu (1.4): önce env-bootstrap admin, sonra yayıncı deposu.
+        .route("/api/auth/login", post(crate::users::login))
+        .route("/api/auth/signup", post(crate::users::signup))
+        .route("/api/auth/2fa", post(crate::users::twofa_verify))
+        .route("/api/auth/reset/request", post(crate::users::reset_request))
+        .route("/api/auth/reset/confirm", post(crate::users::reset_confirm))
         .route("/admin/ping", get(admin_ping))
         .route("/config", get(get_config))
         .route("/admin/config", put(put_config))

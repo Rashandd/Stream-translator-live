@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ResetPasswordForm } from "@/src/components/reset-password-form";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -45,26 +46,26 @@ export default async function ResetPage({ params }: Props) {
           <h1 className="text-2xl font-semibold text-ink">{reset.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{reset.subtitle}</p>
 
-          <form action={localizePath(locale, "/login")} className="mt-6 space-y-4" method="get">
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="email">{reset.emailLabel}</label>
-              <input
-                autoComplete="email"
-                className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
-                id="email"
-                name="email"
-                placeholder={reset.emailPlaceholder}
-                required
-                type="email"
-              />
-            </div>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text"
-              type="submit"
-            >
-              {reset.submitLabel}
-            </button>
-          </form>
+          <ResetPasswordForm
+            labels={{
+              emailLabel: reset.emailLabel,
+              emailPlaceholder: reset.emailPlaceholder,
+              submitLabel: reset.submitLabel,
+              submittingLabel: reset.submittingLabel,
+              codeSentNote: reset.codeSentNote,
+              codeLabel: reset.codeLabel,
+              codePlaceholder: reset.codePlaceholder,
+              newPasswordLabel: reset.newPasswordLabel,
+              newPasswordPlaceholder: reset.newPasswordPlaceholder,
+              confirmLabel: reset.confirmLabel,
+              doneMessage: reset.doneMessage,
+              doneLoginLabel: reset.doneLoginLabel,
+              errorInvalidCode: config.auth.errors.codeInvalid,
+              errorWeakPassword: config.auth.errors.weakPassword,
+              errorNetwork: config.auth.errors.network,
+            }}
+            loginHref={localizePath(locale, "/login")}
+          />
         </div>
 
         <p className="mt-6 text-center text-sm">

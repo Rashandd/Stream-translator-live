@@ -26,5 +26,6 @@ pub mod setup_status;
 pub mod state;
 pub mod tls;
 pub mod usage;
+pub mod users;
 pub mod waitlist;
 pub mod ws;

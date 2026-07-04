@@ -20,6 +20,7 @@ use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
 use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
+use crate::users::{TwoFactorStore, UserStore};
 use crate::waitlist::WaitlistLimiter;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
@@ -54,6 +55,10 @@ pub struct AppState {
     pub ext_twitch: Arc<ExtTwitch>,
     /// Faz 2/3 katalog waitlist'i için per-IP rate limiter (bellek içi).
     pub waitlist: Arc<WaitlistLimiter>,
+    /// Yayıncı hesapları (1.4) — `USERS_FILE` ile şifreli kalıcı.
+    pub users: Arc<UserStore>,
+    /// Login 2FA + şifre sıfırlama kodları (bellek içi, kısa ömürlü).
+    pub twofactor: Arc<TwoFactorStore>,
 }
 
 impl AppState {
@@ -83,6 +88,8 @@ impl AppState {
             active_streams: Arc::new(ActiveStreams::new()),
             ext_twitch,
             waitlist: Arc::new(WaitlistLimiter::new()),
+            users: Arc::new(UserStore::in_memory()),
+            twofactor: Arc::new(TwoFactorStore::new()),
         }
     }
 }
@@ -198,5 +205,17 @@ impl FromRef<AppState> for Arc<ExtTwitch> {
 impl FromRef<AppState> for Arc<WaitlistLimiter> {
     fn from_ref(state: &AppState) -> Self {
         state.waitlist.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<UserStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.users.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<TwoFactorStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.twofactor.clone()
     }
 }

@@ -1023,6 +1023,7 @@
       "passwordLabel": "Password",
       "passwordPlaceholder": "Your password",
       "submitLabel": "Continue",
+      "submittingLabel": "Signing in...",
       "twofaNote": "We'll email you a 6-digit code to confirm it's you.",
       "forgotLabel": "Forgot password?",
       "signupPrompt": "New to Strovak?",
@@ -1036,16 +1037,26 @@
       "passwordLabel": "Password",
       "passwordPlaceholder": "At least 8 characters",
       "submitLabel": "Create account",
+      "submittingLabel": "Creating account...",
       "termsNote": "By creating an account you agree to the terms of service and privacy policy.",
       "loginPrompt": "Already have an account?",
       "loginLabel": "Sign in"
     },
     "reset": {
       "title": "Reset your password",
-      "subtitle": "Enter your account email and we'll send you a reset link.",
+      "subtitle": "Enter your account email and we'll send you a 6-digit reset code.",
       "emailLabel": "Email",
       "emailPlaceholder": "you@example.com",
-      "submitLabel": "Send reset link",
+      "submitLabel": "Send reset code",
+      "submittingLabel": "Working...",
+      "codeSentNote": "If an account exists for that email, a 6-digit reset code is on its way. Enter it below with your new password.",
+      "codeLabel": "Reset code",
+      "codePlaceholder": "______",
+      "newPasswordLabel": "New password",
+      "newPasswordPlaceholder": "At least 8 characters",
+      "confirmLabel": "Set new password",
+      "doneMessage": "Your password has been updated. You can sign in with it now.",
+      "doneLoginLabel": "Back to sign in",
       "backLabel": "Back to sign in"
     },
     "verify": {
@@ -1054,9 +1065,19 @@
       "codeLabel": "Verification code",
       "codePlaceholder": "______",
       "submitLabel": "Verify and sign in",
-      "resendLabel": "Resend code",
-      "backLabel": "Back to sign in",
-      "devNotice": "Email delivery is not configured yet. Add a noreply sender (SMTP or API) in the admin panel to send real codes; until then this step is a stub for development."
+      "submittingLabel": "Verifying...",
+      "backLabel": "Back to sign in"
+    },
+    "errors": {
+      "invalid": "Email or password is incorrect.",
+      "network": "Network error. Please try again.",
+      "unavailable": "Sign-in is temporarily unavailable. Please try again later.",
+      "emailTaken": "This email is already registered. Try signing in instead.",
+      "invalidFields": "Check your email address and use a password of at least 8 characters.",
+      "weakPassword": "Password must be at least 8 characters.",
+      "codeInvalid": "That code is invalid or has expired. Sign in again to get a new one.",
+      "codeTooMany": "Too many attempts. Sign in again to request a new code.",
+      "sessionMissing": "We couldn't find a pending sign-in. Please start again from the sign-in page."
     }
   },
   "admin": {

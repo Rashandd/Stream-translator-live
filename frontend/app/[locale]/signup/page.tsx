@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SignupForm } from "@/src/components/signup-form";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -45,39 +46,21 @@ export default async function SignupPage({ params }: Props) {
           <h1 className="text-2xl font-semibold text-ink">{signup.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{signup.subtitle}</p>
 
-          <form action={localizePath(locale, "/login/verify")} className="mt-6 space-y-4" method="get">
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="email">{signup.emailLabel}</label>
-              <input
-                autoComplete="email"
-                className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
-                id="email"
-                name="email"
-                placeholder={signup.emailPlaceholder}
-                required
-                type="email"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="password">{signup.passwordLabel}</label>
-              {/* name yok: form GET ile gezindiği için şifre asla URL'e yazılmamalı. */}
-              <input
-                autoComplete="new-password"
-                className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
-                id="password"
-                minLength={8}
-                placeholder={signup.passwordPlaceholder}
-                required
-                type="password"
-              />
-            </div>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text"
-              type="submit"
-            >
-              {signup.submitLabel}
-            </button>
-          </form>
+          <SignupForm
+            dashboardHref={localizePath(locale, "/dashboard")}
+            labels={{
+              emailLabel: signup.emailLabel,
+              emailPlaceholder: signup.emailPlaceholder,
+              passwordLabel: signup.passwordLabel,
+              passwordPlaceholder: signup.passwordPlaceholder,
+              submitLabel: signup.submitLabel,
+              submittingLabel: signup.submittingLabel,
+              errorTaken: config.auth.errors.emailTaken,
+              errorInvalidFields: config.auth.errors.invalidFields,
+              errorNetwork: config.auth.errors.network,
+            }}
+            verifyHref={localizePath(locale, "/login/verify")}
+          />
 
           <p className="mt-4 text-xs leading-5 text-muted">{signup.termsNote}</p>
         </div>

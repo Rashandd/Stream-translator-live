@@ -1,7 +1,6 @@
-//! Env-bootstrap admin girişi (Faz 1) — `POST /api/auth/login`.
+//! Env-bootstrap admin kimliği (Faz 1).
 //!
-//! Kullanıcı sistemi (users tablosu, signup, e-posta doğrulama, 2FA) 1.4'ün
-//! işi. Cloud deploy'da admin panelin (`/admin/secrets`, `/admin/config`, ...)
+//! Cloud deploy'da admin panelin (`/admin/secrets`, `/admin/config`, ...)
 //! kullanılabilmesi için tek bir bootstrap admin env'den tanımlanır:
 //!
 //! - `ADMIN_EMAIL` — admin e-postası
@@ -9,23 +8,12 @@
 //!   `cargo run --bin hash_password`)
 //! - `ADMIN_PASSWORD` — düz metin (SADECE dev; startup'ta warn loglanır)
 //!
-//! Başarılı giriş `role=admin` JWT üretir (12 saat). Şifre asla loglanmaz;
-//! başarısız denemeler audit log'a düşer.
-
-use std::sync::Arc;
+//! `POST /api/auth/login` ucu artık `users::login`'dedir (1.4): önce bu
+//! bootstrap admin, sonra yayıncı deposu denenir. Başarılı admin girişi
+//! `role=admin` JWT üretir (12 saat). Şifre asla loglanmaz.
 
 use argon2::password_hash::PasswordHash;
 use argon2::{Argon2, PasswordVerifier};
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::Json;
-use serde::{Deserialize, Serialize};
-
-use super::jwt::{Claims, Jwt};
-use crate::logging::{LogLevel, Logger};
-
-/// Bootstrap admin oturum süresi (saniye).
-const TOKEN_TTL_SECS: i64 = 12 * 3600;
 
 /// Şifre doğrulama biçimi.
 enum PasswordCheck {
@@ -111,71 +99,6 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
         return false;
     }
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
-}
-
-/// `POST /api/auth/login` gövdesi.
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-/// Başarılı giriş yanıtı.
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    pub token: String,
-    /// Token bitişi (unix saniye) — frontend süresi dolunca yeniden ister.
-    pub expires_at: i64,
-}
-
-/// `POST /api/auth/login` — bootstrap admin girişi.
-///
-/// 503: `ADMIN_EMAIL`/şifre env'i tanımlı değil. 401: kimlik uyuşmadı
-/// (hangi alanın yanlış olduğu söylenmez). Şifre hiçbir yerde loglanmaz.
-pub async fn login(
-    State(admin): State<Arc<Option<BootstrapAdmin>>>,
-    State(jwt): State<Arc<Jwt>>,
-    State(logger): State<Arc<Logger>>,
-    Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, (StatusCode, String)> {
-    let Some(admin) = admin.as_ref() else {
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            "admin login not configured (set ADMIN_EMAIL + ADMIN_PASSWORD_HASH)".to_string(),
-        ));
-    };
-
-    if !admin.verify(&req.email, &req.password) {
-        logger.log(
-            LogLevel::Warn,
-            "auth",
-            &format!("admin login failed for {}", req.email),
-            None,
-            None,
-        );
-        return Err((StatusCode::UNAUTHORIZED, "invalid credentials".to_string()));
-    }
-
-    let expires_at = chrono::Utc::now().timestamp() + TOKEN_TTL_SECS;
-    let claims = Claims {
-        sub: "admin-bootstrap".to_string(),
-        role: "admin".to_string(),
-        plan: "streamer".to_string(),
-        exp: expires_at,
-    };
-    let token = jwt
-        .issue(&claims)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    logger.log(
-        LogLevel::Info,
-        "auth",
-        "admin login succeeded",
-        Some("admin-bootstrap"),
-        None,
-    );
-
-    Ok(Json(LoginResponse { token, expires_at }))
 }
 
 #[cfg(test)]
