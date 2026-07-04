@@ -122,6 +122,11 @@ impl ServiceConfig {
             ("auth.email_2fa", "auto"),
             // Signup'ta atanan plan — admin panelden değiştirilebilir.
             ("auth.default_plan", "free"),
+            // Dashboard/panel CORS izinli origin'leri (virgülle ayrılmış).
+            // Frontend Vercel'de, API VPS'te — tarayıcı istekleri cross-origin.
+            // İlk deploy CORS_ALLOWED_ORIGINS env'iyle tohumlanır, sonrası
+            // admin panelden restart'sız değiştirilir.
+            ("cors.allowed_origins", "http://localhost:3000"),
         ];
         let map = defaults
             .into_iter()

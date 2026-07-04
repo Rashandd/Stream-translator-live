@@ -237,7 +237,8 @@ Asıl strateji: dağıtım yayıncının kendi internetinden (SDK relay) yapıl�
 | Seçenek | Güçlü yan | Maliyet | Kullanım |
 |---|---|---|---|
 | **Hetzner** | En ucuz GPU, Avrupa | RTX 4090: ~$200/ay | Üretim: STT+TTS+RTMP |
-| **Railway** | Kolay deploy | ~$20–50/ay | MVP geliştirme |
+| **Vercel + VPS** | Frontend Vercel (Next.js native), backend VPS/Docker — KARAR 2026-07-05, bkz. `infra/deploy.md` | VPS ~$10–20/ay + Vercel hobby/pro | MVP üretim |
+| **Railway** | Kolay deploy | ~$20–50/ay | (eski plan — arşiv: `infra/railway.md`) |
 | **Fly.io** | Global edge | ~$20–40/ay | Overlay WebSocket |
 | **Cloudflare Workers** | Edge, latency-free | ~$5/ay | WebSocket proxy |
 
@@ -651,6 +652,8 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 
 ## Faz 1 — Cloud Deploy Hazırlık Planı (detaylı, sıralı)
 
+> **Deploy hedefi güncellendi (2026-07-05):** frontend **Vercel**, backend **VPS (Docker + Caddy)** — rehber: `infra/deploy.md` (railway.md arşiv). Frontend↔API ayrı origin olduğu için dashboard CORS katmanı eklendi: `cors.allowed_origins` config anahtarı (restart'sız, admin panelden), ilk deploy `CORS_ALLOWED_ORIGINS` env'iyle tohumlanır; ext/waitlist aileleri kendi Any-origin CORS'unu korur (4 e2e test: tests/cors_api.rs).
+
 > Claude 2026-07-03: "Doğrulama listesini hallet, her şey cloud'da deploy'a hazır olsun,
 > .env/secret'lar admin panelden girilsin (maskeli okunsun)" talebinin iş planı.
 > V1 (admin secrets backend'i) TAMAMLANDI (yukarıda 1.2 altında işaretli).
@@ -727,7 +730,7 @@ Roadmap V11'deki 5 "AI Agent" maddesi tamamlandı (V11 backend commit'leri +
 Production Setup admin sayfası + SDK relay wiring). Kalan tüm V11 maddeleri
 "Kullanıcı/Operator" sorumluluğunda: gerçek hesap/key/client oluşturma ve
 canlı smoke — kod tarafında eksik yok.
-- [ ] Kullanıcı/Operator: Production deploy profile değerlerini gir  <!-- JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD_HASH, DATABASE_URL, REDIS_URL, SECRETS_FILE/TOKENS_FILE/RELAY_FILE/USAGE_FILE/LOG_FILE/SECRETS_ENC_KEY. -->
+- [ ] Kullanıcı/Operator: Production deploy profile değerlerini gir  <!-- JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD_HASH, DATABASE_URL, REDIS_URL, SECRETS_FILE/TOKENS_FILE/RELAY_FILE/USERS_FILE/USAGE_FILE/LOG_FILE/SECRETS_ENC_KEY, CORS_ALLOWED_ORIGINS. VPS kurulum adımları: infra/deploy.md §2. -->
 - [ ] Kullanıcı/Operator: Google production profile'ı oluştur  <!-- Google Cloud project, OAuth branding, authorized domain, YouTube/Google APIs enable, Web OAuth client, redirect URI: https://api.<domain>/api/integrations/youtube/callback; YOUTUBE_CLIENT_ID/SECRET ve GOOGLE_TRANSLATE_KEY admin panelden girilir. -->
 - [ ] Kullanıcı/Operator: Stripe production profile'ı oluştur  <!-- Products/prices, webhook endpoint https://api.<domain>/webhooks/stripe, STRIPE_SECRET_KEY/WEBHOOK_SECRET, price_id'ler admin panelden girilir. -->
 - [ ] Kullanıcı/Operator: Deepgram/DeepL/AssemblyAI/Streamlabs key/client bilgilerini admin panelden gir ve Test/Connect smoke yap  <!-- Test geçmeden providers.mock_fallback=false yapılmaz; testler geçince mock fallback kapatılır. -->
@@ -772,7 +775,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] Component overlay extension  <!-- Claude 2026-07-04: /extension paketi — bundler'sız human-readable ES modules (viewer.html + js/), textContent-only render, WS + poll fallback, backoff, 11 node --test birim testi -->
 - [x] İzleyici dil seçim butonu  <!-- Claude 2026-07-04: viewer bar'da dil select (backend snapshot dillerinden, allowlist regex) + aç/kapat + S/M/L + durum göstergesi; tercih anonim localStorage -->
 - [x] Broadcaster config sayfası + dashboard kartı  <!-- Claude 2026-07-04: extension/config.html (6 haneli kodla bağlama, yalnız public değerler Twitch config service'e) + /dashboard/platforms kartı. Kart CANLI: adminFetch ile kod üretme/binding/unlink (V11 emsali — admin bootstrap oturumu; 1.4 user backend'i gelince yalnız token kaynağı değişir) -->
-- [ ] Twitch console kaydı + Hosted Test (CSP/wss doğrulaması, mobile, slow network)  <!-- ext.strovak.com DNS + Twitch developer console insan adımları; bkz. infra/railway.md §7 -->
+- [ ] Twitch console kaydı + Hosted Test (CSP/wss doğrulaması, mobile, slow network)  <!-- ext.strovak.com DNS + Twitch developer console insan adımları; bkz. infra/deploy.md §7 -->
 - [ ] Twitch review başvurusu (erken başla — 2–4 hafta)  <!-- Hosted Test bitmeden gönderilmez; walkthrough + changelog + test hesapları (plan A5) -->
 
 #### 2.5 Chrome Extension — Kick ve Evrensel

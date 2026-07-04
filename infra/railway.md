@@ -1,4 +1,9 @@
-# Railway Deploy Rehberi (Faz 1 MVP)
+# Railway Deploy Rehberi (ARŞİV — kullanılmıyor)
+
+> **GÜNCEL DEĞİL (2026-07-05):** Deploy hedefi değişti — frontend **Vercel**,
+> backend **VPS (Docker)**. Geçerli rehber: **`infra/deploy.md`**. Bu dosya
+> yalnız tarihsel referans için duruyor; env tablosu ve kurulum akışının
+> güncel hali deploy.md'dedir.
 
 İki servis + iki eklenti: `backend` (Rust, Dockerfile), `frontend` (Next.js,
 Dockerfile), Railway **PostgreSQL** ve **Redis** eklentileri. Video buluta

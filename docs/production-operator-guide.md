@@ -38,7 +38,7 @@ Production'da üç ayrı profil düşünülür:
 
 | Profil | Nerede tutulur | Kim yönetir | Amaç |
 | --- | --- | --- | --- |
-| Deploy profile | VPS/Railway env | Operator ilk deploy'da girer | Uygulamanın açılması |
+| Deploy profile | VPS env (`infra/deploy.md`) | Operator ilk deploy'da girer | Uygulamanın açılması |
 | Provider profile | Admin > Secrets + Admin Config | Operator | Google, Stripe, Deepgram, DeepL, Streamlabs |
 | Broadcaster profile | Yayıncı paneli | Yayıncı/operator | RTMP hedefleri, stream key, overlay, dil seçimi |
 

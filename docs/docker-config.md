@@ -6,7 +6,8 @@
 /frontend/Dockerfile     → multi-stage (npm ci → next build → node standalone)
 /sdk/                    → Tauri native build, Docker yok
 /infra/docker-compose.yml → local dev ortamı
-/infra/railway.md        → cloud deploy rehberi (Railway, MVP)
+/infra/deploy.md         → cloud deploy rehberi (Vercel + VPS, MVP)
+/infra/railway.md        → eski Railway rehberi (ARŞİV)
 ```
 > Not: Frontend runtime'ı nginx değil **node standalone** — SSR/route
 > handler'lar node gerektirir; `next.config.mjs` `output: "standalone"`.
@@ -44,7 +45,8 @@ Kural değişince anında devreye girer.
 ```
 DATABASE_URL, REDIS_URL, VAULT_ADDR, VAULT_TOKEN
 DEEPGRAM_KEY, DEEPL_KEY, ELEVENLABS_KEY, ... (Vault'tan VEYA admin panelden)
-RAILWAY_TOKEN, HETZNER_API_KEY
+HETZNER_API_KEY (VPS/GPU otomasyonu gerekirse)
+CORS_ALLOWED_ORIGINS (frontend origin listesi — Vercel↔VPS cross-origin)
 JWT_SECRET (env/Vault — panelden yönetilmez)
 ADMIN_EMAIL, ADMIN_PASSWORD_HASH (bootstrap admin girişi)
 SECRETS_FILE, SECRETS_ENC_KEY (panel secret'larının şifreli kalıcılığı)

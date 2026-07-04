@@ -18,7 +18,7 @@ Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel S
 - Key yönetimi: HashiCorp Vault
 - STT: Deepgram Nova-2 → (Faz 2: faster-whisper)
 - Çeviri: DeepL → (Faz 2: HY-MT1.5)
-- Altyapı: Railway (MVP) → Hetzner GPU (Faz 2)
+- Altyapı: Frontend Vercel + Backend VPS/Docker (MVP) → Hetzner GPU (Faz 2) — bkz. `infra/deploy.md`
 
 ## Komutlar
 ```bash
@@ -40,7 +40,7 @@ tauri build          # SDK release build
 /sdk           → Tauri/Rust (yayıncı agent)
 /sdk/src/core  → platform-bağımsız çekirdek (ses, VAD, RTMP, şifreleme)
 /sdk/src/audio → platform adaptörleri (wasapi/coreaudio/pipewire)
-/infra         → Docker, Vault config, Railway deploy
+/infra         → Docker, Vault config, deploy rehberi (Vercel + VPS)
 ```
 
 ## Kurallar
@@ -71,10 +71,11 @@ tauri build          # SDK release build
 - Health check her container'da zorunlu
 
 ### Frontend — API Proxy YASAK (KRİTİK)
-- Railway'deki frontend servisi backend'e proxy yapmaz — dashboard/panel istekleri (fetch + overlay WebSocket) tarayıcıdan **doğrudan** `https://api.strovak.com`'a gider (`NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_OVERLAY_WS_URL`, build-arg olarak gömülür)
+- Vercel'deki frontend backend'e proxy yapmaz — dashboard/panel istekleri (fetch + overlay WebSocket) tarayıcıdan **doğrudan** `https://api.strovak.com`'a gider (`NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_OVERLAY_WS_URL`, build ortam değişkeni olarak gömülür)
 - `next.config.mjs`'e backend'e `rewrites()`/`redirects()` EKLEME; `app/**` altına backend'e istek yönlendiren bir Route Handler (`route.ts`) EKLEME
 - Backend'e giden her istek `"use client"` bileşende kalmalı (`src/lib/api.ts` deseni) — sunucu bileşeninde/route handler'da backend'e fetch YOK
-- Sebep: ses/API trafiği Railway'in frontend servisinden geçerse bandwidth faturasına yansır; `api.strovak.com` ayrı servis olduğu için maliyet oradan izole ölçülür (bkz. `infra/railway.md`)
+- Sebep: ses/API trafiği Vercel fonksiyonlarından geçerse bandwidth/invocation faturasına yansır; `api.strovak.com` VPS'te ayrı servis olduğu için maliyet oradan izole ölçülür (bkz. `infra/deploy.md`)
+- CORS: frontend ile API ayrı origin — izinli origin'ler `cors.allowed_origins` config'i (ilk deploy `CORS_ALLOWED_ORIGINS` env'i ile tohumlanır)
 
 ### Konfigürasyon — Hiçbir Şey Hard-coded Olmaz
 - STT sağlayıcı (Deepgram/Whisper), çeviri (DeepL/HY-MT1.5), TTS (ElevenLabs/XTTS) admin panelden toggle edilebilir

@@ -178,6 +178,16 @@ async fn build_state(
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
 
     let service_config = Arc::new(ServiceConfig::with_defaults());
+
+    // CORS origin'leri env'den tohumla (panel de CORS'a tabi — ilk kurulum
+    // için env şart; sonrası admin panelden restart'sız değiştirilir).
+    if let Some(origins) = std::env::var("CORS_ALLOWED_ORIGINS")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+    {
+        service_config.set("cors.allowed_origins", origins.trim());
+    }
+
     let store: Arc<dyn SecretStore> = Arc::clone(&secrets) as Arc<dyn SecretStore>;
 
     let mut gateway = Gateway::new(Arc::clone(&service_config));

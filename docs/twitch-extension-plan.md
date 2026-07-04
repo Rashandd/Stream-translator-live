@@ -8,14 +8,14 @@ Bağlı dokümanlar: `docs/twitch-extension-policy.md` (kabul edilmiş policy), 
 İlerleme (2026-07-04):
 
 - [x] A1 overlay sertleştirme · [x] A2 channel_bindings · [x] A3 EBS JWT tasarımı
-  (policy dokümanına eklendi) · [x] A4 domain kararı (`infra/railway.md` §7)
+  (policy dokümanına eklendi) · [x] A4 domain kararı (`infra/deploy.md` §7)
 - [x] B1 paket iskeleti · [x] B2 EBS (`backend/src/ext_twitch`) · [x] B3 viewer UI
   · [x] B4 broadcaster config + dashboard kartı
 - [ ] A5 review operasyon hazırlığı (insan: test hesapları, canlı senaryo provası)
 - [ ] B5 Hosted Test (insan: Twitch console kaydı, DNS, CSP/wss doğrulaması)
 - [ ] B6 review başvurusu (B5 sonrası)
 - Not: `ext.twitch.enabled` varsayılan **kapalı** — Faz 1 davranışı değişmedi;
-  aktivasyon admin panelden (bkz. `infra/railway.md` §7 kurulum sırası).
+  aktivasyon admin panelden (bkz. `infra/deploy.md` §7 kurulum sırası).
 
 ## Neden
 
@@ -118,7 +118,7 @@ veya extension kodu içermez.
   izolasyon ilkesinin aynısı) ve Twitch allowlist'ine dar, extension'a özel bir origin
   yazılmalı.
 - Production / staging / hosted-test için üç ayrı hostname şimdi belirlenir, DNS Faz 2'de
-  açılır. Karar `infra/railway.md`'ye not düşülür.
+  açılır. Karar `infra/deploy.md`'ye not düşülür.
 
 ### A5. Review operasyon hazırlığı (insan işi, kod yok)
 

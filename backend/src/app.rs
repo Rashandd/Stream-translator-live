@@ -10,7 +10,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use crate::auth::authz::AdminUser;
@@ -198,8 +198,41 @@ fn waitlist_routes() -> Router<AppState> {
         .layer(cors)
 }
 
+/// Dashboard/panel route ailesi için config-driven CORS.
+///
+/// Frontend (Vercel, `strovak.com`) tarayıcıdan **doğrudan**
+/// `api.strovak.com`'a istek atar (CLAUDE.md: API proxy YASAK) — bu
+/// cross-origin'dir ve preflight'ın geçmesi gerekir. İzinli origin listesi
+/// `cors.allowed_origins` config anahtarından (virgülle ayrılmış) her
+/// istekte okunur: admin panelden değiştirilebilir, restart gerektirmez.
+/// İlk deploy'da `CORS_ALLOWED_ORIGINS` env'i bu anahtarı tohumlar
+/// (panel de CORS'a tabi olduğu için yumurta-tavuk olmaz).
+fn dashboard_cors(cfg: Arc<ServiceConfig>) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(move |origin, _| {
+            let Ok(origin) = origin.to_str() else {
+                return false;
+            };
+            cfg.get("cors.allowed_origins")
+                .map(|list| {
+                    list.split(',')
+                        .map(str::trim)
+                        .filter(|allowed| !allowed.is_empty())
+                        .any(|allowed| allowed == "*" || allowed.eq_ignore_ascii_case(origin))
+                })
+                .unwrap_or(false)
+        }))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+}
+
 /// Uygulama router'ını kurar.
+///
+/// Dashboard CORS katmanı yalnız bu fonksiyondaki ana route'lara uygulanır;
+/// `ext_twitch_routes` ve `waitlist_routes` sonradan merge edilir ve kendi
+/// (daha geniş, Any-origin) CORS katmanlarını taşır — çift header oluşmaz.
 pub fn router(state: AppState) -> Router {
+    let cors = dashboard_cors(Arc::clone(&state.service_config));
     Router::new()
         .route("/health", get(health))
         .route("/ws/stream", get(ws_handler))
@@ -240,10 +273,6 @@ pub fn router(state: AppState) -> Router {
             "/api/ext/twitch/binding",
             get(ext_twitch::get_binding).delete(ext_twitch::delete_binding),
         )
-        // Twitch Extension EBS yüzeyi (CORS'lu, Twitch JWT doğrulamalı).
-        .merge(ext_twitch_routes())
-        // Faz 2/3 katalog waitlist'i (CORS'lu, public — auth yok).
-        .merge(waitlist_routes())
         // SDK relay hedefleri (1.6): panel yazar, eşleşmiş SDK okur.
         .route(
             "/api/relay/targets",
@@ -275,6 +304,12 @@ pub fn router(state: AppState) -> Router {
             "/admin/setup/status",
             get(crate::setup_status::get_setup_status),
         )
+        // Dashboard CORS yalnız yukarıdaki route'ları sarar (bkz. fn doc).
+        .layer(cors)
+        // Twitch Extension EBS yüzeyi (kendi Any-origin CORS'u, Twitch JWT doğrulamalı).
+        .merge(ext_twitch_routes())
+        // Faz 2/3 katalog waitlist'i (kendi CORS'u, public — auth yok).
+        .merge(waitlist_routes())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
