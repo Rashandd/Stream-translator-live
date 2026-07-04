@@ -4,7 +4,7 @@
 Codex
 
 ## Neredeyim?
-Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/solutions` notify-me formları kaldırıldı, enabled solution kartları yalnız tik gösteriyor; ana sayfa "Every setup covered" rozetleri phase/active mantığına çekildi.
+Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/solutions` notify-me formları ve sağ üst status/tik alanları kaldırıldı; ana sayfa "Every setup covered" kartlarındaki phase/status rozetleri komple silindi.
 
 ## Degistirdigim Alanlar
 - `frontend/app/[locale]/solutions/page.tsx`
@@ -33,8 +33,8 @@ Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/s
 - 2026-07-05 frontend UX incelemesi: yayıncı dashboard'u demo/blueprint için iyi, fakat sıfırdan gelen gerçek müşteri için henüz tam hazır değil. En büyük eksikler canlı `/api/me/config` state'i yerine dictionary/mock data kullanımı, SDK/OBS/platform/caption kopyalama butonlarının çoğunun interaktif olmaması, Faz 2/coming-soon vaatlerinin ana yayıncı akışını bulanıklaştırması ve onboarding checklist'inin route'lar arasında dağılması.
 - Bu turda frontend kontrolleri temiz: `npm run lint` geçti; `npm run test` 10 test dosyası / 53 test geçti. `scripts/session-start.sh` frontend testlerini de temiz gösterdi; backend testleri sandbox localhost/mock bind izni nedeniyle `Operation not permitted` ile yanlış negatif verdi.
 - Son commitler ayrıca incelendi: overlay builder (§2) yayıncı dashboard'u için önemli bir iyileştirme; `/dashboard/captions` artık dil/font/renk/arka plan/pozisyon seçip overlay URL üretiyor. Waitlist backend + CTA da coming-soon ürünleri ayrı lead-capture akışına taşıyor. Güncel doğrulama: frontend `npm run lint` geçti, `npm run test` 13 dosya / 67 test geçti, backend `cargo test --test waitlist_api` sandbox dışında 4/4 geçti. Kalan UX sürtünmesi: ortak `CopyRow` hâlâ gerçek clipboard kopyalama yapmıyor.
-- Kullanıcı isteğiyle landing page "Every setup covered" bölümünde `enabled` status yazısı gizlendi; diğer status rozetleri (`beta`, `coming_soon`, `waitlist`) kalıyor. Doğrulama: `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
-- `/en/solutions` kartlarındaki `Notify me` formları ve kullanılmayan `solutions.waitlistCta` copy'si kaldırıldı; public sayfada artık waitlist formu render edilmiyor. Enabled solution kartı metin yerine sadece check icon gösteriyor. Ana sayfada "Every setup covered" rozetleri raw `enabled` yerine `Phase 1 active`, `Phase 2 active`, `Phase 3` dictionary alanlarından geliyor. Regression: marketing testine notify-me render edilmemesi ve raw enabled label kullanılmaması eklendi; `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
+- Kullanıcı isteğiyle landing page "Every setup covered" bölümündeki phase/status rozetleri komple kaldırıldı; `Phase 1 active`, `Phase 2 active`, `Phase 3` dictionary alanları da silindi.
+- `/en/solutions` kartlarındaki `Notify me` formları ve kullanılmayan `solutions.waitlistCta` copy'si kaldırıldı; public sayfada artık waitlist formu render edilmiyor. Solution kartlarının sağ üstündeki status/tik iconları ve yazıları da kaldırıldı; kartlarda yalnız sol ürün ikonu, başlık, açıklama ve audience etiketi kalıyor. Regression: marketing testine notify-me render edilmemesi, landing phase/status badge olmaması ve solutions top-right status badge olmaması eklendi; `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
 - Roadmap Faz 2/3 katalog notu güncellendi: public waitlist CTA kaldırıldı, backend `POST /api/waitlist` ve Postgres tablosu ileride hesaplı/admin akıştan DB'ye yazmak için korunuyor.
 
 ## Sonraki Adim

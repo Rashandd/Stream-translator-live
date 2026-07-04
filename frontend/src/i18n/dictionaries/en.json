@@ -90,29 +90,25 @@
           "title": "Captions baked into your scene",
           "body": "The simplest, and available today: translated subtitles are burned into your scene in OBS, Streamlabs Desktop, XSplit, vMix, or any Browser Source-capable software, so everyone on any platform sees the same language layer.",
           "icon": "PanelsTopLeft",
-          "status": "enabled",
-          "phaseLabel": "Phase 1 active"
+          "status": "enabled"
         },
         {
           "title": "Captions viewers switch on",
           "body": "Native captions through each platform's own layer, so viewers turn them on and pick a language — YouTube today; Twitch via our own extension and Kick via a browser extension (both in development).",
           "icon": "Subtitles",
-          "status": "beta",
-          "phaseLabel": "Phase 2 active"
+          "status": "beta"
         },
         {
           "title": "Dubbed audio on YouTube",
           "body": "On YouTube, add translated audio tracks — viewers switch language right in the player, no second channel needed.",
           "icon": "Video",
-          "status": "coming_soon",
-          "phaseLabel": "Phase 3"
+          "status": "coming_soon"
         },
         {
           "title": "A dubbed channel per language",
           "body": "On Twitch and Kick, run a dedicated channel for each language — dubbed live in your own voice.",
           "icon": "Share2",
-          "status": "coming_soon",
-          "phaseLabel": "Phase 3"
+          "status": "coming_soon"
         }
       ]
     },

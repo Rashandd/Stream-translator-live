@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { SiteHeader } from "@/src/components/site-header";
-import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -49,31 +48,16 @@ export default async function SolutionsPage({ params }: SolutionsPageProps) {
 
       <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-24">
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {solutions.items.map((item) => {
-            const enabled = item.status === "enabled";
-            return (
-              <div className="flex flex-col rounded-xl border border-border bg-white p-6" key={item.title}>
-                <div className="flex items-center justify-between">
-                  <Icon className="h-6 w-6 text-blue" name={item.icon} />
-                  {enabled ? (
-                    <span
-                      aria-label={config.statusLabels.enabled}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-success/25 bg-success/10 text-success"
-                    >
-                      <Icon className="h-4 w-4" name="CheckCircle2" />
-                    </span>
-                  ) : (
-                    <StatusPill label={item.status} text={config.statusLabels[item.status as keyof typeof config.statusLabels]} />
-                  )}
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
-                <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
-                <span className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
-                  {solutions.audienceLabels[item.audience as keyof typeof solutions.audienceLabels]}
-                </span>
-              </div>
-            );
-          })}
+          {solutions.items.map((item) => (
+            <div className="flex flex-col rounded-xl border border-border bg-white p-6" key={item.title}>
+              <Icon className="h-6 w-6 text-blue" name={item.icon} />
+              <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
+              <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
+              <span className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
+                {solutions.audienceLabels[item.audience as keyof typeof solutions.audienceLabels]}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
 

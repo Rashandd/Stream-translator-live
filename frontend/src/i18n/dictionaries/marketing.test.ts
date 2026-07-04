@@ -60,14 +60,12 @@ describe("landing edge section (the Google-can't wedge)", () => {
     expect(homeText).not.toContain("your video never leaves your machine");
   });
 
-  it("shows active phase labels instead of the raw enabled status", () => {
-    expect(homePageSource).toContain("phaseLabel");
+  it("does not render phase/status badges on the landing edge cards", () => {
+    expect(homeText).not.toContain("phase 1 active");
+    expect(homeText).not.toContain("phase 2 active");
+    expect(homeText).not.toContain("phase 3");
+    expect(homePageSource).not.toContain("phaseLabel");
     expect(homePageSource).not.toContain("config.statusLabels[item.status");
-    for (const item of edge?.items ?? []) {
-      if ("status" in item && item.status === "enabled") {
-        expect("phaseLabel" in item && String(item.phaseLabel).toLowerCase()).toContain("active");
-      }
-    }
   });
 });
 
@@ -156,5 +154,11 @@ describe("solutions dictionary", () => {
   it("does not render notify-me forms on the public solutions page", () => {
     expect(solutionsPageSource).not.toContain("WaitlistCta");
     expect(solutionsPageSource).not.toContain("waitlistCta");
+  });
+
+  it("does not render top-right status badges on solution cards", () => {
+    expect(solutionsPageSource).not.toContain("StatusPill");
+    expect(solutionsPageSource).not.toContain("config.statusLabels");
+    expect(solutionsPageSource).not.toContain("CheckCircle2");
   });
 });
