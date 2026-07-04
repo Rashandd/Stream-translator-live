@@ -40,7 +40,7 @@
     "hero": {
       "eyebrow": "Live translation for streamers",
       "title": "Choose how every language reaches your stream.",
-      "summary": "Strovak lets you pick the output for each platform: captions baked into OBS, native captions viewers switch on, YouTube multi-audio dubbing, or a separate dubbed channel per language on Twitch and Kick.",
+      "summary": "Strovak lets you pick the output for each platform: captions baked into your scene, native captions viewers switch on, YouTube multi-audio dubbing, or a separate dubbed channel per language on Twitch and Kick.",
       "primaryCta": {
         "label": "Start free",
         "href": "/dashboard"
@@ -56,7 +56,7 @@
       "title": "One setup. Multiple language outputs.",
       "subtitle": "Mode preview",
       "items": [
-        "Add translated captions directly into your OBS scene.",
+        "Add translated captions directly into your scene — works with OBS, Streamlabs Desktop, XSplit, vMix, or anything with a Browser Source.",
         "Let viewers choose captions from a browser overlay.",
         "Route dubbed language feeds to YouTube or separate accounts."
       ]
@@ -72,7 +72,7 @@
         },
         {
           "title": "2 · Pick your output per platform",
-          "body": "Choose captions or dubbing for each platform — baked into OBS, native captions viewers switch on, YouTube multi-audio, or a separate dubbed channel.",
+          "body": "Choose captions or dubbing for each platform — baked into your scene, native captions viewers switch on, YouTube multi-audio, or a separate dubbed channel.",
           "icon": "Route"
         },
         {
@@ -87,8 +87,8 @@
       "title": "Two ways to caption, two ways to dub — you pick.",
       "items": [
         {
-          "title": "Captions baked into OBS",
-          "body": "The simplest, and available today: translated subtitles are burned into your OBS scene, so everyone on any platform sees the same language layer.",
+          "title": "Captions baked into your scene",
+          "body": "The simplest, and available today: translated subtitles are burned into your scene in OBS, Streamlabs Desktop, XSplit, vMix, or any Browser Source-capable software, so everyone on any platform sees the same language layer.",
           "icon": "PanelsTopLeft",
           "status": "enabled"
         },
@@ -400,7 +400,7 @@
           },
           {
             "title": "Pick where the translation shows up",
-            "body": "Baked into your OBS scene, native captions viewers switch on, or a separate dubbed channel — you choose per platform.",
+            "body": "Baked into your scene, native captions viewers switch on, or a separate dubbed channel — you choose per platform.",
             "icon": "Route"
           },
           {
@@ -414,7 +414,7 @@
     },
     "distribution": {
       "title": "Distribution",
-      "subtitle": "Your foreign viewers can't follow you live — this is how you fix it, platform by platform. Embedded OBS captions work today; the rest is rolling out.",
+      "subtitle": "Your foreign viewers can't follow you live — this is how you fix it, platform by platform. Embedded captions work today in any streaming software; the rest is rolling out.",
       "appStatus": {
         "label": "Desktop app",
         "value": "Required · Not connected",
@@ -453,7 +453,7 @@
             "dubbingStatus": "coming_soon"
           }
         ],
-        "note": "Embedded OBS captions already work on every platform — burn them into your scene and go. The table above is about native, in-player captions and dubbing, which depend on each platform's own tools."
+        "note": "Embedded captions already work on every platform in OBS, Streamlabs Desktop, XSplit, vMix, or any Browser Source-capable software — burn them into your scene and go. The table above is about native, in-player captions and dubbing, which depend on each platform's own tools."
       }
     },
     "platforms": {
@@ -603,7 +603,7 @@
     },
     "goLive": {
       "title": "Go live",
-      "subtitle": "Set up your broadcast from zero. Strovak never replaces OBS — it adds captions and translation to the stream you already run.",
+      "subtitle": "Set up your broadcast from zero. Strovak never replaces your streaming software — it adds captions and translation to the stream you already run.",
       "activeMode": "relay",
       "modeLabel": "Your distribution mode",
       "changeModeLabel": "Change mode",
@@ -628,8 +628,8 @@
       "modes": {
         "relay": {
           "badge": "Phase 1 · default",
-          "name": "Baked into your stream (OBS)",
-          "summary": "OBS stays where you run the show. Strovak drops translated captions straight into your scene — your gameplay and video never leave your PC, and this path grows into dubbed outputs later.",
+          "name": "Baked into your stream",
+          "summary": "Your streaming software stays where you run the show. Strovak drops translated captions straight into your scene — your gameplay and video never leave your setup — same if you're on a gaming PC or routing a console through a capture card — and this path grows into dubbed outputs later.",
           "steps": [
             {
               "title": "Install and connect the desktop app",
@@ -638,8 +638,8 @@
               "done": false
             },
             {
-              "title": "Add captions to OBS",
-              "body": "Copy the overlay URL below and add it in OBS as a Browser source on top of your scene.",
+              "title": "Add captions to your scene",
+              "body": "Copy the overlay URL below and add it as a Browser/Web Source in OBS, Streamlabs Desktop, XSplit, vMix, or your streaming software — works the same whether you stream straight from your PC or route a console through a capture card into OBS.",
               "icon": "Subtitles",
               "done": false
             },
@@ -650,22 +650,22 @@
               "done": false
             },
             {
-              "title": "Start in OBS, then arm translation here",
-              "body": "Press Start Streaming in OBS as you always do, then start the translation session below.",
+              "title": "Start streaming as usual, then arm translation here",
+              "body": "Press Start Streaming in your software as you always do, then start the translation session below.",
               "icon": "Play",
               "done": false
             }
           ],
-          "connectLabel": "Caption overlay URL — add as a Browser source in OBS",
+          "connectLabel": "Caption overlay URL — add as a Browser/Web Source in your streaming software",
           "connectValue": "https://overlay.strovak.com/o/•••••••",
-          "videoNote": "Video is encoded and sent by OBS to your chosen platforms. Strovak handles the audio pipeline, translated captions, and enabled language outputs.",
+          "videoNote": "Video is encoded and sent by your streaming software to your chosen platforms. Strovak handles the audio pipeline, translated captions, and enabled language outputs.",
           "startLabel": "Start translation session",
-          "startNote": "This starts captions and translation. Your video keeps flowing through OBS to your platform — it does not start or stop the video."
+          "startNote": "This starts captions and translation. Your video keeps flowing through your streaming software to your platform — it does not start or stop the video."
         },
         "cloud": {
           "badge": "Premium · optional",
           "name": "Let Strovak handle routing",
-          "summary": "OBS sends one clean stream to Strovak, and we manage destinations, captions, language outputs, and delivery from one place.",
+          "summary": "Your streaming software sends one clean stream to Strovak, and we manage destinations, captions, language outputs, and delivery from one place.",
           "steps": [
             {
               "title": "Choose target platforms",
@@ -680,8 +680,8 @@
               "done": false
             },
             {
-              "title": "Point OBS at Strovak",
-              "body": "Paste the ingest URL and stream key below into OBS stream settings.",
+              "title": "Point your streaming software at Strovak",
+              "body": "Paste the ingest URL and stream key below into your streaming software's stream settings.",
               "icon": "MonitorUp",
               "done": false
             },
@@ -698,7 +698,7 @@
               "done": false
             }
           ],
-          "connectLabel": "Ingest URL and stream key — paste into OBS",
+          "connectLabel": "Ingest URL and stream key — paste into your streaming software",
           "connectValue": "rtmp://ingest.strovak.com/live",
           "streamKeyLabel": "Stream key",
           "streamKey": "sd-live-•••••••••••••",
@@ -908,7 +908,7 @@
     "claims": [
       {
         "title": "Video stays local",
-        "body": "The desktop app captures only speech audio. Video is encoded and delivered by OBS from your PC — it is never uploaded to Strovak.",
+        "body": "The desktop app captures only speech audio. Video is encoded and delivered by your streaming software from your setup — PC or console via capture card — it is never uploaded to Strovak.",
         "icon": "MonitorCog"
       },
       {

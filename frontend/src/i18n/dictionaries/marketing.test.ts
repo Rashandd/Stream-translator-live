@@ -42,7 +42,7 @@ describe("landing edge section (the Google-can't wedge)", () => {
   });
 
   it("presents the two caption ways and two dub ways on the landing page", () => {
-    expect(homeText).toContain("captions baked into obs");
+    expect(homeText).toContain("captions baked into your scene");
     expect(homeText).toContain("captions viewers switch on");
     expect(homeText).toContain("dubbed audio on youtube");
     expect(homeText).toContain("a dubbed channel per language");
@@ -74,7 +74,10 @@ describe("dashboard distribution dictionary", () => {
     const distributionText = JSON.stringify(distribution).toLowerCase();
     expect(distributionText).not.toContain("restream");
     expect(distributionText).not.toContain("castr");
-    expect(distributionText).not.toContain("streamlabs");
+    // "Streamlabs Desktop" (broadcast software, same role as OBS) is fine to name as a
+    // Browser Source host — only a bare "streamlabs" would wrongly imply the separate
+    // Streamlabs multistream/restream service is a distribution mode.
+    expect(distributionText.match(/streamlabs(?!\s+desktop)/g)).toBeNull();
   });
 
   it("does not frame cloud routing as only an upload workaround", () => {
