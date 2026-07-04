@@ -7,6 +7,7 @@ use axum::extract::FromRef;
 use crate::auth::bootstrap::BootstrapAdmin;
 use crate::auth::jwt::Jwt;
 use crate::billing::Billing;
+use crate::bindings::ChannelBindingStore;
 use crate::config::ServiceConfig;
 use crate::gateway::Gateway;
 use crate::integrations::Integrations;
@@ -43,6 +44,8 @@ pub struct AppState {
     pub relay: Arc<RelayTargetStore>,
     /// Sağlayıcı canlı testlerinin en son sonucu (bellek içi — "last tested at").
     pub provider_tests: Arc<ProviderTestStore>,
+    /// Platform kanal eşleştirmeleri (Twitch Extension EBS çözümlemesi).
+    pub bindings: Arc<ChannelBindingStore>,
 }
 
 impl AppState {
@@ -66,6 +69,7 @@ impl AppState {
             pairing: Arc::new(PairingStore::new()),
             relay: Arc::new(RelayTargetStore::in_memory()),
             provider_tests: Arc::new(ProviderTestStore::new()),
+            bindings: Arc::new(ChannelBindingStore::new()),
         }
     }
 }
@@ -157,5 +161,11 @@ impl FromRef<AppState> for Arc<RelayTargetStore> {
 impl FromRef<AppState> for Arc<ProviderTestStore> {
     fn from_ref(state: &AppState) -> Self {
         state.provider_tests.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ChannelBindingStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.bindings.clone()
     }
 }

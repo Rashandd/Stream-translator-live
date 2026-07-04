@@ -6,6 +6,7 @@
 pub mod app;
 pub mod auth;
 pub mod billing;
+pub mod bindings;
 pub mod config;
 pub mod crypto;
 pub mod db;

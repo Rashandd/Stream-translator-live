@@ -10,6 +10,7 @@ use streamdubber_backend::{
     auth::bootstrap::BootstrapAdmin,
     auth::jwt::Jwt,
     billing::Billing,
+    bindings::{self, ChannelBindingStore},
     config::{Config, ServiceConfig},
     crypto, db,
     gateway::{
@@ -282,6 +283,12 @@ async fn build_state(
         }
     };
 
+    // Kanal eşleştirmeleri: bellek içi depo; DB varsa açılışta tablodan yüklenir.
+    let channel_bindings = Arc::new(ChannelBindingStore::new());
+    if let Some(pool) = &db_pool {
+        channel_bindings.load(bindings::load_bindings(pool, &logger).await);
+    }
+
     // Env-bootstrap admin: yoksa admin panel girişi 503 döner (uyar).
     let bootstrap_admin = BootstrapAdmin::from_env();
     if bootstrap_admin.is_none() {
@@ -306,6 +313,7 @@ async fn build_state(
         pairing: Arc::new(PairingStore::new()),
         relay,
         provider_tests: Arc::new(ProviderTestStore::new()),
+        bindings: channel_bindings,
     })
 }
 
