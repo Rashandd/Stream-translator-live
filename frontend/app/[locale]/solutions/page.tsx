@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { SiteHeader } from "@/src/components/site-header";
 import { StatusPill } from "@/src/components/status-pill";
+import { WaitlistCta } from "@/src/components/waitlist-cta";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -60,6 +61,9 @@ export default async function SolutionsPage({ params }: SolutionsPageProps) {
               <span className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">
                 {solutions.audienceLabels[item.audience as keyof typeof solutions.audienceLabels]}
               </span>
+              {item.status === "enabled" ? null : (
+                <WaitlistCta interest={item.title} labels={solutions.waitlistCta} />
+              )}
             </div>
           ))}
         </div>

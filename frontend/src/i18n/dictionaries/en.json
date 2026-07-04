@@ -205,8 +205,81 @@
         "icon": "Code2",
         "audience": "business",
         "status": "waitlist"
+      },
+      {
+        "title": "Zoom translation",
+        "body": "Live captions and translation inside Zoom calls, so no attendee is left reading a transcript later.",
+        "icon": "Video",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "MS Teams translation",
+        "body": "Bring real-time translated captions into Microsoft Teams meetings and town halls.",
+        "icon": "MessagesSquare",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Google Meet translation",
+        "body": "Translate Google Meet calls live, without asking guests to install anything extra.",
+        "icon": "MonitorUp",
+        "audience": "business",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Watch Party Mode",
+        "body": "Viewers who speak different languages watch the same stream together, each reading captions in their own.",
+        "icon": "Play",
+        "audience": "creators",
+        "status": "coming_soon"
+      },
+      {
+        "title": "Churches",
+        "body": "Translate sermons and services live for a congregation that speaks more than one language.",
+        "icon": "Building2",
+        "audience": "business",
+        "status": "waitlist"
+      },
+      {
+        "title": "Education",
+        "body": "Give students live translated captions for lectures and remote classes, in the language they learn best in.",
+        "icon": "GraduationCap",
+        "audience": "business",
+        "status": "waitlist"
+      },
+      {
+        "title": "Nonprofit",
+        "body": "Reach donors and communities across languages during live fundraisers and briefings.",
+        "icon": "HeartHandshake",
+        "audience": "business",
+        "status": "waitlist"
+      },
+      {
+        "title": "Broadcasting",
+        "body": "Bring live translated captions to broadcast and cable feeds without a second interpreter booth.",
+        "icon": "Radio",
+        "audience": "both",
+        "status": "waitlist"
+      },
+      {
+        "title": "International companies",
+        "body": "Keep global all-hands and product launches understandable for every regional office, live.",
+        "icon": "Globe2",
+        "audience": "business",
+        "status": "waitlist"
       }
     ],
+    "waitlistCta": {
+      "label": "Get notified when this ships",
+      "emailPlaceholder": "you@example.com",
+      "submitLabel": "Notify me",
+      "loadingLabel": "Sending…",
+      "successMessage": "You're on the list — we'll email you when it's ready.",
+      "duplicateMessage": "You're already on the list for this one.",
+      "invalidEmailMessage": "Enter a valid email address.",
+      "errorMessage": "Something went wrong. Try again in a moment."
+    },
     "cta": {
       "eyebrow": "Ready when you are",
       "title": "Go live in every language today.",
