@@ -18,6 +18,7 @@ export default async function PlatformsPage({ params }: Props) {
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
   const { platforms } = config.dashboard;
+  const { extension } = platforms;
 
   return (
     <div className="space-y-6">
@@ -76,6 +77,45 @@ export default async function PlatformsPage({ params }: Props) {
           </li>
         ))}
       </ul>
+
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
+              <Icon className="h-5 w-5" name={extension.icon} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">{extension.title}</p>
+              <p className="text-sm text-muted">{extension.summary}</p>
+            </div>
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-canvas px-2.5 py-1 text-xs font-semibold text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-faint" />
+            {extension.statusLabel}
+          </span>
+        </div>
+
+        <div className="rounded-lg border border-hairline bg-canvas px-3 py-2">
+          <p className="text-xs font-medium text-muted">{extension.stepsLabel}</p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-sm text-ink">
+            {extension.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white opacity-50"
+            disabled
+            type="button"
+          >
+            <Icon className="h-4 w-4" name="KeyRound" />
+            {extension.codeButton}
+          </button>
+          <p className="text-xs text-muted sm:max-w-md">{extension.codeNote}</p>
+        </div>
+      </section>
     </div>
   );
 }

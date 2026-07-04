@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamDubber Live Captions — Setup</title>
+    <!-- Twitch Extension Helper must be the first script on every page. -->
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <link rel="stylesheet" href="css/extension.css" />
+  </head>
+  <body class="sd-config-body">
+    <main class="sd-config">
+      <h1>StreamDubber Live Captions</h1>
+
+      <section class="sd-card">
+        <h2>How it works</h2>
+        <p>
+          Captions are produced by the StreamDubber SDK running on your
+          streaming PC and translated in the StreamDubber cloud. Viewers pick
+          their language right on the player — they never install anything.
+        </p>
+        <p>
+          Requirement: a StreamDubber account with the SDK connected. Manage
+          both from your dashboard.
+        </p>
+        <a id="sd-dashboard-link" class="sd-offsite" href="#" target="_blank" rel="noopener noreferrer">
+          Open StreamDubber dashboard
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 3h6v6" /><path d="M10 14 21 3" />
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          </svg>
+        </a>
+        <p class="sd-footnote">The link above leaves Twitch and opens the StreamDubber dashboard.</p>
+      </section>
+
+      <section class="sd-card">
+        <h2>Link your channel</h2>
+        <p>
+          In the StreamDubber dashboard, generate a link code under
+          Platforms → Twitch Extension, then enter it here.
+        </p>
+        <p id="sd-link-status" class="sd-status-line" data-kind="pending">
+          <span data-text>Not linked yet</span>
+        </p>
+        <form id="sd-link-form">
+          <div class="sd-field">
+            <label for="sd-code">6-digit link code</label>
+            <input
+              id="sd-code"
+              name="code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              placeholder="000000"
+              required
+            />
+          </div>
+          <p></p>
+          <button id="sd-link-submit" class="sd-button" type="submit">Link channel</button>
+        </form>
+      </section>
+
+      <section class="sd-card">
+        <h2>Defaults</h2>
+        <div class="sd-field">
+          <label for="sd-default-lang">Default caption language for new viewers</label>
+          <select id="sd-default-lang"></select>
+        </div>
+        <p></p>
+        <button id="sd-save-settings" class="sd-button" type="button">Save</button>
+        <p id="sd-settings-status" class="sd-status-line" data-kind="pending">
+          <span data-text></span>
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="js/config.js"></script>
+  </body>
+</html>

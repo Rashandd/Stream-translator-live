@@ -511,7 +511,21 @@
           "account": "",
           "icon": "Radio"
         }
-      ]
+      ],
+      "extension": {
+        "title": "Twitch Extension — viewer captions",
+        "statusLabel": "Phase 2 rollout",
+        "summary": "Viewers pick their caption language right on your Twitch player — nothing to install on their side. You link your channel once with a one-time code from this dashboard.",
+        "stepsLabel": "How linking works",
+        "steps": [
+          "Generate a 6-digit link code here.",
+          "Open the StreamDubber Live Captions extension settings on Twitch.",
+          "Enter the code — your channel is linked and captions follow your stream."
+        ],
+        "codeButton": "Generate link code",
+        "codeNote": "Code generation switches on with broadcaster sign-in as the Phase 2 extension rolls out. Channel linking, live caption delivery, and the viewer overlay are already built and tested end to end.",
+        "icon": "Subtitles"
+      }
     },
     "captions": {
       "title": "Languages & captions",
