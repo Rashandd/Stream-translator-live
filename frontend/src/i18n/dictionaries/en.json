@@ -36,6 +36,28 @@
     "menuCloseLabel": "Close menu",
     "languageLabel": "English"
   },
+  "footer": {
+    "note": "Audio-only cloud pipeline for live captions and translation.",
+    "columns": [
+      {
+        "title": "Product",
+        "items": [
+          { "label": "Overview", "href": "/" },
+          { "label": "Solutions", "href": "/solutions" },
+          { "label": "Pricing", "href": "/pricing" },
+          { "label": "Security", "href": "/security" }
+        ]
+      },
+      {
+        "title": "Account",
+        "items": [
+          { "label": "Sign in", "href": "/login" },
+          { "label": "Create account", "href": "/signup" }
+        ]
+      }
+    ],
+    "copyright": "Strovak. All rights reserved."
+  },
   "home": {
     "hero": {
       "eyebrow": "Live translation for streamers",

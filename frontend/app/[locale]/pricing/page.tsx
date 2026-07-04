@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
+import { SiteFooter } from "@/src/components/site-footer";
 import { SiteHeader } from "@/src/components/site-header";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -84,6 +85,8 @@ export default async function PricingPage({ params }: Props) {
 
         <p className="mt-8 max-w-3xl text-sm leading-6 text-muted">{pricing.note}</p>
       </section>
+
+      <SiteFooter config={config} locale={locale} />
     </main>
   );
 }

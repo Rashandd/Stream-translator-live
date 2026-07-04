@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
+import { SiteFooter } from "@/src/components/site-footer";
 import { SiteHeader } from "@/src/components/site-header";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -148,6 +149,8 @@ export default async function HomePage({ params }: HomePageProps) {
           </Link>
         </div>
       </section>
+
+      <SiteFooter config={config} locale={locale} />
     </main>
   );
 }

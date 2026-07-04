@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
+import { SiteFooter } from "@/src/components/site-footer";
 import { SiteHeader } from "@/src/components/site-header";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
@@ -50,6 +51,8 @@ export default async function SecurityPage({ params }: Props) {
 
         <p className="mt-8 max-w-3xl text-sm leading-6 text-muted">{security.note}</p>
       </section>
+
+      <SiteFooter config={config} locale={locale} />
     </main>
   );
 }
