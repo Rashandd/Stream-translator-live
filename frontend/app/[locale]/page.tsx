@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
@@ -22,6 +23,13 @@ type HomePageProps = {
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: HomePageProps): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  if (!isLocale(rawLocale)) return {};
+  const config = await getPublicConfig(rawLocale);
+  return { title: config.home.hero.eyebrow };
 }
 
 export default async function HomePage({ params }: HomePageProps) {

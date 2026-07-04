@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminSecretsPanel } from "@/src/components/admin-secrets-panel";
 import { Icon } from "@/src/components/icon";
@@ -9,6 +10,13 @@ type Props = { params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  if (!isLocale(rawLocale)) return {};
+  const config = await getPublicConfig(rawLocale);
+  return { title: config.admin.secrets.title };
 }
 
 export default async function AdminSecretsPage({ params }: Props) {

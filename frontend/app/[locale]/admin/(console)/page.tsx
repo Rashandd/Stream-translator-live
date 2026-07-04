@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminLiveStatus } from "@/src/components/admin-live-status";
 import { MetricCard, PageHeader } from "@/src/components/dashboard-ui";
@@ -8,6 +9,13 @@ type Props = { params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  if (!isLocale(rawLocale)) return {};
+  const config = await getPublicConfig(rawLocale);
+  return { title: config.admin.overview.title };
 }
 
 export default async function AdminOverviewPage({ params }: Props) {

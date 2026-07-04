@@ -4,7 +4,7 @@ import en from "@/src/i18n/dictionaries/en.json";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: en.brand.name,
+  title: { template: `%s · ${en.brand.name}`, default: en.brand.name },
   description: en.brand.tagline,
 };
 

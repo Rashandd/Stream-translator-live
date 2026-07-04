@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { CopyRow } from "@/src/components/copy-row";
@@ -10,6 +11,13 @@ type Props = { params: Promise<{ locale: string }> };
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  if (!isLocale(rawLocale)) return {};
+  const config = await getPublicConfig(rawLocale);
+  return { title: config.dashboard.sdk.title };
 }
 
 export default async function SdkPage({ params }: Props) {

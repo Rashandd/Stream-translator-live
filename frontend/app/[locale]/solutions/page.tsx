@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
@@ -14,6 +15,13 @@ type SolutionsPageProps = {
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: SolutionsPageProps): Promise<Metadata> {
+  const { locale: rawLocale } = await params;
+  if (!isLocale(rawLocale)) return {};
+  const config = await getPublicConfig(rawLocale);
+  return { title: config.solutions.hero.eyebrow };
 }
 
 export default async function SolutionsPage({ params }: SolutionsPageProps) {
