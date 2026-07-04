@@ -500,6 +500,31 @@ Her release review öncesi bu liste işaretlenmelidir:
 - [ ] Caption fallback ve error state düzgün mü?
 - [ ] Review channel, walkthrough ve changelog hazır mı?
 
+## EBS JWT Tasarımı (A3 — uygulandı)
+
+Bu bölüm, yukarıdaki "EBS Authentication" kurallarının koddaki karşılığını
+sabitler. Uygulama: `backend/src/ext_twitch/jwt.rs` + `backend/src/ext_twitch/mod.rs`
+(testler: `backend/tests/ext_twitch_api.rs`).
+
+- Kütüphane: `jsonwebtoken` (zaten workspace bağımlılığı; kendi JWT'mizle aynı).
+- Algoritma: HS256. Anahtar, Twitch console'un verdiği **base64** secret'tan
+  `DecodingKey::from_base64_secret` ile türetilir.
+- Secret kaynağı: `TWITCH_EXT_SECRET` — ManagedSecrets üzerinden (admin panel
+  override → env/Vault taban). Her istekte çağrı anında çözülür; panelden
+  girilen yeni secret restart'sız devreye girer. Koda gömülü değer yoktur.
+- Rotasyon: `TWITCH_EXT_SECRET_PREVIOUS` ikinci aktif secret'tır. Doğrulama
+  sırası: imza mevcut secret'la denenir; YALNIZ imza hatasında önceki
+  secret'la bir kez daha denenir. `exp` hatası (imza geçerli) rotasyon
+  denemesini kısa devre eder.
+- Claim doğrulama sırası: imza → `exp` (leeway 0) → `channel_id` claim'i
+  route'taki kanalla birebir eşleşme (yatay erişim koruması) → endpoint'e
+  göre `role` (`bind` için `broadcaster` şart).
+- `opaque_user_id` yalnız rate-limit anahtarıdır; kimlikleştirme yapılmaz,
+  loglanmaz. Hata gövdeleri sabit metinlerdir; token/secret asla log'a ve
+  yanıta yazılmaz.
+- Viewer WS'inde token, tarayıcı `WebSocket` API'si başlık gönderemediği için
+  `?token=` query parametresiyle taşınır; URL loglanmaz, token kısa ömürlüdür.
+
 ## Faz 2 Uygulama Planı
 
 Önerilen sıra:

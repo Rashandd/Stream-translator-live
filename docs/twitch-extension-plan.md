@@ -1,9 +1,21 @@
 # Twitch Extension Uygulama Planı
 
-Durum: Taslak — kullanıcı onayı bekliyor
+Durum: Kabul edildi — Faz 2 implementasyonu başladı (kullanıcı onayı 2026-07-04)
 Kapsam: StreamDubber Twitch Extension (viewer overlay + broadcaster config + EBS)
 Faz uyumu: Faz 1'de yalnız hazırlık (extension kodu YOK), Faz 2'de implementasyon
 Bağlı dokümanlar: `docs/twitch-extension-policy.md` (kabul edilmiş policy), `streamdubber_roadmap_final.md` §2.4, `DESIGN.md`
+
+İlerleme (2026-07-04):
+
+- [x] A1 overlay sertleştirme · [x] A2 channel_bindings · [x] A3 EBS JWT tasarımı
+  (policy dokümanına eklendi) · [x] A4 domain kararı (`infra/railway.md` §7)
+- [x] B1 paket iskeleti · [x] B2 EBS (`backend/src/ext_twitch`) · [x] B3 viewer UI
+  · [x] B4 broadcaster config + dashboard kartı
+- [ ] A5 review operasyon hazırlığı (insan: test hesapları, canlı senaryo provası)
+- [ ] B5 Hosted Test (insan: Twitch console kaydı, DNS, CSP/wss doğrulaması)
+- [ ] B6 review başvurusu (B5 sonrası)
+- Not: `ext.twitch.enabled` varsayılan **kapalı** — Faz 1 davranışı değişmedi;
+  aktivasyon admin panelden (bkz. `infra/railway.md` §7 kurulum sırası).
 
 ## Neden
 

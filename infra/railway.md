@@ -96,3 +96,27 @@ girişleri yine önceliklidir.
 - `GET /health` → `ok` (her iki healthcheck'in kaynağı).
 - Uygulama logları: **Admin → Logs** (kalıcı: `LOG_FILE`), seviye
   `log.level` config anahtarından restart'sız değişir.
+
+## 7. Twitch Extension EBS domaini (Faz 2.4 — A4 kararı)
+
+Extension viewer trafiği `api.strovak.com`'dan AYRI bir hostname'den servis
+edilir — hem Twitch URL allowlist'ine dar, extension'a özel bir origin yazmak
+hem de viewer fan-out maliyetini ayrı ölçmek için (frontend proxy yasağıyla
+aynı izolasyon ilkesi):
+
+| Ortam | Hostname | Not |
+|---|---|---|
+| Production | `ext.strovak.com` | Twitch allowlist: `https://ext.strovak.com` + `wss://ext.strovak.com` |
+| Staging | `ext-staging.strovak.com` | İç test |
+| Hosted Test | `ext-test.strovak.com` | Twitch Hosted Test CSP doğrulaması |
+
+Uygulama: aynı backend servisi (route ailesi `/ext/twitch/*`), Railway'de ek
+custom domain olarak bağlanır — ayrı deploy gerekmez; ölçüm domain bazında
+yapılır. DNS bu hostname'lere işaret edene kadar `extension/js/shared.js`
+içindeki `EBS_BASE_PRODUCTION` sabiti ve Twitch console allowlist'i birlikte
+güncellenmelidir (her version submission'da birebir aynı olmak zorunda).
+
+Kurulum sırası (Faz 2 aktivasyonu):
+1. Admin → Secrets: `TWITCH_EXT_SECRET` (Twitch console'daki base64 secret).
+2. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
+3. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.
