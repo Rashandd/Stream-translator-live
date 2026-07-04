@@ -1,0 +1,10 @@
+{
+  "name": "streamdubber-twitch-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "StreamDubber Live Captions - Twitch video overlay extension (subtitles-only)",
+  "scripts": {
+    "test": "node --test"
+  }
+}

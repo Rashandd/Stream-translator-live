@@ -1,0 +1,356 @@
+/* StreamDubber Live Captions — extension styles.
+ *
+ * Palette and shapes follow the StreamDubber design memory (DESIGN.md):
+ * deep navy ink, white surfaces, pill controls, functional status colors.
+ * Web-safe system font stack only — no webfont download on the video path
+ * (Twitch mobile load-time budget). All controls keep a 44px hit target. */
+
+:root {
+  --sd-ink: #061a3d;
+  --sd-text: #273247;
+  --sd-muted: #68748a;
+  --sd-border: #d7e0ea;
+  --sd-surface: #ffffff;
+  --sd-canvas: #f7f8fa;
+  --sd-blue: #2f6bff;
+  --sd-success: #13a66b;
+  --sd-warning: #f59e0b;
+  --sd-danger: #d83a46;
+  --sd-caption-bg: rgba(6, 26, 61, 0.78);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ viewer */
+
+.sd-viewer-body {
+  /* Transparent overlay above the video; only our own elements catch input. */
+  background: transparent;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+#sd-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Control pill — top-right, clear of the player controls (bottom bar). */
+#sd-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(6, 26, 61, 0.82);
+  color: #ffffff;
+  pointer-events: auto;
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+#sd-bar:hover,
+#sd-bar:focus-within {
+  opacity: 1;
+}
+
+#sd-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+#sd-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sd-muted);
+}
+
+#sd-status-dot[data-status="live"] {
+  background: var(--sd-success);
+}
+
+#sd-status-dot[data-status="waiting"],
+#sd-status-dot[data-status="connecting"],
+#sd-status-dot[data-status="delayed"] {
+  background: var(--sd-warning);
+}
+
+#sd-status-dot[data-status="offline"],
+#sd-status-dot[data-status="not_configured"] {
+  background: var(--sd-danger);
+}
+
+#sd-lang {
+  min-height: 44px;
+  min-width: 64px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 560;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+#sd-lang:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#sd-lang option {
+  color: var(--sd-ink);
+}
+
+#sd-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+#sd-bar button:hover,
+#sd-bar button:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+#sd-bar svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Lower-third caption line — high contrast, readable, never full-bleed. */
+#sd-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 88px; /* stays above the Twitch player control bar */
+  transform: translateX(-50%);
+  max-width: min(86%, 900px);
+  pointer-events: none;
+}
+
+#sd-caption-text {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--sd-caption-bg);
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+#sd-root[data-size="s"] #sd-caption-text {
+  font-size: 16px;
+}
+
+#sd-root[data-size="m"] #sd-caption-text {
+  font-size: 22px;
+}
+
+#sd-root[data-size="l"] #sd-caption-text {
+  font-size: 30px;
+}
+
+#sd-root[data-visible="off"] #sd-caption {
+  display: none;
+}
+
+/* Portrait / small mobile viewports: keep only the essentials visible. */
+@media (max-width: 480px) {
+  #sd-bar {
+    top: 8px;
+    right: 8px;
+    gap: 4px;
+    padding: 4px 8px;
+  }
+
+  #sd-status-label {
+    display: none; /* the dot alone carries the state on tiny screens */
+  }
+
+  #sd-caption {
+    bottom: 64px;
+    max-width: 94%;
+  }
+
+  #sd-root[data-size="l"] #sd-caption-text {
+    font-size: 24px;
+  }
+}
+
+/* --------------------------------------------------------------- config page */
+
+.sd-config-body {
+  background: var(--sd-canvas);
+  color: var(--sd-text);
+  min-height: 100vh;
+  padding: 24px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.sd-config {
+  max-width: 460px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sd-config h1 {
+  color: var(--sd-ink);
+  font-size: 20px;
+  font-weight: 620;
+  line-height: 1.28;
+}
+
+.sd-card {
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sd-card h2 {
+  font-size: 14px;
+  font-weight: 620;
+  color: var(--sd-ink);
+}
+
+.sd-card p {
+  color: var(--sd-muted);
+}
+
+.sd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-field label {
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--sd-ink);
+}
+
+.sd-field input,
+.sd-field select {
+  height: 44px;
+  border: 1px solid var(--sd-border);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--sd-ink);
+  background: var(--sd-surface);
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+  letter-spacing: 0.12em;
+}
+
+.sd-field select {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.sd-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sd-ink);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.sd-button:hover {
+  background: var(--sd-text);
+}
+
+.sd-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sd-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 560;
+}
+
+.sd-status-line[data-kind="ok"] {
+  color: var(--sd-success);
+}
+
+.sd-status-line[data-kind="error"] {
+  color: var(--sd-danger);
+}
+
+.sd-status-line[data-kind="pending"] {
+  color: var(--sd-muted);
+}
+
+.sd-offsite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sd-blue);
+  font-weight: 560;
+  text-decoration: none;
+}
+
+.sd-offsite:hover {
+  text-decoration: underline;
+}
+
+.sd-offsite svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sd-footnote {
+  font-size: 12px;
+  color: var(--sd-muted);
+}
+
+/* ------------------------------------------------------------------ shared */
+
+.sd-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

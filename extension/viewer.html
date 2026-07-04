@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamDubber Live Captions</title>
+    <!-- Twitch Extension Helper must be the first script on every page. -->
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <link rel="stylesheet" href="css/extension.css" />
+  </head>
+  <body class="sd-viewer-body">
+    <div id="sd-root" data-size="m" data-visible="on">
+      <!-- Control pill: top-right, away from the player controls. -->
+      <div id="sd-bar" role="toolbar" aria-label="Caption controls">
+        <span id="sd-status" role="status">
+          <span id="sd-status-dot" data-status="connecting" aria-hidden="true"></span>
+          <span id="sd-status-label">Connecting</span>
+        </span>
+
+        <label class="sd-visually-hidden" for="sd-lang">Caption language</label>
+        <select id="sd-lang" disabled></select>
+
+        <button id="sd-size" type="button" aria-label="Caption size" title="Caption size">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 14h-5" /><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16" />
+            <path d="M4.5 13h6" /><path d="m3 16 4.5-9 4.5 9" />
+          </svg>
+        </button>
+
+        <button id="sd-toggle" type="button" aria-label="Show or hide captions" title="Show or hide captions">
+          <svg id="sd-toggle-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <svg id="sd-toggle-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+            <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+            <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+            <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+            <path d="m2 2 20 20" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Lower-third caption line. -->
+      <div id="sd-caption" hidden>
+        <p id="sd-caption-text"></p>
+      </div>
+    </div>
+
+    <script type="module" src="js/viewer.js"></script>
+  </body>
+</html>
