@@ -23,6 +23,7 @@ use crate::overlay;
 use crate::plans::{PlanDefinition, PlanRegistry};
 use crate::secrets::{ManagedSecrets, SecretError, SecretStatus};
 use crate::state::AppState;
+use crate::waitlist;
 use crate::ws::ws_handler;
 
 /// Health check handler — container health probe'ları için.
@@ -184,6 +185,19 @@ fn ext_twitch_routes() -> Router<AppState> {
         .layer(cors)
 }
 
+/// Waitlist route'u — dashboard'un geri kalanının aksine tarayıcıdan doğrudan
+/// `api.strovak.com`'a atılan gerçek bir public POST, bu yüzden kendi CORS'unu
+/// taşır (diğer route ailelerinde henüz global bir CORS katmanı yok).
+fn waitlist_routes() -> Router<AppState> {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::POST])
+        .allow_headers([header::CONTENT_TYPE]);
+    Router::new()
+        .route("/api/waitlist", post(waitlist::submit))
+        .layer(cors)
+}
+
 /// Uygulama router'ını kurar.
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -224,6 +238,8 @@ pub fn router(state: AppState) -> Router {
         )
         // Twitch Extension EBS yüzeyi (CORS'lu, Twitch JWT doğrulamalı).
         .merge(ext_twitch_routes())
+        // Faz 2/3 katalog waitlist'i (CORS'lu, public — auth yok).
+        .merge(waitlist_routes())
         // SDK relay hedefleri (1.6): panel yazar, eşleşmiş SDK okur.
         .route(
             "/api/relay/targets",

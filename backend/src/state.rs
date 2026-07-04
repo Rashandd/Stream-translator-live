@@ -20,6 +20,7 @@ use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
 use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
+use crate::waitlist::WaitlistLimiter;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
 #[derive(Clone)]
@@ -51,6 +52,8 @@ pub struct AppState {
     pub active_streams: Arc<ActiveStreams>,
     /// Twitch Extension EBS durumu (JWT doğrulayıcı, link kodları, limitler).
     pub ext_twitch: Arc<ExtTwitch>,
+    /// Faz 2/3 katalog waitlist'i için per-IP rate limiter (bellek içi).
+    pub waitlist: Arc<WaitlistLimiter>,
 }
 
 impl AppState {
@@ -79,6 +82,7 @@ impl AppState {
             bindings: Arc::new(ChannelBindingStore::new()),
             active_streams: Arc::new(ActiveStreams::new()),
             ext_twitch,
+            waitlist: Arc::new(WaitlistLimiter::new()),
         }
     }
 }
@@ -188,5 +192,11 @@ impl FromRef<AppState> for Arc<ActiveStreams> {
 impl FromRef<AppState> for Arc<ExtTwitch> {
     fn from_ref(state: &AppState) -> Self {
         state.ext_twitch.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<WaitlistLimiter> {
+    fn from_ref(state: &AppState) -> Self {
+        state.waitlist.clone()
     }
 }

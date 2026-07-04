@@ -34,6 +34,7 @@ use streamdubber_backend::{
     state::AppState,
     usage::UsageTracker,
     tls::{self, TlsSettings},
+    waitlist::WaitlistLimiter,
 };
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
@@ -317,6 +318,7 @@ async fn build_state(
         provider_tests: Arc::new(ProviderTestStore::new()),
         bindings: channel_bindings,
         active_streams: Arc::new(ActiveStreams::new()),
+        waitlist: Arc::new(WaitlistLimiter::new()),
     })
 }
 
