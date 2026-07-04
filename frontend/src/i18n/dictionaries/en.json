@@ -570,29 +570,36 @@
         }
       ],
       "appearanceTitle": "Caption appearance",
-      "appearance": [
-        {
-          "label": "Font",
-          "value": "Inter"
-        },
-        {
-          "label": "Size",
-          "value": "Medium"
-        },
-        {
-          "label": "Color",
-          "value": "White on 60% black"
-        },
-        {
-          "label": "Position",
-          "value": "Lower third"
-        }
-      ],
-      "overlayLabel": "Overlay URL",
       "overlayUrl": "https://overlay.strovak.com/o/•••••••",
-      "copyLabel": "Copy",
-      "previewLabel": "Live preview",
-      "previewCaption": "This is how your translated captions appear on stream."
+      "builder": {
+        "languageLabel": "Overlay language",
+        "sourceOptionLabel": "Source language (no translation)",
+        "fontLabel": "Font",
+        "fontOptions": [
+          { "value": "Inter, system-ui, sans-serif", "label": "Inter" },
+          { "value": "Arial, sans-serif", "label": "Arial" },
+          { "value": "Georgia, serif", "label": "Georgia" },
+          { "value": "\"Courier New\", monospace", "label": "Courier New" }
+        ],
+        "sizeLabel": "Size",
+        "sizeOptions": [
+          { "value": "24px", "label": "Small" },
+          { "value": "32px", "label": "Medium" },
+          { "value": "44px", "label": "Large" }
+        ],
+        "colorLabel": "Text color",
+        "backgroundLabel": "Background color",
+        "opacityLabel": "Background opacity",
+        "positionLabel": "Position",
+        "positionTopLabel": "Top",
+        "positionBottomLabel": "Bottom",
+        "previewLabel": "Live preview",
+        "previewSourceCaption": "Hello, this is your translated caption.",
+        "previewTranslatedCaption": "Merhaba, bu senin çevrilmiş altyazın.",
+        "urlLabel": "Overlay URL",
+        "copyLabel": "Copy",
+        "tokenNote": "Your real stream token isn't ready yet — this URL will update automatically once it's issued."
+      }
     },
     "goLive": {
       "title": "Go live",

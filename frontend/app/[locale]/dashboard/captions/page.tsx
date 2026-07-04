@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { CaptionOverlayBuilder } from "@/src/components/caption-overlay-builder";
 import { Icon } from "@/src/components/icon";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
@@ -53,34 +54,13 @@ export default async function CaptionsPage({ params }: Props) {
         </SectionCard>
 
         <SectionCard title={captions.appearanceTitle}>
-          <dl className="divide-y divide-hairline">
-            {captions.appearance.map((row) => (
-              <div className="flex items-center justify-between py-3 first:pt-0" key={row.label}>
-                <dt className="text-sm text-muted">{row.label}</dt>
-                <dd className="text-sm font-semibold text-ink">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-5">
-            <p className="text-xs font-medium text-muted">{captions.overlayLabel}</p>
-            <div className="mt-1 flex items-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2">
-              <code className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{captions.overlayUrl}</code>
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-ink">
-                <Icon className="h-3.5 w-3.5" name="Copy" />
-                {captions.copyLabel}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <p className="mb-2 text-xs font-medium text-muted">{captions.previewLabel}</p>
-            <div className="flex min-h-24 items-end justify-center rounded-lg bg-ink p-4">
-              <span className="rounded bg-black/60 px-3 py-1.5 text-center text-sm font-medium text-white">
-                {captions.previewCaption}
-              </span>
-            </div>
-          </div>
+          <CaptionOverlayBuilder
+            labels={captions.builder}
+            overlayUrlTemplate={captions.overlayUrl}
+            sourceLabel={captions.sourceLabel}
+            sourceValue={captions.sourceValue}
+            targets={captions.targets}
+          />
         </SectionCard>
       </div>
     </div>
