@@ -531,7 +531,7 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [x] Ana sayfa (durum, hızlı başlat)  <!-- overview: metrics, izleyici dil dağılımı, stream key kopyala, hızlı başlat -->
 - [x] SDK indirme ve eşleşme sayfası  <!-- /dashboard/sdk: Windows indir + 6 haneli pairing kod UI -->
 - [x] Yayın kurulumu — dağıtım modu seçimi (Mod A/C)  <!-- /dashboard/distribution: "OBS'ten yönet" (SDK relay) / "Strovak yönlendirsin" (bulut) kartları; Restream/Castr/Streamlabs ayrı mod olarak gösterilmiyor -->
-- [x] Dil seçimi ve overlay URL  <!-- /dashboard/captions: konuşma dili, hedef diller, görünüm, overlay URL, canlı önizleme -->
+- [x] Dil seçimi ve overlay URL  <!-- /dashboard/captions: konuşma dili, hedef diller, görünüm, overlay URL, canlı önizleme. Claude 2026-07-05: statik "appearance" listesi caption-overlay-builder.tsx ile gerçek interaktif panele çevrildi (dil/font/boyut/renk/arkaplan/pozisyon kontrolleri, computeOverlayStyle() paylaşımlı fonksiyonuyla /o/[token] render yoluyla drift'siz canlı önizleme, üretilen URL). Ayrıca site genelinde 23 OBS'e-kilitli metin yazılım/OS-agnostik hale getirildi (OBS/Streamlabs Desktop/XSplit/vMix/Browser Source + konsol+capture-card güvencesi), favicon+benzersiz sekme başlıkları (27 route) eklendi, ve /solutions kataloğu 15 kaleme çıkarılıp gerçek waitlist backend'ine (POST /api/waitlist) bağlandı. Bkz. docs/overlay-builder-plan.md. -->
 - [x] Platform hesapları (YouTube, Twitch, Kick OAuth)  <!-- /dashboard/platforms: connect/disconnect akışı, OAuth izin/scope notu, bağlı/bağsız durum UI; gerçek OAuth token exchange backend beklemede -->
 - [x] Stream key yönetimi (SDK'ya senkronize)  <!-- /dashboard/sdk: stream key görüntüle/kopyala/regenerate + SDK sync durum göstergesi UI; gerçek senkron backend beklemede -->
 <!-- Ek olarak UI tamamlandı (backend wiring beklemede): /dashboard/go-live (preflight + start), /dashboard/analytics, /dashboard/billing, /dashboard/voice (Faz 2 disabled state) -->
@@ -1011,6 +1011,17 @@ Bu yayıncılardan premium ücret alınır
 - [ ] Nonprofit — uluslararası topluluk ve bağış etkinlikleri için canlı çeviri
 - [ ] Broadcasting — yayıncı, medya ve prodüksiyon ekipleri için canlı çeviri
 - [ ] International Companies — global şirket toplantıları ve townhall'lar için canlı çeviri
+
+> Faz 2/3 katalog NOT (Claude, 2026-07-05): Yukarıdaki 9 kalemin hepsi artık
+> `/solutions`'da statik `coming_soon`/`waitlist` kart olarak görünüyor
+> (`en.json` `solutions.items`, bkz. `docs/overlay-builder-plan.md` §6) ve her
+> kartta gerçek çalışan bir `waitlist-cta.tsx` var (`POST /api/waitlist` →
+> Postgres, `backend/src/waitlist.rs` + `migrations/0003_waitlist.sql`).
+> KAPSAM BİLİNÇLİ SINIRLANDI (kullanıcı onayıyla): bu satırlar hâlâ `[ ]` —
+> ayrı sektörel sayfalar, `ui.public.solutions.catalog` DB/admin-config sistemi,
+> Zoom/Teams/Meet marka asset'leri hiçbiri bu işin parçası değil; sadece
+> "tanıtım + lead capture" yapıldı, aşağıdaki "Frontend Coming Soon Kuralları"
+> tam anlamıyla henüz karşılanmıyor.
 
 ### Frontend Coming Soon Kuralları
 
