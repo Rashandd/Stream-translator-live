@@ -293,10 +293,10 @@ async fn build_state(
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
+        overlay: Arc::new(OverlayHub::new(Arc::clone(&service_config))),
         service_config,
         integrations,
         billing,
-        overlay: Arc::new(OverlayHub::new()),
         plans: Arc::new(PlanRegistry::with_defaults()),
         usage: Arc::new(usage),
         logger,

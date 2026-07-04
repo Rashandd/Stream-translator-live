@@ -114,6 +114,40 @@ async fn overlay_client_receives_subtitles_published_during_stream() {
 }
 
 #[tokio::test]
+async fn late_overlay_subscriber_receives_snapshot_replay() {
+    let addr = spawn_server().await;
+
+    // SDK yayına başlar ve overlay istemcisi BAĞLANMADAN bir altyazı üretir.
+    let sdk_url = format!("ws://{addr}/ws/stream");
+    let (mut sdk, _) = tokio_tungstenite::connect_async(sdk_url).await.expect("connect sdk");
+    send_json(&mut sdk, serde_json::json!({"type":"auth","token": valid_token()})).await;
+    let _ready = next_json(&mut sdk).await;
+    send_json(
+        &mut sdk,
+        serde_json::json!({
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1}
+        }),
+    )
+    .await;
+    let ack = next_json(&mut sdk).await;
+    let overlay_token = ack["overlay_token"].as_str().expect("overlay_token").to_string();
+
+    sdk.send(Message::Binary(audio_frame(&[1, 2, 3]).into())).await.expect("send binary");
+    let sdk_subtitle = next_json(&mut sdk).await;
+    assert_eq!(sdk_subtitle["type"], "subtitle");
+
+    // Geç bağlanan overlay istemcisi son final altyazıyı replay olarak alır.
+    let overlay_url = format!("ws://{addr}/overlay/{overlay_token}");
+    let (mut overlay_ws, _) = tokio_tungstenite::connect_async(overlay_url).await.expect("connect overlay");
+    let replayed = next_json(&mut overlay_ws).await;
+    assert_eq!(replayed, sdk_subtitle);
+}
+
+#[tokio::test]
 async fn overlay_with_unknown_token_receives_nothing_but_connects() {
     let addr = spawn_server().await;
     let overlay_url = format!("ws://{addr}/overlay/no-such-token");

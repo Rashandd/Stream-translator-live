@@ -98,6 +98,11 @@ impl ServiceConfig {
             ("billing.cancel_url", "http://localhost:3000/dashboard/billing?checkout=canceled"),
             // Loglama (1.12): asgari seviye admin panelden değişir, restart gerekmez.
             ("log.level", "info"),
+            // Overlay fan-out koruması (Faz 2 hazırlığı A1): token başına
+            // eşzamanlı abone limiti + yeni bağlanana replay edilen son final
+            // altyazı satırı sayısı. Restart gerektirmez.
+            ("overlay.max_subscribers", "100"),
+            ("overlay.snapshot_lines", "3"),
             // Sağlayıcı key'i yokken mock'a düşülsün mü? Dev/CI: true.
             // Üretimde false yapılır — key eksikse sessiz mock yerine açık hata.
             ("providers.mock_fallback", "true"),
