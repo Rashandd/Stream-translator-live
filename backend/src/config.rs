@@ -103,6 +103,14 @@ impl ServiceConfig {
             // altyazı satırı sayısı. Restart gerektirmez.
             ("overlay.max_subscribers", "100"),
             ("overlay.snapshot_lines", "3"),
+            // Twitch Extension EBS (Faz 2.4). enabled=false iken tüm
+            // /ext/twitch/* ve /api/ext/twitch/* yüzeyi 503 döner — admin
+            // panelden açılır, restart gerekmez. Limitler policy'nin zorunlu
+            // kıldığı per-channel/per-viewer abuse korumasıdır.
+            ("ext.twitch.enabled", "false"),
+            ("ext.twitch.default_lang", "en"),
+            ("ext.twitch.max_viewers_per_channel", "200"),
+            ("ext.twitch.state_rate_per_min", "60"),
             // Sağlayıcı key'i yokken mock'a düşülsün mü? Dev/CI: true.
             // Üretimde false yapılır — key eksikse sessiz mock yerine açık hata.
             ("providers.mock_fallback", "true"),

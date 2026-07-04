@@ -5,16 +5,18 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{header, Method, StatusCode},
     routing::{get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use crate::auth::authz::AdminUser;
 use crate::billing;
 use crate::config::ServiceConfig;
+use crate::ext_twitch;
 use crate::integrations;
 use crate::logging::{LogEntry, Logger, LogLevel, LogQuery};
 use crate::overlay;
@@ -163,6 +165,25 @@ async fn put_plan(
     Json(plans.snapshot())
 }
 
+/// Twitch Extension EBS route'ları (Faz 2.4) — extension frontend'i Twitch
+/// CDN origin'inden (`https://<client-id>.ext-twitch.tv`) çağırır, bu yüzden
+/// yalnız bu aile CORS'a açılır. Kimlik doğrulama CORS'a değil, her istekte
+/// doğrulanan Twitch extension JWT'sine dayanır.
+fn ext_twitch_routes() -> Router<AppState> {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
+    Router::new()
+        .route("/ext/twitch/bind", post(ext_twitch::bind_channel))
+        .route("/ext/twitch/state/{channel_id}", get(ext_twitch::get_state))
+        .route(
+            "/ext/twitch/captions/{channel_id}",
+            get(ext_twitch::captions_ws),
+        )
+        .layer(cors)
+}
+
 /// Uygulama router'ını kurar.
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -195,6 +216,14 @@ pub fn router(state: AppState) -> Router {
         // SDK eşleştirme (1.4): panel kod üretir, SDK kodla token alır.
         .route("/api/pairing/code", post(crate::pairing::create_code))
         .route("/api/pairing/claim", post(crate::pairing::claim))
+        // Twitch Extension (2.4) dashboard ucu: kanal bağlama kodu + durum.
+        .route("/api/ext/twitch/code", post(ext_twitch::create_link_code))
+        .route(
+            "/api/ext/twitch/binding",
+            get(ext_twitch::get_binding).delete(ext_twitch::delete_binding),
+        )
+        // Twitch Extension EBS yüzeyi (CORS'lu, Twitch JWT doğrulamalı).
+        .merge(ext_twitch_routes())
         // SDK relay hedefleri (1.6): panel yazar, eşleşmiş SDK okur.
         .route(
             "/api/relay/targets",

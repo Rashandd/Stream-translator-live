@@ -9,10 +9,11 @@ use crate::auth::jwt::Jwt;
 use crate::billing::Billing;
 use crate::bindings::ChannelBindingStore;
 use crate::config::ServiceConfig;
+use crate::ext_twitch::ExtTwitch;
 use crate::gateway::Gateway;
 use crate::integrations::Integrations;
 use crate::logging::Logger;
-use crate::overlay::OverlayHub;
+use crate::overlay::{ActiveStreams, OverlayHub};
 use crate::pairing::PairingStore;
 use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
@@ -46,6 +47,10 @@ pub struct AppState {
     pub provider_tests: Arc<ProviderTestStore>,
     /// Platform kanal eşleştirmeleri (Twitch Extension EBS çözümlemesi).
     pub bindings: Arc<ChannelBindingStore>,
+    /// Kullanıcı → aktif yayın overlay token'ı (EBS sunucu içi çözümleme).
+    pub active_streams: Arc<ActiveStreams>,
+    /// Twitch Extension EBS durumu (JWT doğrulayıcı, link kodları, limitler).
+    pub ext_twitch: Arc<ExtTwitch>,
 }
 
 impl AppState {
@@ -53,6 +58,8 @@ impl AppState {
     /// dışındaki tüm alanlar boş/varsayılan. Alanlar `pub` — çağıran,
     /// ihtiyacına göre tek tek üzerine yazar (`state.logger = ...`).
     pub fn skeleton(jwt: Jwt, service_config: Arc<ServiceConfig>, gateway: Gateway) -> Self {
+        let secrets = Arc::new(ManagedSecrets::env());
+        let ext_twitch = Arc::new(ExtTwitch::from_secrets(&secrets));
         AppState {
             jwt: Arc::new(jwt),
             gateway: Arc::new(gateway),
@@ -63,13 +70,15 @@ impl AppState {
             billing: Arc::new(Billing::empty()),
             plans: Arc::new(PlanRegistry::with_defaults()),
             usage: Arc::new(UsageTracker::new()),
-            secrets: Arc::new(ManagedSecrets::env()),
+            secrets,
             bootstrap_admin: Arc::new(None),
             db: None,
             pairing: Arc::new(PairingStore::new()),
             relay: Arc::new(RelayTargetStore::in_memory()),
             provider_tests: Arc::new(ProviderTestStore::new()),
             bindings: Arc::new(ChannelBindingStore::new()),
+            active_streams: Arc::new(ActiveStreams::new()),
+            ext_twitch,
         }
     }
 }
@@ -167,5 +176,17 @@ impl FromRef<AppState> for Arc<ProviderTestStore> {
 impl FromRef<AppState> for Arc<ChannelBindingStore> {
     fn from_ref(state: &AppState) -> Self {
         state.bindings.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ActiveStreams> {
+    fn from_ref(state: &AppState) -> Self {
+        state.active_streams.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ExtTwitch> {
+    fn from_ref(state: &AppState) -> Self {
+        state.ext_twitch.clone()
     }
 }

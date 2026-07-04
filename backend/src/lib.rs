@@ -10,6 +10,7 @@ pub mod bindings;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod ext_twitch;
 pub mod gateway;
 pub mod integrations;
 pub mod logging;

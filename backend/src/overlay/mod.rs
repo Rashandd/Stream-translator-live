@@ -131,6 +131,53 @@ impl OverlayHub {
     }
 }
 
+/// Kullanıcı → aktif yayının overlay token'ı kaydı (Faz 2.4 EBS çözümlemesi).
+///
+/// `ws::handle_control` stream_start'ta yazar, stream_stop / bağlantı kopması /
+/// plan limitinde siler. Twitch Extension EBS'i, kanal binding'inden bulduğu
+/// kullanıcının canlı yayınına buradan ulaşır — overlay token'ı **sunucu
+/// içinde** çözülür, extension viewer'a asla gönderilmez (token capability'dir).
+pub struct ActiveStreams {
+    map: Mutex<HashMap<String, String>>,
+}
+
+impl ActiveStreams {
+    pub fn new() -> Self {
+        ActiveStreams {
+            map: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Kullanıcının aktif overlay token'ını kaydeder (son yazan kazanır —
+    /// SDK yeniden bağlanınca yeni session eskisini geçersiz kılar).
+    pub fn set(&self, user_id: &str, overlay_token: &str) {
+        if let Ok(mut map) = self.map.lock() {
+            map.insert(user_id.to_string(), overlay_token.to_string());
+        }
+    }
+
+    /// Kaydı yalnız hâlâ aynı token'ı gösteriyorsa siler — eski session'ın
+    /// gecikmiş temizliği, yeni session'ın kaydını ezmesin.
+    pub fn clear_if(&self, user_id: &str, overlay_token: &str) {
+        if let Ok(mut map) = self.map.lock() {
+            if map.get(user_id).map(String::as_str) == Some(overlay_token) {
+                map.remove(user_id);
+            }
+        }
+    }
+
+    /// Kullanıcının aktif overlay token'ı (yayında değilse `None`).
+    pub fn get(&self, user_id: &str) -> Option<String> {
+        self.map.lock().ok().and_then(|map| map.get(user_id).cloned())
+    }
+}
+
+impl Default for ActiveStreams {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// `GET /overlay/{token}` — OBS Browser Source / dashboard önizleme için genel
 /// (auth gerektirmeyen) altyazı WebSocket'i. Token bilinmiyorsa bağlantı
 /// açılır ama hiç mesaj gelmez (hub token'ı henüz görmemiş olabilir — SDK
@@ -363,5 +410,32 @@ mod tests {
         config.set("overlay.max_subscribers", "not-a-number");
         // Varsayılan (100) geçerli — abonelik reddedilmez.
         assert!(hub.subscribe("tok-1").is_ok());
+    }
+
+    #[test]
+    fn active_streams_set_get_roundtrip() {
+        let streams = ActiveStreams::new();
+        assert_eq!(streams.get("u-1"), None);
+        streams.set("u-1", "tok-a");
+        assert_eq!(streams.get("u-1").as_deref(), Some("tok-a"));
+    }
+
+    #[test]
+    fn active_streams_last_writer_wins() {
+        let streams = ActiveStreams::new();
+        streams.set("u-1", "tok-a");
+        streams.set("u-1", "tok-b");
+        assert_eq!(streams.get("u-1").as_deref(), Some("tok-b"));
+    }
+
+    #[test]
+    fn active_streams_clear_if_only_matches_current_token() {
+        let streams = ActiveStreams::new();
+        streams.set("u-1", "tok-b");
+        // Eski session'ın gecikmiş temizliği yeni kaydı silmemeli.
+        streams.clear_if("u-1", "tok-a");
+        assert_eq!(streams.get("u-1").as_deref(), Some("tok-b"));
+        streams.clear_if("u-1", "tok-b");
+        assert_eq!(streams.get("u-1"), None);
     }
 }

@@ -11,6 +11,7 @@ use streamdubber_backend::{
     auth::jwt::Jwt,
     billing::Billing,
     bindings::{self, ChannelBindingStore},
+    ext_twitch::ExtTwitch,
     config::{Config, ServiceConfig},
     crypto, db,
     gateway::{
@@ -24,7 +25,7 @@ use streamdubber_backend::{
     },
     integrations::{token_store::TokenVault, Integrations},
     logging::Logger,
-    overlay::OverlayHub,
+    overlay::{ActiveStreams, OverlayHub},
     pairing::PairingStore,
     plans::PlanRegistry,
     provider_check::ProviderTestStore,
@@ -301,6 +302,7 @@ async fn build_state(
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
         overlay: Arc::new(OverlayHub::new(Arc::clone(&service_config))),
+        ext_twitch: Arc::new(ExtTwitch::from_secrets(&secrets)),
         service_config,
         integrations,
         billing,
@@ -314,6 +316,7 @@ async fn build_state(
         relay,
         provider_tests: Arc::new(ProviderTestStore::new()),
         bindings: channel_bindings,
+        active_streams: Arc::new(ActiveStreams::new()),
     })
 }
 

@@ -72,7 +72,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 }
             }
             Message::Binary(bytes) => {
-                if send_for_audio(&mut socket, &bytes, &mut session, &state.overlay)
+                if send_for_audio(&mut socket, &bytes, &mut session, &state, &claims.sub)
                     .await
                     .is_err()
                 {
@@ -82,6 +82,13 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             Message::Ping(_) | Message::Pong(_) => {}
             Message::Close(_) => break,
         }
+    }
+
+    // Bağlantı koptu — aktif yayın kaydını temizle (EBS "live" durumu).
+    if let Some(active) = session.as_ref() {
+        state
+            .active_streams
+            .clear_if(&claims.sub, active.overlay_token());
     }
 }
 
@@ -224,6 +231,8 @@ fn handle_control(
                 Arc::clone(&state.usage),
                 Arc::clone(&state.logger),
             ));
+            // EBS (Twitch Extension) kanalın canlı olduğunu buradan görür.
+            state.active_streams.set(&claims.sub, &overlay_token);
             Some(ServerMessage::StreamAck {
                 session_id,
                 status: "streaming".to_string(),
@@ -238,6 +247,11 @@ fn handle_control(
                 Some(&claims.sub),
                 Some(&session_id),
             );
+            if let Some(active) = session.as_ref() {
+                state
+                    .active_streams
+                    .clear_if(&claims.sub, active.overlay_token());
+            }
             *session = None;
             None
         }
@@ -251,7 +265,8 @@ async fn send_for_audio(
     socket: &mut WebSocket,
     bytes: &[u8],
     session: &mut Option<StreamSession>,
-    overlay: &crate::overlay::OverlayHub,
+    state: &AppState,
+    user_id: &str,
 ) -> Result<(), axum::Error> {
     let Some(active) = session.as_mut() else {
         // `stream_start` gelmeden ses paketi: 4002.
@@ -275,7 +290,7 @@ async fn send_for_audio(
     };
 
     if let Some(reply) = active.process_audio(frame.payload).await {
-        overlay.publish(active.overlay_token(), reply.clone());
+        state.overlay.publish(active.overlay_token(), reply.clone());
         let limit_reached = matches!(
             reply,
             ServerMessage::Error { code, .. } if code == ErrorCode::PlanLimitReached as u16
@@ -284,6 +299,9 @@ async fn send_for_audio(
         if limit_reached {
             // Plan limiti dolan session'ı kapat — sonraki ses paketleri
             // "stream_not_started" (4002) alır, yayıncı yeniden başlatmalı.
+            state
+                .active_streams
+                .clear_if(user_id, active.overlay_token());
             *session = None;
         }
     }

@@ -42,6 +42,12 @@ pub mod names {
     pub const STRIPE_SECRET_KEY: &str = "STRIPE_SECRET_KEY";
     pub const STRIPE_WEBHOOK_SECRET: &str = "STRIPE_WEBHOOK_SECRET";
 
+    // Twitch Extension EBS (Faz 2.4) — Twitch console'un verdiği base64
+    // shared secret. Rotasyon: yeni değer TWITCH_EXT_SECRET'a yazılır, eski
+    // değer süresi dolmamış token'lar için TWITCH_EXT_SECRET_PREVIOUS'a taşınır.
+    pub const TWITCH_EXT_SECRET: &str = "TWITCH_EXT_SECRET";
+    pub const TWITCH_EXT_SECRET_PREVIOUS: &str = "TWITCH_EXT_SECRET_PREVIOUS";
+
     // SMTP (2FA/işlem mailleri) — panelden girilir, restart gerekmez.
     pub const SMTP_HOST: &str = "SMTP_HOST";
     pub const SMTP_PORT: &str = "SMTP_PORT";
@@ -64,6 +70,8 @@ pub mod names {
         YOUTUBE_CLIENT_SECRET,
         STRIPE_SECRET_KEY,
         STRIPE_WEBHOOK_SECRET,
+        TWITCH_EXT_SECRET,
+        TWITCH_EXT_SECRET_PREVIOUS,
         SMTP_HOST,
         SMTP_PORT,
         SMTP_USERNAME,
