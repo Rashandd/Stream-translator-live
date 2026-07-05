@@ -689,6 +689,49 @@
     "captions": {
       "title": "Languages & captions",
       "subtitle": "Set the speech language, target translations, and how captions look on stream.",
+      "processing": {
+        "title": "Subtitle processing",
+        "subtitle": "Choose where speech-to-text runs. Captions and translations work the same either way.",
+        "loading": "Loading processing settings…",
+        "selectedLabel": "Selected",
+        "chooseLabel": "Use this mode",
+        "savingLabel": "Saving…",
+        "cloud": {
+          "name": "Cloud",
+          "badge": "Default",
+          "summary": "Works on any computer. Your microphone audio is streamed securely to our servers and transcribed there.",
+          "quotaNote": "1 minute streamed = 1 minute of quota.",
+          "icon": "Wifi"
+        },
+        "local": {
+          "name": "On your device",
+          "badge": "Experimental",
+          "summary": "Speech-to-text runs on your own GPU — your voice never leaves your PC, and latency drops.",
+          "quotaNoteTemplate": "Minutes processed on your device count at {multiplier}× against your quota — your hours last longer.",
+          "icon": "MonitorCog",
+          "requirementsTitle": "Requirements",
+          "requirements": [
+            "NVIDIA GPU with at least {vram} GB VRAM (RTX 3060 or better recommended)",
+            "Up-to-date NVIDIA driver (CUDA 12)",
+            "~2 GB free disk space for the speech model"
+          ],
+          "planLocked": "Not available on your current plan.",
+          "testButton": "Test my hardware",
+          "testQueuedNote": "Test queued — the desktop app runs it in the background.",
+          "checkResultButton": "Check result",
+          "noBenchmarkNote": "Run the hardware test to unlock this mode.",
+          "benchmarkPassed": "Hardware test passed",
+          "benchmarkFailed": "Hardware test failed",
+          "sdkHint": "Make sure the desktop app is running — it picks the test up automatically."
+        },
+        "fallbackNote": "If your hardware falls behind mid-stream, we switch to cloud automatically without interrupting your broadcast. Those minutes count at the normal rate.",
+        "errors": {
+          "unauthorized": "Your session has expired — sign in again to change this setting.",
+          "network": "Could not reach the API. Check your connection and try again.",
+          "saveFailed": "Could not save the processing mode.",
+          "benchmarkRequired": "Pass the hardware test before enabling on-device processing."
+        }
+      },
       "sourceLabel": "Speech language",
       "sourceValue": "English",
       "targetsLabel": "Target caption languages",

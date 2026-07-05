@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CaptionOverlayBuilder } from "@/src/components/caption-overlay-builder";
 import { Icon } from "@/src/components/icon";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
+import { SttProcessingPanel } from "@/src/components/stt-processing-panel";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
 
@@ -31,6 +32,8 @@ export default async function CaptionsPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader subtitle={captions.subtitle} title={captions.title} />
+
+      <SttProcessingPanel labels={captions.processing} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <SectionCard title={captions.targetsLabel}>
