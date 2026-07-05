@@ -283,8 +283,19 @@ pub fn router(state: AppState) -> Router {
             put(crate::relay::put_targets).get(crate::relay::get_targets),
         )
         // Yerel STT politikası (2.6b): SDK/panel, plan izni + kota çarpanı +
-        // donanım/watchdog eşiklerini tek çağrıda okur (config-driven).
+        // donanım/watchdog eşiklerini + kullanıcının mod/benchmark durumunu
+        // tek çağrıda okur (config-driven).
         .route("/api/stt/policy", get(crate::stt_policy::get_policy))
+        // STT mod tercihi (2.6b): panel yazar (local için benchmark şartı),
+        // SDK policy yanıtından okur.
+        .route("/api/stt/mode", put(crate::sdk_link::set_mode))
+        // SDK komut kanalı (2.6b): panel komut bırakır, arka plandaki SDK
+        // yoklar (tek seferlik teslim) ve benchmark sonucunu raporlar.
+        .route(
+            "/api/sdk/commands",
+            post(crate::sdk_link::push_command).get(crate::sdk_link::poll_commands),
+        )
+        .route("/api/sdk/benchmark", post(crate::sdk_link::report_benchmark))
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

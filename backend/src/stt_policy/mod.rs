@@ -14,6 +14,7 @@ use serde::Serialize;
 use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::integrations::oauth::plan_allowed;
+use crate::sdk_link::{BenchmarkReport, SttMode, SttSettingsStore};
 
 /// Donanım/etkinleştirme eşikleri (SDK "Donanımımı test et" bunlara bakar).
 #[derive(Debug, Serialize)]
@@ -80,13 +81,30 @@ pub fn policy_for_plan(config: &ServiceConfig, plan: &str) -> SttPolicy {
     }
 }
 
+/// `GET /api/stt/policy` yanıtı: global politika + kullanıcının mod tercihi
+/// ve son benchmark sonucu — SDK tek çağrıda her şeyi öğrenir.
+#[derive(Debug, Serialize)]
+pub struct SttPolicyResponse {
+    #[serde(flatten)]
+    pub policy: SttPolicy,
+    pub mode: SttMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub benchmark: Option<BenchmarkReport>,
+}
+
 /// `GET /api/stt/policy` — herhangi bir geçerli JWT (yayıncı paneli veya
-/// pairing'li SDK) kendi planının politikasını okur.
+/// pairing'li SDK) kendi planının politikasını ve mod/benchmark durumunu okur.
 pub async fn get_policy(
     user: AuthUser,
     State(config): State<Arc<ServiceConfig>>,
-) -> Json<SttPolicy> {
-    Json(policy_for_plan(&config, &user.claims.plan))
+    State(settings): State<Arc<SttSettingsStore>>,
+) -> Json<SttPolicyResponse> {
+    let user_settings = settings.get(&user.claims.sub);
+    Json(SttPolicyResponse {
+        policy: policy_for_plan(&config, &user.claims.plan),
+        mode: user_settings.mode,
+        benchmark: user_settings.benchmark,
+    })
 }
 
 #[cfg(test)]

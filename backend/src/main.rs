@@ -30,6 +30,7 @@ use streamdubber_backend::{
     plans::PlanRegistry,
     provider_check::ProviderTestStore,
     relay::RelayTargetStore,
+    sdk_link,
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     usage::UsageTracker,
@@ -326,6 +327,22 @@ async fn build_state(
         );
     }
 
+    // STT mod tercihi + benchmark sonucu (2.6b): STT_SETTINGS_FILE verilirse
+    // düz JSON kalıcı (secret içermez); yoksa bellek içi.
+    let stt_settings_file = std::env::var("STT_SETTINGS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let stt_settings = match stt_settings_file {
+        Some(path) => {
+            tracing::info!(%path, "stt settings store: persistent JSON file");
+            Arc::new(sdk_link::SttSettingsStore::with_file(path)?)
+        }
+        None => {
+            tracing::warn!("STT_SETTINGS_FILE not set — stt mode/benchmark reset on restart");
+            Arc::new(sdk_link::SttSettingsStore::in_memory())
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -348,6 +365,8 @@ async fn build_state(
         waitlist: Arc::new(WaitlistLimiter::new()),
         users: Arc::new(users),
         twofactor: Arc::new(TwoFactorStore::new()),
+        sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
+        stt_settings,
     })
 }
 

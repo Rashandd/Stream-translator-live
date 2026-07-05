@@ -18,6 +18,7 @@ use crate::pairing::PairingStore;
 use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
+use crate::sdk_link::{SdkCommandQueue, SttSettingsStore};
 use crate::secrets::ManagedSecrets;
 use crate::usage::UsageTracker;
 use crate::users::{TwoFactorStore, UserStore};
@@ -59,6 +60,10 @@ pub struct AppState {
     pub users: Arc<UserStore>,
     /// Login 2FA + şifre sıfırlama kodları (bellek içi, kısa ömürlü).
     pub twofactor: Arc<TwoFactorStore>,
+    /// Panel → SDK komut kuyruğu (2.6b; bellek içi, tek seferlik teslim).
+    pub sdk_commands: Arc<SdkCommandQueue>,
+    /// Kullanıcı başına STT modu + benchmark sonucu (`STT_SETTINGS_FILE`).
+    pub stt_settings: Arc<SttSettingsStore>,
 }
 
 impl AppState {
@@ -90,6 +95,8 @@ impl AppState {
             waitlist: Arc::new(WaitlistLimiter::new()),
             users: Arc::new(UserStore::in_memory()),
             twofactor: Arc::new(TwoFactorStore::new()),
+            sdk_commands: Arc::new(SdkCommandQueue::new()),
+            stt_settings: Arc::new(SttSettingsStore::in_memory()),
         }
     }
 }
@@ -217,5 +224,17 @@ impl FromRef<AppState> for Arc<UserStore> {
 impl FromRef<AppState> for Arc<TwoFactorStore> {
     fn from_ref(state: &AppState) -> Self {
         state.twofactor.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SdkCommandQueue> {
+    fn from_ref(state: &AppState) -> Self {
+        state.sdk_commands.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SttSettingsStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.stt_settings.clone()
     }
 }
