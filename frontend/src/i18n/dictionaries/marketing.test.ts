@@ -86,14 +86,14 @@ describe("dashboard distribution dictionary", () => {
     expect(kick?.captions.toLowerCase()).toContain("browser extension");
   });
 
-  it("does not present third-party multistream services as caption or dub modes", () => {
+  it("keeps SDK relay primary while allowing Streamlabs only as the optional service path", () => {
     const distributionText = JSON.stringify(distribution).toLowerCase();
     expect(distributionText).not.toContain("restream");
     expect(distributionText).not.toContain("castr");
-    // "Streamlabs Desktop" (broadcast software, same role as OBS) is fine to name as a
-    // Browser Source host — only a bare "streamlabs" would wrongly imply the separate
-    // Streamlabs multistream/restream service is a distribution mode.
-    expect(distributionText.match(/streamlabs(?!\s+desktop)/g)).toBeNull();
+    expect(distribution.methodSelection.defaultMethodId).toBe("sdk-relay");
+    expect(distribution.methodSelection.methods[0]?.id).toBe("sdk-relay");
+    const streamlabs = distribution.methodSelection.methods.find((method) => method.provider === "streamlabs");
+    expect(streamlabs?.badge.toLowerCase()).toContain("optional");
   });
 
   it("does not frame cloud routing as only an upload workaround", () => {
@@ -101,6 +101,11 @@ describe("dashboard distribution dictionary", () => {
     expect(distributionText).not.toContain("cannot handle multiple platforms");
     expect(distributionText).not.toContain("upload can't handle");
     expect(distributionText).not.toContain("make sure your upload");
+  });
+
+  it("warns local relay users about the 25 Mbps upstream recommendation", () => {
+    expect(distribution.methodSelection.uploadWarning.metric).toContain("25 Mbps");
+    expect(distribution.methodSelection.uploadWarning.body.toLowerCase()).toContain("upstream");
   });
 });
 

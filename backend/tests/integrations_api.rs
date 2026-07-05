@@ -16,7 +16,7 @@ use streamdubber_backend::{
     auth::jwt::{Claims, Jwt},
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
-    integrations::{token_store::TokenVault, Integrations},
+    integrations::{oauth::TokenResponse, token_store::TokenVault, Integrations},
     secrets::{names, MemorySecretStore, SecretStore},
     state::AppState,
 };
@@ -24,7 +24,17 @@ use streamdubber_backend::{
 const SECRET: &[u8] = b"integrations-api-test-secret";
 
 async fn spawn_server() -> SocketAddr {
+    spawn_server_with(None, false).await
+}
+
+async fn spawn_server_with(
+    streamlabs_test_url: Option<String>,
+    preload_streamlabs_token: bool,
+) -> SocketAddr {
     let service_config = Arc::new(ServiceConfig::with_defaults());
+    if let Some(url) = streamlabs_test_url {
+        service_config.set("providers.streamlabs.test_url", url);
+    }
     let mut gateway = Gateway::new(Arc::clone(&service_config));
     gateway.register_stt(Arc::new(MockStt::new("deepgram")));
     gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
@@ -35,9 +45,24 @@ async fn spawn_server() -> SocketAddr {
         (names::STREAMLABS_CLIENT_ID, "cid-live"),
         (names::STREAMLABS_CLIENT_SECRET, "sec-live"),
     ]);
+    let token_vault = Arc::new(TokenVault::in_memory());
+    if preload_streamlabs_token {
+        token_vault
+            .store(
+                "00000000-0000-0000-0000-000000000042",
+                "streamlabs",
+                &TokenResponse {
+                    access_token: "at-live".into(),
+                    refresh_token: Some("rt-live".into()),
+                    expires_in: Some(3600),
+                    token_type: Some("Bearer".into()),
+                },
+            )
+            .expect("preload streamlabs token");
+    }
     let integrations = Arc::new(Integrations::from_secrets(
         Arc::new(store) as Arc<dyn SecretStore>,
-        Arc::new(TokenVault::in_memory()),
+        token_vault,
     ));
 
     let mut state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
@@ -47,9 +72,43 @@ async fn spawn_server() -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
     tokio::spawn(async move {
-        axum::serve(listener, app::router(state)).await.expect("serve");
+        axum::serve(listener, app::router(state))
+            .await
+            .expect("serve");
     });
     addr
+}
+
+async fn spawn_streamlabs_check_mock() -> String {
+    use axum::extract::Query;
+    use axum::http::StatusCode;
+    use axum::routing::get;
+    use axum::{Json, Router};
+    use std::collections::HashMap;
+
+    async fn socket_token(
+        Query(q): Query<HashMap<String, String>>,
+    ) -> (StatusCode, Json<serde_json::Value>) {
+        if q.get("access_token").map(String::as_str) == Some("at-live") {
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "socket_token": "socket-ok" })),
+            )
+        } else {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "bad token" })),
+            )
+        }
+    }
+
+    let app = Router::new().route("/socket/token", get(socket_token));
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let addr = listener.local_addr().expect("local_addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+    format!("http://{addr}/socket/token")
 }
 
 fn token(role: &str, plan: &str) -> String {
@@ -138,7 +197,11 @@ async fn admin_authorize_bypasses_plan_gate() {
 #[tokio::test]
 async fn admin_authorize_requires_admin_role() {
     let addr = spawn_server().await;
-    let (status, _) = http(addr, &request("GET", "/admin/integrations/streamlabs/authorize", None)).await;
+    let (status, _) = http(
+        addr,
+        &request("GET", "/admin/integrations/streamlabs/authorize", None),
+    )
+    .await;
     assert_eq!(status, 401);
 
     let (status, _) = http(
@@ -151,4 +214,40 @@ async fn admin_authorize_requires_admin_role() {
     )
     .await;
     assert_eq!(status, 403);
+}
+
+#[tokio::test]
+async fn broadcaster_can_test_connected_streamlabs() {
+    let test_url = spawn_streamlabs_check_mock().await;
+    let addr = spawn_server_with(Some(test_url), true).await;
+    let (status, body) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/integrations/streamlabs/test",
+            Some(&token("broadcaster", "pro")),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, 200, "body: {body}");
+    assert!(body.contains(r#""provider":"streamlabs""#), "body: {body}");
+    assert!(body.contains(r#""ok":true"#), "body: {body}");
+}
+
+#[tokio::test]
+async fn broadcaster_test_reports_not_connected() {
+    let addr = spawn_server().await;
+    let (status, body) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/integrations/streamlabs/test",
+            Some(&token("broadcaster", "pro")),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, 409, "body: {body}");
+    assert!(body.contains("not connected"), "body: {body}");
 }

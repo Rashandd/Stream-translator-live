@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DistributionMethodPanel } from "@/src/components/distribution-method-panel";
 import { Icon } from "@/src/components/icon";
 import { PageHeader } from "@/src/components/dashboard-ui";
 import { StatusPill } from "@/src/components/status-pill";
@@ -57,6 +58,8 @@ export default async function DistributionPage({ params }: Props) {
           {distribution.appStatus.ctaLabel}
         </Link>
       </div>
+
+      <DistributionMethodPanel labels={distribution.methodSelection} />
 
       <section className="space-y-4">
         <div>

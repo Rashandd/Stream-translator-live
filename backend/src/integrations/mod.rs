@@ -68,6 +68,59 @@ pub struct Connection {
     pub has_refresh: bool,
 }
 
+/// Yayıncının kayıtlı OAuth bağlantısına karşı yapılan canlı test sonucu.
+#[derive(Debug, Serialize)]
+pub struct ConnectionCheckOutcome {
+    pub provider: String,
+    pub ok: bool,
+    pub connected: bool,
+    /// Sağlayıcının döndürdüğü HTTP durum kodu (ağ hatasında `None`).
+    pub status: Option<u16>,
+    pub detail: String,
+}
+
+/// Test edilemeyen OAuth bağlantı durumları.
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectionCheckError {
+    #[error("unknown provider: {0}")]
+    UnknownProvider(String),
+    #[error("{0} is not connected")]
+    NotConnected(String),
+    #[error("{0} has no live connection test yet")]
+    UnsupportedProvider(String),
+}
+
+struct ConnectionCheckDef {
+    provider: &'static str,
+    url_key: &'static str,
+    default_url: &'static str,
+    auth: ConnectionAuthStyle,
+}
+
+enum ConnectionAuthStyle {
+    /// `Authorization: Bearer <access_token>`.
+    Bearer,
+    /// Query param `access_token=<access_token>` (Streamlabs v1.0).
+    QueryAccessToken,
+}
+
+fn connection_check_defs() -> &'static [ConnectionCheckDef] {
+    &[
+        ConnectionCheckDef {
+            provider: "streamlabs",
+            url_key: "providers.streamlabs.test_url",
+            default_url: "https://streamlabs.com/api/v1.0/socket/token",
+            auth: ConnectionAuthStyle::QueryAccessToken,
+        },
+        ConnectionCheckDef {
+            provider: "youtube",
+            url_key: "providers.youtube.test_url",
+            default_url: "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+            auth: ConnectionAuthStyle::Bearer,
+        },
+    ]
+}
+
 /// Sağlayıcı uç nokta varsayılanları (secret değil).
 ///
 /// NOT: Streamlabs/Google URL'leri sağlayıcı dokümanına göredir. İleride
@@ -182,7 +235,8 @@ impl Integrations {
         provider_name: &str,
         cfg: &ServiceConfig,
     ) -> Result<String, OAuthError> {
-        self.begin_inner(user_id, provider_name, cfg, Some(plan)).await
+        self.begin_inner(user_id, provider_name, cfg, Some(plan))
+            .await
     }
 
     /// Admin doğrulama bağlantısı: plan erişim kontrolünü atlar. Faz 1'de
@@ -292,6 +346,81 @@ impl Integrations {
             has_refresh: token.refresh_token.is_some(),
         })
     }
+
+    /// Kayıtlı OAuth token'ıyla sağlayıcıya hafif, yan etkisiz canlı çağrı yapar.
+    pub async fn test_connection(
+        &self,
+        user_id: &str,
+        provider_name: &str,
+        cfg: &ServiceConfig,
+        http: &reqwest::Client,
+    ) -> Result<ConnectionCheckOutcome, ConnectionCheckError> {
+        if !self.providers.contains_key(provider_name) {
+            return Err(ConnectionCheckError::UnknownProvider(
+                provider_name.to_string(),
+            ));
+        }
+        let def = connection_check_defs()
+            .iter()
+            .find(|d| d.provider == provider_name)
+            .ok_or_else(|| ConnectionCheckError::UnsupportedProvider(provider_name.to_string()))?;
+        let token = self
+            .tokens
+            .get(user_id, provider_name)
+            .ok_or_else(|| ConnectionCheckError::NotConnected(provider_name.to_string()))?;
+
+        let url = cfg
+            .get(def.url_key)
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| def.default_url.to_string());
+
+        let request = match def.auth {
+            ConnectionAuthStyle::Bearer => http.get(url).bearer_auth(&token.access_token),
+            ConnectionAuthStyle::QueryAccessToken => {
+                let parsed = reqwest::Url::parse(&url);
+                let Ok(mut url) = parsed else {
+                    return Ok(ConnectionCheckOutcome {
+                        provider: def.provider.to_string(),
+                        ok: false,
+                        connected: true,
+                        status: None,
+                        detail: "connection test URL is invalid".to_string(),
+                    });
+                };
+                url.query_pairs_mut()
+                    .append_pair("access_token", &token.access_token);
+                http.get(url)
+            }
+        };
+
+        match request.send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                Ok(ConnectionCheckOutcome {
+                    provider: def.provider.to_string(),
+                    ok: status.is_success(),
+                    connected: true,
+                    status: Some(status.as_u16()),
+                    detail: if status.is_success() {
+                        format!("provider responded {status}")
+                    } else {
+                        format!("provider rejected the stored token ({status})")
+                    },
+                })
+            }
+            Err(err) => Ok(ConnectionCheckOutcome {
+                provider: def.provider.to_string(),
+                ok: false,
+                connected: true,
+                status: None,
+                detail: if err.is_timeout() {
+                    "request timed out".to_string()
+                } else {
+                    "request failed".to_string()
+                },
+            }),
+        }
+    }
 }
 
 /// `OAuthError` → HTTP durum kodu.
@@ -302,6 +431,14 @@ fn oauth_status(err: &OAuthError) -> StatusCode {
         OAuthError::InvalidState => StatusCode::BAD_REQUEST,
         OAuthError::PlanNotAllowed { .. } => StatusCode::FORBIDDEN,
         OAuthError::Exchange(_) => StatusCode::BAD_GATEWAY,
+    }
+}
+
+fn connection_check_status(err: &ConnectionCheckError) -> StatusCode {
+    match err {
+        ConnectionCheckError::UnknownProvider(_) => StatusCode::NOT_FOUND,
+        ConnectionCheckError::NotConnected(_) => StatusCode::CONFLICT,
+        ConnectionCheckError::UnsupportedProvider(_) => StatusCode::NOT_IMPLEMENTED,
     }
 }
 
@@ -379,6 +516,37 @@ pub async fn authorize_admin(
     }
 }
 
+/// `POST /api/integrations/{provider}/test` (yayıncı).
+pub async fn test_connection(
+    user: AuthUser,
+    Path(provider): Path<String>,
+    State(integ): State<Arc<Integrations>>,
+    State(cfg): State<Arc<ServiceConfig>>,
+    State(logger): State<Arc<crate::logging::Logger>>,
+) -> Result<Json<ConnectionCheckOutcome>, (StatusCode, String)> {
+    let http = reqwest::Client::new();
+    match integ
+        .test_connection(&user.claims.sub, &provider, &cfg, &http)
+        .await
+    {
+        Ok(outcome) => {
+            logger.log(
+                crate::logging::LogLevel::Info,
+                "integrations",
+                &format!(
+                    "connection check: {} → {}",
+                    outcome.provider,
+                    if outcome.ok { "ok" } else { "failed" }
+                ),
+                Some(&user.claims.sub),
+                None,
+            );
+            Ok(Json(outcome))
+        }
+        Err(err) => Err((connection_check_status(&err), err.to_string())),
+    }
+}
+
 /// callback query parametreleri.
 #[derive(Debug, Deserialize)]
 pub struct CallbackQuery {
@@ -436,7 +604,9 @@ pub async fn callback(
             if frontend_base.is_empty() {
                 Json(conn).into_response()
             } else {
-                let url = format!("{frontend_base}/admin/production-setup?provider={provider}&connected=1");
+                let url = format!(
+                    "{frontend_base}/admin/production-setup?provider={provider}&connected=1"
+                );
                 Redirect::to(&url).into_response()
             }
         }
@@ -475,7 +645,7 @@ fn urlencoding_light(input: &str) -> String {
 mod tests {
     use super::*;
     use axum::extract::Form;
-    use axum::routing::post;
+    use axum::routing::{get, post};
     use axum::Router;
     use std::collections::HashMap as Map;
 
@@ -526,6 +696,31 @@ mod tests {
         format!("http://{addr}/oauth/token")
     }
 
+    async fn spawn_streamlabs_check_mock() -> String {
+        async fn socket_token(
+            Query(q): Query<Map<String, String>>,
+        ) -> (StatusCode, Json<serde_json::Value>) {
+            if q.get("access_token").map(String::as_str) == Some("at-good") {
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({ "socket_token": "socket-ok" })),
+                )
+            } else {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({ "error": "bad token" })),
+                )
+            }
+        }
+        let app = Router::new().route("/socket/token", get(socket_token));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        format!("http://{addr}/socket/token")
+    }
+
     #[tokio::test]
     async fn full_flow_begin_then_complete() {
         let token_url = spawn_token_mock().await;
@@ -533,7 +728,10 @@ mod tests {
         let cfg = cfg();
 
         // begin: URL üretilmeli ve içinde bir state olmalı.
-        let url = integ.begin("user-1", "pro", "streamlabs", &cfg).await.unwrap();
+        let url = integ
+            .begin("user-1", "pro", "streamlabs", &cfg)
+            .await
+            .unwrap();
         let state = reqwest::Url::parse(&url)
             .unwrap()
             .query_pairs()
@@ -542,7 +740,10 @@ mod tests {
             .expect("state in url");
 
         // complete: aynı state ile bağlantı kurulmalı.
-        let conn = integ.complete("streamlabs", "code-1", &state).await.unwrap();
+        let conn = integ
+            .complete("streamlabs", "code-1", &state)
+            .await
+            .unwrap();
         assert!(conn.connected);
         assert_eq!(conn.user_id, "user-1");
         assert_eq!(conn.expires_in, Some(3600));
@@ -550,7 +751,10 @@ mod tests {
 
         // Token persist edildi: bağlantı durumu artık kalıcı depodan okunur.
         assert!(integ.tokens().connected("user-1", "streamlabs"));
-        let stored = integ.tokens().get("user-1", "streamlabs").expect("stored token");
+        let stored = integ
+            .tokens()
+            .get("user-1", "streamlabs")
+            .expect("stored token");
         assert_eq!(stored.access_token, "at");
         assert_eq!(stored.refresh_token.as_deref(), Some("rt"));
         assert!(!integ.tokens().connected("user-2", "streamlabs"));
@@ -629,7 +833,10 @@ mod tests {
     #[tokio::test]
     async fn complete_rejects_unknown_state() {
         let integ = integrations_with("http://unused", true);
-        let err = integ.complete("streamlabs", "code", "bogus-state").await.unwrap_err();
+        let err = integ
+            .complete("streamlabs", "code", "bogus-state")
+            .await
+            .unwrap_err();
         assert!(matches!(err, OAuthError::InvalidState));
     }
 
@@ -664,6 +871,51 @@ mod tests {
         assert!(matches!(err, OAuthError::InvalidState));
     }
 
+    #[tokio::test]
+    async fn streamlabs_connection_check_uses_persisted_token() {
+        let test_url = spawn_streamlabs_check_mock().await;
+        let integ = integrations_with("http://unused", true);
+        integ
+            .tokens()
+            .store(
+                "user-1",
+                "streamlabs",
+                &oauth::TokenResponse {
+                    access_token: "at-good".into(),
+                    refresh_token: Some("rt".into()),
+                    expires_in: Some(3600),
+                    token_type: Some("Bearer".into()),
+                },
+            )
+            .unwrap();
+        let cfg = cfg();
+        cfg.set("providers.streamlabs.test_url", test_url);
+        let http = reqwest::Client::new();
+
+        let outcome = integ
+            .test_connection("user-1", "streamlabs", &cfg, &http)
+            .await
+            .unwrap();
+
+        assert!(outcome.ok);
+        assert_eq!(outcome.status, Some(200));
+        assert!(outcome.connected);
+    }
+
+    #[tokio::test]
+    async fn connection_check_requires_connected_token() {
+        let integ = integrations_with("http://unused", true);
+        let cfg = cfg();
+        let http = reqwest::Client::new();
+
+        let err = integ
+            .test_connection("user-1", "streamlabs", &cfg, &http)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ConnectionCheckError::NotConnected(_)));
+    }
+
     async fn body_text(resp: axum::response::Response) -> String {
         let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
             .await
@@ -679,7 +931,11 @@ mod tests {
 
         let resp = callback(
             Path("streamlabs".to_string()),
-            Query(CallbackQuery { code: None, state: None, error: None }),
+            Query(CallbackQuery {
+                code: None,
+                state: None,
+                error: None,
+            }),
             State(integ),
             State(cfg),
             State(logger),
@@ -687,7 +943,10 @@ mod tests {
         .await;
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert!(resp.headers().get("location").is_none(), "should not redirect by default");
+        assert!(
+            resp.headers().get("location").is_none(),
+            "should not redirect by default"
+        );
         assert!(body_text(resp).await.contains("missing code or state"));
     }
 
@@ -700,7 +959,11 @@ mod tests {
 
         let resp = callback(
             Path("streamlabs".to_string()),
-            Query(CallbackQuery { code: None, state: None, error: Some("access_denied".to_string()) }),
+            Query(CallbackQuery {
+                code: None,
+                state: None,
+                error: Some("access_denied".to_string()),
+            }),
             State(integ),
             State(cfg),
             State(logger),

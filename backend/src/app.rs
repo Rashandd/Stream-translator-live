@@ -18,7 +18,7 @@ use crate::billing;
 use crate::config::ServiceConfig;
 use crate::ext_twitch;
 use crate::integrations;
-use crate::logging::{LogEntry, Logger, LogLevel, LogQuery};
+use crate::logging::{LogEntry, LogLevel, LogQuery, Logger};
 use crate::overlay;
 use crate::plans::{PlanDefinition, PlanRegistry};
 use crate::secrets::{ManagedSecrets, SecretError, SecretStatus};
@@ -250,6 +250,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/integrations/{provider}/authorize",
             get(integrations::authorize),
+        )
+        .route(
+            "/api/integrations/{provider}/test",
+            post(integrations::test_connection),
         )
         .route(
             "/api/integrations/{provider}/callback",

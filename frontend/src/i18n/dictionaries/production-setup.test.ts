@@ -50,6 +50,8 @@ describe("admin production setup page config (V11 — production operator handof
     expect(productionSetup.connectLabel).toBeTruthy();
     expect(productionSetup.testLabel).toBeTruthy();
     expect(productionSetup.stripeTitle).toBeTruthy();
+    expect(productionSetup.planAccessTitle).toBeTruthy();
+    expect(productionSetup.planAccessColumns.length).toBe(3);
     expect(productionSetup.saveLabel).toBeTruthy();
     expect(productionSetup.placeholder).toBeTruthy();
   });

@@ -4,13 +4,23 @@
 Codex
 
 ## Neredeyim?
-Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/solutions` notify-me formları ve sağ üst status/tik alanları kaldırıldı; ana sayfa "Every setup covered" kartlarındaki phase/status rozetleri komple silindi.
+Faz 1.6 dashboard/admin distribution wiring turu tamamlandi: yayinici `/dashboard/distribution` SDK relay'i default/recommended gosteriyor, Streamlabs opsiyonel OAuth yolu GET `/api/integrations` + authorize URL ile bagli, yayinici "Test connection" POST `/api/integrations/{provider}/test` endpoint'ine gidiyor. Admin Production Setup'ta `integration.<provider>.plans` plan toggle UI'i eklendi.
 
 ## Degistirdigim Alanlar
-- `frontend/app/[locale]/solutions/page.tsx`
-- `frontend/app/[locale]/page.tsx`
+- `backend/src/app.rs`
+- `backend/src/config.rs`
+- `backend/src/integrations/mod.rs`
+- `backend/tests/integrations_api.rs`
+- `frontend/app/[locale]/dashboard/distribution/page.tsx`
+- `frontend/app/[locale]/admin/(console)/production-setup/page.tsx`
+- `frontend/src/components/distribution-method-panel.tsx`
+- `frontend/src/components/admin-production-setup-panel.tsx`
+- `frontend/src/components/icon.tsx`
+- `frontend/src/lib/distribution.ts`
+- `frontend/src/lib/distribution.test.ts`
 - `frontend/src/i18n/dictionaries/en.json`
 - `frontend/src/i18n/dictionaries/marketing.test.ts`
+- `frontend/src/i18n/dictionaries/production-setup.test.ts`
 - `streamdubber_roadmap_final.md`
 - `docs/sessions/codex.md`
 
@@ -36,11 +46,17 @@ Frontend public sayfaları üzerinde küçük UX düzeltmeleri yapıldı: `/en/s
 - Kullanıcı isteğiyle landing page "Every setup covered" bölümündeki phase/status rozetleri komple kaldırıldı; `Phase 1 active`, `Phase 2 active`, `Phase 3` dictionary alanları da silindi.
 - `/en/solutions` kartlarındaki `Notify me` formları ve kullanılmayan `solutions.waitlistCta` copy'si kaldırıldı; public sayfada artık waitlist formu render edilmiyor. Solution kartlarının sağ üstündeki status/tik iconları ve yazıları da kaldırıldı; kartlarda yalnız sol ürün ikonu, başlık, açıklama ve audience etiketi kalıyor. Regression: marketing testine notify-me render edilmemesi, landing phase/status badge olmaması ve solutions top-right status badge olmaması eklendi; `npm run test -- src/i18n/dictionaries/marketing.test.ts`, `npm run lint`, `npm run test` geçti.
 - Roadmap Faz 2/3 katalog notu güncellendi: public waitlist CTA kaldırıldı, backend `POST /api/waitlist` ve Postgres tablosu ileride hesaplı/admin akıştan DB'ye yazmak için korunuyor.
+- 2026-07-05 Faz 1.6 distribution wiring: `/dashboard/distribution` artik client panel olarak `userFetch("/api/integrations")` okuyor; SDK relay default/recommended, Streamlabs yalniz opsiyonel Mod A' olarak secilebilir. Streamlabs connect butonu `/api/integrations/streamlabs/authorize` cevabindaki `authorize_url`'ye yonlendiriyor.
+- Yayinci baglanti test endpoint'i eklendi: `POST /api/integrations/{provider}/test`. Streamlabs icin resmi API v1.0 `GET /socket/token` ucu kayitli access token ile cagriliyor; token URL/detail icinde sizdirilmemesi icin hata metni sanitize edildi. YouTube icin de bearer-token test URL seed'i var, endpoint ayni generic yapida.
+- Admin Production Setup'a OAuth provider plan toggle'lari eklendi. Plan checkbox'lari `/api/plans` listesinden geliyor, kayit `PUT /admin/config` ile `integration.<provider>.plans` anahtarina yaziliyor; restart gerekmiyor.
+- Upload bant genisligi uyarisi yayinici distribution panelinde 25 Mbps+ upstream olarak gorunuyor. Bu sadece lokal multi-platform relay icin operasyonel uyari; bulut routing Faz 3/premium olarak aktiflestirilmedi.
+- Regression: `npm run test` 15 dosya / 80 test, `npm run lint`, `./node_modules/.bin/tsc --noEmit`, `cargo test` (223 backend + API + 70 SDK + e2e), `cargo clippy` hepsi gecti.
 
 ## Sonraki Adim
-Yayıncı dashboard'unu müşteri-ready yapmak için ilk somut iş: `/dashboard` üstüne tek bir "setup checklist / wizard" ekle ve 4 adımı canlı state'e bağla: desktop app paired, OBS overlay added/copied, target languages selected, distribution mode/platform readiness. Faz 2 veya canlı olmayan özellikleri ana akışta ayrı "coming soon" alanına taşı.
+Sonraki somut is: distribution method secimini sadece local UI state olmaktan cikarip kullanici/account ayarina persist edecek backend sozlesmesini tasarla (orn. `user_settings.distribution.mode`) ve SDK relay hedef senkronuyla bagla. Ayrica gercek Streamlabs hesabiyla OAuth connect + `/socket/token` smoke user/ops tarafindan calistirilmali.
 
 ## Blokerlar / Dikkat
-- `scripts/session-start.sh` sandbox içinde backend testlerinde localhost/mock server bind izni nedeniyle çok sayıda `Operation not permitted` verdi; frontend bu turda temiz.
+- Bu tur sonunda sandbox kaynakli backend false-negative kalmadi; tam `cargo test` temiz gecti. Baslangicta `scripts/session-start.sh` eski run'dan `Operation not permitted` gostermisti, fakat final regresyonda tekrar etmedi.
 - `docs/SESSION.md` ana koordinasyon dosyasi hala "blueprint" diyor; guncel gercekle uyumsuz. Kullanici acikca isterse kisa koordinasyon ozeti olarak yenilenmeli.
-- Bu turda frontend public sayfaları ve `docs/sessions/codex.md` guncellendi; otomatik commit yok.
+- Streamlabs icin kod seviyesinde canli API cagrisi hazir ve mock testli; gercek Streamlabs app/client + gercek hesap smoke henuz ops adimi.
+- Otomatik commit yok; kullanici incelemeden commit atilmadi.
