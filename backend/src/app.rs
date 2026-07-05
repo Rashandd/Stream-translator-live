@@ -282,6 +282,9 @@ pub fn router(state: AppState) -> Router {
             "/api/relay/targets",
             put(crate::relay::put_targets).get(crate::relay::get_targets),
         )
+        // Yerel STT politikası (2.6b): SDK/panel, plan izni + kota çarpanı +
+        // donanım/watchdog eşiklerini tek çağrıda okur (config-driven).
+        .route("/api/stt/policy", get(crate::stt_policy::get_policy))
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

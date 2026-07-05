@@ -24,6 +24,7 @@ pub mod relay;
 pub mod secrets;
 pub mod setup_status;
 pub mod state;
+pub mod stt_policy;
 pub mod tls;
 pub mod usage;
 pub mod users;

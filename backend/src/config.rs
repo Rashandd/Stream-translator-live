@@ -80,6 +80,16 @@ impl ServiceConfig {
             // "kotan yarı hızda tükenir"). Ses/fallback yolu her zaman 1.0 —
             // indirim yalnız gerçekten yerel işlenen dakikalara uygulanır.
             ("stt.local.usage_multiplier", "0.5"),
+            // Yerel STT donanım/watchdog politikası (docs/local-stt-plan.md §2-3).
+            // SDK bu eşikleri GET /api/stt/policy'den çeker — SDK güncellemeden
+            // panelden ayarlanır. min_vram_mb: etkinleştirme şartı;
+            // benchmark_rtf_max: testin geçer notu (15sn ses / süre);
+            // watchdog_p95_ms: yayında bulut fallback eşiği;
+            // retry_minutes: fallback sonrası yerel tekrar deneme (histerezis).
+            ("stt.local.min_vram_mb", "6144"),
+            ("stt.local.benchmark_rtf_max", "0.5"),
+            ("stt.local.watchdog_p95_ms", "1500"),
+            ("stt.local.retry_minutes", "5"),
             ("translate.provider", "deepl"),
             ("translate.fallback", "google"),
             ("tts.provider", "disabled"),
