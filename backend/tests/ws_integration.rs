@@ -150,6 +150,129 @@ async fn invalid_token_is_rejected() {
     assert_eq!(err["code"], 4001);
 }
 
+/// Local STT tam akışı (Faz 2.6b): stt_source=local ile stream açılır,
+/// ses yerine transcript mesajı gönderilir, backend STT'yi atlayıp çevirir.
+#[tokio::test]
+async fn local_stt_transcript_flow() {
+    let addr = spawn_server().await;
+    let url = format!("ws://{addr}/ws/stream");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
+    let _ready = next_json(&mut ws).await;
+
+    send_json(
+        &mut ws,
+        serde_json::json!({
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en","de"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "stt_source":"local"
+        }),
+    )
+    .await;
+    let ack = next_json(&mut ws).await;
+    assert_eq!(ack["type"], "stream_ack");
+
+    // transcript → subtitle: kaynak metin aynen korunur, STT çağrılmaz.
+    send_json(
+        &mut ws,
+        serde_json::json!({
+            "type":"transcript",
+            "session_id":"s1",
+            "text":"bugün çok iyi bir gün"
+        }),
+    )
+    .await;
+    let subtitle = next_json(&mut ws).await;
+    assert_eq!(subtitle["type"], "subtitle");
+    assert_eq!(subtitle["source"]["text"], "bugün çok iyi bir gün");
+    assert_eq!(subtitle["source"]["is_final"], true);
+    assert_eq!(subtitle["translations"].as_array().unwrap().len(), 2);
+
+    // Local session'da bulut STT fallback'i de çalışır — sequence paylaşılır.
+    ws.send(Message::Binary(audio_frame(&[1, 2, 3, 4]).into()))
+        .await
+        .expect("send binary");
+    let second = next_json(&mut ws).await;
+    assert_eq!(second["type"], "subtitle");
+    assert_eq!(second["sequence"], 1);
+}
+
+/// Cloud (varsayılan) session'dan gelen transcript 4007 ile reddedilir —
+/// mod, plan gating'i baypas etmemek için yayın başında bildirilmek zorunda.
+#[tokio::test]
+async fn transcript_on_cloud_session_rejected() {
+    let addr = spawn_server().await;
+    let url = format!("ws://{addr}/ws/stream");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
+    let _ready = next_json(&mut ws).await;
+
+    send_json(
+        &mut ws,
+        serde_json::json!({
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1}
+        }),
+    )
+    .await;
+    let _ack = next_json(&mut ws).await;
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"transcript","session_id":"s1","text":"merhaba"}),
+    )
+    .await;
+    let err = next_json(&mut ws).await;
+    assert_eq!(err["type"], "error");
+    assert_eq!(err["code"], 4007);
+    assert_eq!(err["message"], "stt_source_not_local");
+}
+
+#[tokio::test]
+async fn transcript_before_stream_start_errors() {
+    let addr = spawn_server().await;
+    let url = format!("ws://{addr}/ws/stream");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
+    let _ready = next_json(&mut ws).await;
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"transcript","session_id":"s1","text":"merhaba"}),
+    )
+    .await;
+    let err = next_json(&mut ws).await;
+    assert_eq!(err["type"], "error");
+    assert_eq!(err["code"], 4002);
+}
+
 #[tokio::test]
 async fn audio_before_stream_start_errors() {
     let addr = spawn_server().await;

@@ -20,7 +20,7 @@ use crate::auth::jwt::{Claims, Jwt};
 use crate::logging::LogLevel;
 use crate::pipeline::StreamSession;
 use crate::state::AppState;
-use protocol::{ClientMessage, ErrorCode, ServerMessage};
+use protocol::{ClientMessage, ErrorCode, ServerMessage, SttSource};
 
 /// `auth` mesajı için bekleme süresi.
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -65,9 +65,39 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
         match msg {
             Message::Text(text) => {
-                if let Some(reply) = handle_control(text.as_str(), &state, &claims, &mut session) {
-                    if send(&mut socket, &reply).await.is_err() {
-                        break;
+                match serde_json::from_str::<ClientMessage>(text.as_str()) {
+                    // Transcript async pipeline gerektirir (çeviri await'i),
+                    // diğer kontrol mesajları senkron işlenir.
+                    Ok(ClientMessage::Transcript { text: line, is_final, .. }) => {
+                        if send_for_transcript(
+                            &mut socket,
+                            &line,
+                            is_final,
+                            &mut session,
+                            &state,
+                            &claims.sub,
+                        )
+                        .await
+                        .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Ok(control) => {
+                        if let Some(reply) = handle_control(control, &state, &claims, &mut session)
+                        {
+                            if send(&mut socket, &reply).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        tracing::debug!(error = %err, "malformed control message");
+                        let reply =
+                            ServerMessage::error(ErrorCode::InternalError, "malformed_message");
+                        if send(&mut socket, &reply).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }
@@ -172,24 +202,14 @@ fn session_ready(claims: &Claims, state: &AppState) -> ServerMessage {
     }
 }
 
-/// Auth sonrası kontrol mesajlarını işler.
+/// Auth sonrası kontrol mesajlarını işler (`transcript` hariç — o, çeviri
+/// await'i gerektirdiğinden socket döngüsünde `send_for_transcript` ile akar).
 fn handle_control(
-    text: &str,
+    msg: ClientMessage,
     state: &AppState,
     claims: &Claims,
     session: &mut Option<StreamSession>,
 ) -> Option<ServerMessage> {
-    let msg: ClientMessage = match serde_json::from_str(text) {
-        Ok(msg) => msg,
-        Err(err) => {
-            tracing::debug!(error = %err, "malformed control message");
-            return Some(ServerMessage::error(
-                ErrorCode::InternalError,
-                "malformed_message",
-            ));
-        }
-    };
-
     match msg {
         ClientMessage::Ping { ts } => Some(ServerMessage::Pong { ts }),
         ClientMessage::StreamStart {
@@ -197,9 +217,7 @@ fn handle_control(
             source_lang,
             target_langs,
             audio_format,
-            // Pipeline entegrasyonu bir sonraki adımda (2.6b madde 3) —
-            // şimdilik alan sadece protokolde tanınıyor.
-            stt_source: _,
+            stt_source,
         } => {
             if audio_format.codec != "opus" && audio_format.codec != "pcm_s16le" {
                 state.logger.log(
@@ -219,7 +237,13 @@ fn handle_control(
             state.logger.log(
                 LogLevel::Info,
                 "ws",
-                "stream started",
+                &format!(
+                    "stream started (stt_source={})",
+                    match stt_source {
+                        SttSource::Cloud => "cloud",
+                        SttSource::Local => "local",
+                    }
+                ),
                 Some(&claims.sub),
                 Some(&session_id),
             );
@@ -233,6 +257,7 @@ fn handle_control(
                 monthly_hours,
                 Arc::clone(&state.usage),
                 Arc::clone(&state.logger),
+                stt_source,
             ));
             // EBS (Twitch Extension) kanalın canlı olduğunu buradan görür.
             state.active_streams.set(&claims.sub, &overlay_token);
@@ -258,22 +283,8 @@ fn handle_control(
             *session = None;
             None
         }
-        ClientMessage::Transcript { .. } => {
-            // Lokal STT pipeline yolu sonraki adımda bağlanıyor (2.6b madde 3);
-            // stt_source saklanmadığından bütün session'lar cloud sayılır ve
-            // transcript reddedilir — davranış, cloud session için nihai halidir.
-            if session.is_none() {
-                Some(ServerMessage::error(
-                    ErrorCode::AudioBeforeStart,
-                    "stream_not_started",
-                ))
-            } else {
-                Some(ServerMessage::error(
-                    ErrorCode::LocalSttRejected,
-                    "stt_source_not_local",
-                ))
-            }
-        }
+        // Socket döngüsü Transcript'i buraya düşürmez; savunmacı no-op.
+        ClientMessage::Transcript { .. } => None,
         ClientMessage::Auth { .. } => None, // zaten doğrulandı, yok say
     }
 }
@@ -309,20 +320,77 @@ async fn send_for_audio(
     };
 
     if let Some(reply) = active.process_audio(frame.payload).await {
-        state.overlay.publish(active.overlay_token(), reply.clone());
-        let limit_reached = matches!(
-            reply,
-            ServerMessage::Error { code, .. } if code == ErrorCode::PlanLimitReached as u16
+        return publish_and_send(socket, state, session, user_id, reply).await;
+    }
+    Ok(())
+}
+
+/// Lokal STT transcript'ini pipeline'a besler (Faz 2.6b). Ses yoluyla aynı
+/// kurallar: session yoksa 4002; session `stt_source: local` değilse 4007 —
+/// plan gating'i baypas etmemek için mod yayın başında bildirilmiş olmalı.
+async fn send_for_transcript(
+    socket: &mut WebSocket,
+    text: &str,
+    is_final: bool,
+    session: &mut Option<StreamSession>,
+    state: &AppState,
+    user_id: &str,
+) -> Result<(), axum::Error> {
+    let Some(active) = session.as_mut() else {
+        return send(
+            socket,
+            &ServerMessage::error(ErrorCode::AudioBeforeStart, "stream_not_started"),
+        )
+        .await;
+    };
+
+    if active.stt_source() != SttSource::Local {
+        state.logger.log(
+            LogLevel::Warn,
+            "ws",
+            "transcript rejected: session stt_source is cloud",
+            Some(user_id),
+            None,
         );
-        send(socket, &reply).await?;
-        if limit_reached {
-            // Plan limiti dolan session'ı kapat — sonraki ses paketleri
-            // "stream_not_started" (4002) alır, yayıncı yeniden başlatmalı.
-            state
-                .active_streams
-                .clear_if(user_id, active.overlay_token());
-            *session = None;
-        }
+        return send(
+            socket,
+            &ServerMessage::error(ErrorCode::LocalSttRejected, "stt_source_not_local"),
+        )
+        .await;
+    }
+
+    if let Some(reply) = active.process_transcript(text, is_final).await {
+        return publish_and_send(socket, state, session, user_id, reply).await;
+    }
+    Ok(())
+}
+
+/// Pipeline çıktısını overlay hub'ına yayınlar ve SDK'ya gönderir; plan
+/// limiti hatasında session'ı kapatır (ses ve transcript yollarının ortak
+/// teslim ucu).
+async fn publish_and_send(
+    socket: &mut WebSocket,
+    state: &AppState,
+    session: &mut Option<StreamSession>,
+    user_id: &str,
+    reply: ServerMessage,
+) -> Result<(), axum::Error> {
+    let Some(active) = session.as_ref() else {
+        return Ok(());
+    };
+    let overlay_token = active.overlay_token().to_string();
+
+    state.overlay.publish(&overlay_token, reply.clone());
+    let limit_reached = matches!(
+        reply,
+        ServerMessage::Error { code, .. } if code == ErrorCode::PlanLimitReached as u16
+    );
+    send(socket, &reply).await?;
+    if limit_reached {
+        // Plan limiti dolan session'ı kapat — sonraki ses paketleri
+        // "stream_not_started" (4002) alır, yayıncı yeniden başlatmalı.
+        state.active_streams.clear_if(user_id, &overlay_token);
+        *session = None;
     }
     Ok(())
 }
@@ -366,6 +434,17 @@ mod tests {
         AppState::skeleton(jwt(), config, gw)
     }
 
+    /// Test yardımcı: JSON'u parse edip `handle_control`'e verir.
+    fn control(
+        json: &str,
+        st: &AppState,
+        claims: &Claims,
+        session: &mut Option<StreamSession>,
+    ) -> Option<ServerMessage> {
+        let msg: ClientMessage = serde_json::from_str(json).expect("geçerli kontrol JSON'u");
+        handle_control(msg, st, claims, session)
+    }
+
     #[test]
     fn authenticate_accepts_valid_token() {
         let j = jwt();
@@ -394,9 +473,26 @@ mod tests {
         let st = state();
         let mut session = None;
         let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
-        let reply = handle_control(json, &st, &claims(), &mut session);
+        let reply = control(json, &st, &claims(), &mut session);
         assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
-        assert!(session.is_some());
+        // stt_source gönderilmedi → cloud varsayılır (eski SDK uyumu).
+        assert_eq!(
+            session.as_ref().expect("session").stt_source(),
+            SttSource::Cloud
+        );
+    }
+
+    #[test]
+    fn stream_start_stores_local_stt_source() {
+        let st = state();
+        let mut session = None;
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1},"stt_source":"local"}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+        assert_eq!(
+            session.as_ref().expect("session").stt_source(),
+            SttSource::Local
+        );
     }
 
     #[test]
@@ -404,7 +500,7 @@ mod tests {
         let st = state();
         let mut session = None;
         let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"mp3","sample_rate":16000,"channels":1}}"#;
-        let reply = handle_control(json, &st, &claims(), &mut session);
+        let reply = control(json, &st, &claims(), &mut session);
         assert!(matches!(reply, Some(ServerMessage::Error { code: 4004, .. })));
         assert!(session.is_none());
     }
@@ -413,7 +509,7 @@ mod tests {
     fn ping_yields_pong_after_auth() {
         let st = state();
         let mut session = None;
-        let reply = handle_control(r#"{"type":"ping","ts":42}"#, &st, &claims(), &mut session);
+        let reply = control(r#"{"type":"ping","ts":42}"#, &st, &claims(), &mut session);
         assert_eq!(reply, Some(ServerMessage::Pong { ts: 42 }));
     }
 
@@ -422,9 +518,9 @@ mod tests {
         let st = state();
         let mut session = None;
         let start = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
-        handle_control(start, &st, &claims(), &mut session);
+        control(start, &st, &claims(), &mut session);
         assert!(session.is_some());
-        handle_control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &claims(), &mut session);
+        control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &claims(), &mut session);
         assert!(session.is_none());
     }
 }

@@ -2,9 +2,11 @@
 //!
 //! Akış (bkz. `docs/websocket-protocol.md` "Backend İçi Akış"):
 //! ```text
-//! binary frame → kullanım limiti kontrolü → STT (gateway) → çeviri (paralel) → subtitle mesajı
+//! cloud: binary frame → kullanım limiti → STT (gateway) → çeviri (paralel) → subtitle
+//! local: transcript mesajı → kullanım limiti → (STT atlanır) → çeviri → subtitle
 //! ```
 //! VAD lokalde olduğundan backend sessiz frame almaz; gelen her frame işlenir.
+//! İki yol da aynı `Subtitle` çıktısını üretir (Faz 2.6b).
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -12,7 +14,7 @@ use std::time::Instant;
 use crate::gateway::Gateway;
 use crate::logging::{LogLevel, Logger};
 use crate::usage::UsageTracker;
-use crate::ws::protocol::{ErrorCode, ServerMessage, SubtitleSource};
+use crate::ws::protocol::{ErrorCode, ServerMessage, SttSource, SubtitleSource};
 
 /// Aktif bir stream session'ının durumu.
 pub struct StreamSession {
@@ -32,6 +34,9 @@ pub struct StreamSession {
     last_tick: Instant,
     /// Merkezi log deposu (1.12) — pipeline/gateway olayları buraya yazılır.
     logger: Arc<Logger>,
+    /// `stream_start.stt_source` — `Local` ise SDK `transcript` mesajı
+    /// gönderebilir (Faz 2.6b), `Cloud` session'da transcript reddedilir.
+    stt_source: SttSource,
 }
 
 impl StreamSession {
@@ -47,6 +52,7 @@ impl StreamSession {
         monthly_hours: i64,
         usage: Arc<UsageTracker>,
         logger: Arc<Logger>,
+        stt_source: SttSource,
     ) -> Self {
         StreamSession {
             session_id: session_id.into(),
@@ -60,6 +66,7 @@ impl StreamSession {
             usage,
             last_tick: Instant::now(),
             logger,
+            stt_source,
         }
     }
 
@@ -68,28 +75,18 @@ impl StreamSession {
         &self.overlay_token
     }
 
+    /// Bu session'ın STT kaynağı (`stream_start.stt_source`).
+    pub fn stt_source(&self) -> SttSource {
+        self.stt_source
+    }
+
     /// Bir ses parçasını işler ve bir mesaj üretir:
     /// - plan limiti dolmuşsa `Error(PlanLimitReached)` (STT/çeviri hiç çağrılmaz),
     /// - STT başarısızsa `None` (frame atlanır, akış bloklanmaz),
     /// - aksi halde `Subtitle`.
     pub async fn process_audio(&mut self, audio: &[u8]) -> Option<ServerMessage> {
-        let now = Instant::now();
-        let elapsed = now.duration_since(self.last_tick).as_secs_f64();
-        self.last_tick = now;
-
-        let status = self.usage.record(&self.user_id, elapsed, self.monthly_hours);
-        if status.limit_reached {
-            self.logger.log(
-                LogLevel::Warn,
-                "pipeline",
-                "plan limit reached, session closing",
-                Some(&self.user_id),
-                Some(&self.session_id),
-            );
-            return Some(ServerMessage::error(
-                ErrorCode::PlanLimitReached,
-                "plan_limit_reached",
-            ));
+        if let Some(limit_error) = self.tick_usage() {
+            return Some(limit_error);
         }
 
         let transcript = match self.gateway.transcribe(audio, &self.source_lang).await {
@@ -107,26 +104,73 @@ impl StreamSession {
             }
         };
 
+        Some(self.subtitle_for(transcript.text, transcript.is_final).await)
+    }
+
+    /// Lokalde yazıya dökülmüş bir satırı işler (Faz 2.6b): STT adımı atlanır,
+    /// metin doğrudan çevrilir. Kullanım takibi ve `Subtitle` çıktısı ses
+    /// yoluyla birebir aynıdır. Boş/sadece boşluk metin sessizce atlanır.
+    pub async fn process_transcript(&mut self, text: &str, is_final: bool) -> Option<ServerMessage> {
+        if let Some(limit_error) = self.tick_usage() {
+            return Some(limit_error);
+        }
+
+        let text = text.trim();
+        if text.is_empty() {
+            tracing::debug!("empty local transcript, skipping");
+            return None;
+        }
+
+        Some(self.subtitle_for(text.to_string(), is_final).await)
+    }
+
+    /// Duvar saatiyle kullanım süresini işler; plan limiti dolduysa
+    /// `Error(PlanLimitReached)` döndürür (iki pipeline yolunun ortak girişi).
+    fn tick_usage(&mut self) -> Option<ServerMessage> {
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_tick).as_secs_f64();
+        self.last_tick = now;
+
+        let status = self.usage.record(&self.user_id, elapsed, self.monthly_hours);
+        if !status.limit_reached {
+            return None;
+        }
+        self.logger.log(
+            LogLevel::Warn,
+            "pipeline",
+            "plan limit reached, session closing",
+            Some(&self.user_id),
+            Some(&self.session_id),
+        );
+        Some(ServerMessage::error(
+            ErrorCode::PlanLimitReached,
+            "plan_limit_reached",
+        ))
+    }
+
+    /// Kaynak metni tüm hedef dillere çevirip `Subtitle` mesajını kurar —
+    /// cloud (STT çıktısı) ve local (transcript mesajı) yollarının ortak sonu.
+    async fn subtitle_for(&mut self, text: String, is_final: bool) -> ServerMessage {
         let translations = self
             .gateway
-            .translate_all(&transcript.text, &self.source_lang, &self.target_langs)
+            .translate_all(&text, &self.source_lang, &self.target_langs)
             .await;
 
         let ts = chrono::Utc::now().timestamp_millis();
         let seq = self.next_sequence();
 
-        Some(ServerMessage::Subtitle {
+        ServerMessage::Subtitle {
             session_id: self.session_id.clone(),
             sequence: seq,
             source: SubtitleSource {
                 lang: self.source_lang.clone(),
-                text: transcript.text,
-                is_final: transcript.is_final,
+                text,
+                is_final,
             },
             translations,
             ts_start_ms: ts,
             ts_end_ms: ts,
-        })
+        }
     }
 
     /// Bir sonraki sıra numarasını döndürür (her altyazıda artar).
@@ -156,6 +200,14 @@ mod tests {
     }
 
     fn session(target_langs: Vec<String>, monthly_hours: i64) -> StreamSession {
+        session_with_source(target_langs, monthly_hours, SttSource::Cloud)
+    }
+
+    fn session_with_source(
+        target_langs: Vec<String>,
+        monthly_hours: i64,
+        stt_source: SttSource,
+    ) -> StreamSession {
         StreamSession::new(
             "s1",
             "tr",
@@ -166,6 +218,7 @@ mod tests {
             monthly_hours,
             Arc::new(UsageTracker::new()),
             test_logger(),
+            stt_source,
         )
     }
 
@@ -224,6 +277,7 @@ mod tests {
             0,
             usage,
             Arc::clone(&logger),
+            SttSource::Cloud,
         );
         let msg = session.process_audio(&[1, 2, 3]).await.expect("error message");
         assert!(matches!(
@@ -255,6 +309,7 @@ mod tests {
             -1,
             Arc::new(UsageTracker::new()),
             Arc::clone(&logger),
+            SttSource::Cloud,
         );
         // MockStt boş payload'ta hata verir → gateway hatası loglanır.
         assert!(session.process_audio(&[]).await.is_none());
@@ -266,5 +321,98 @@ mod tests {
         });
         assert_eq!(logs.len(), 1);
         assert!(logs[0].message.contains("stt failed"));
+    }
+
+    // ── Local STT yolu (Faz 2.6b) ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn local_transcript_skips_stt_and_translates() {
+        let mut session = session_with_source(
+            vec!["en".to_string(), "de".to_string()],
+            -1,
+            SttSource::Local,
+        );
+        let msg = session
+            .process_transcript("bugün çok iyi bir gün", true)
+            .await
+            .expect("subtitle");
+        match msg {
+            ServerMessage::Subtitle {
+                source,
+                translations,
+                ..
+            } => {
+                // Metin STT'den geçmeden aynen kaynak olarak kullanılır.
+                assert_eq!(source.text, "bugün çok iyi bir gün");
+                assert_eq!(source.lang, "tr");
+                assert!(source.is_final);
+                assert_eq!(translations.len(), 2);
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn local_transcript_preserves_interim_flag_and_trims() {
+        let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
+        let msg = session
+            .process_transcript("  merha  ", false)
+            .await
+            .expect("subtitle");
+        match msg {
+            ServerMessage::Subtitle { source, .. } => {
+                assert_eq!(source.text, "merha");
+                assert!(!source.is_final);
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_local_transcript_skipped() {
+        let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
+        assert!(session.process_transcript("   ", true).await.is_none());
+        assert!(session.process_transcript("", true).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn transcript_and_audio_share_sequence_counter() {
+        // Local session'da bulut STT fallback'i de geçerli — iki yol aynı
+        // sıra sayacını paylaşır (SDK sıralamayı sequence ile kurar).
+        let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
+        let first = session.process_audio(&[1]).await.expect("audio subtitle");
+        let second = session
+            .process_transcript("merhaba", true)
+            .await
+            .expect("transcript subtitle");
+        let seq = |m: &ServerMessage| match m {
+            ServerMessage::Subtitle { sequence, .. } => *sequence,
+            _ => panic!("subtitle bekleniyordu"),
+        };
+        assert_eq!(seq(&first), 0);
+        assert_eq!(seq(&second), 1);
+    }
+
+    #[tokio::test]
+    async fn local_transcript_respects_plan_limit() {
+        let usage = Arc::new(UsageTracker::new());
+        usage.record("user-1", 1.0, 0);
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            0,
+            usage,
+            test_logger(),
+            SttSource::Local,
+        );
+        let msg = session
+            .process_transcript("merhaba", true)
+            .await
+            .expect("error message");
+        assert!(matches!(msg, ServerMessage::Error { code: 4003, .. }));
     }
 }
