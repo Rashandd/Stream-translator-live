@@ -40,7 +40,15 @@ kalite/gecikme riski yüksek, destek yükü büyük. AMD/Intel GPU (CUDA yok) il
 | RAM | 16 GB | 16 GB |
 | Disk | 2 GB (model dosyası ~1.5 GB) | aynı |
 
-**Etkinleştirme testi (SDK içinde, [Donanımımı test et]):**
+**SDK tamamen arka planda, kumanda web panelde (karar 2026-07-05):** SDK system-tray
+ajanıdır, kendi ayar arayüzü yoktur. Donanım testi, mod seçimi (Bulut/Cihazında) ve tüm
+kullanıcı etkileşimi web panelden yapılır; SDK komutları backend üzerinden alır:
+panel → `POST` komut → backend kuyruğu → SDK `GET /api/sdk/commands` yoklaması
+(15–30 sn, komutlar nadir) → SDK koşar → sonucu backend'e raporlar → panel gösterir.
+Mod seçimi de aynı kanaldan iner — panelde "Cihazında" seçilince SDK bir sonraki
+yoklamada modeli hazırlar; yayın başlarken `stream_start.stt_source` buna göre gider.
+
+**Etkinleştirme testi ([Donanımımı test et] — buton panelde, koşan SDK):**
 1. Donanım yoklama: NVIDIA GPU + sürücü + toplam/boş VRAM okunur. Şart sağlanmıyorsa test
    koşulmaz, eksik madde listelenir ("6 GB VRAM gerekli, sende 4 GB").
 2. Model indirilir (ilk sefer, aşağıda §4) ve 15 sn'lik gömülü örnek TR ses parçasıyla
@@ -115,11 +123,18 @@ Tüm eşikler sunucu-taraflı: SDK sürümü yayınlamadan politika değiştiril
    uygular (ses yolu 1.0 kalır); config seed + testler (çarpanlı tick, fallback 1×, çarpan
    admin'den değişince yeni session'a yansır).
 2. **Backend — `GET /api/stt/policy`:** config'ten okuyan endpoint (SDK token + panel); testler.
-3. **Frontend — "Altyazı işleme" kartı:** Bulut/Cihazında seçimi, gereksinim listesi, policy
-   fetch, test-sonucu durumu; seçim SDK'ya pairing kanalından iner.
-4. **SDK — yerel model (roadmap 2.6b madde 4):** model indirme+doğrulama, benchmark komutu,
-   whisper entegrasyonu, watchdog + otomatik bulut fallback'i, `stt_source: local` akışı.
-5. **Fiyatlandırma sayfası + docs:** "Cihazında modu" anlatımı, SSS ("donanımım yetmezse ne
+3. **Backend — SDK komut kanalı + ayar senkronu:** kullanıcı başına komut kuyruğu
+   (`POST /api/sdk/commands` panelden, `GET /api/sdk/commands` SDK yoklaması — pairing
+   token'ı; tek seferlik teslim) + benchmark sonucu raporu (`POST /api/sdk/benchmark`) +
+   STT mod tercihi persist'i (panel yazar, SDK okur). Testler: kuyruk teslimi, RBAC,
+   sonuç persist'i.
+4. **Frontend — "Altyazı işleme" kartı:** Bulut/Cihazında seçimi, gereksinim listesi, policy
+   fetch, [Donanımımı test et] → komut bırak + sonucu göster (SDK çevrimdışıysa "SDK açık
+   değil" durumu); seçim backend'e yazılır, SDK arka planda uygular.
+5. **SDK — yerel model (roadmap 2.6b madde 4):** komut yoklaması, model indirme+doğrulama,
+   benchmark koşusu+raporu, whisper entegrasyonu, watchdog + otomatik bulut fallback'i,
+   `stt_source: local` akışı. SDK'da hiçbir ayar UI'ı yok — tray + arka plan servis.
+6. **Fiyatlandırma sayfası + docs:** "Cihazında modu" anlatımı, SSS ("donanımım yetmezse ne
    olur?"), gereksinim tablosu.
 
 Doğrulama: 1-2 mock/birim + e2e; 3 frontend sözleşme testleri; 4 gerçek Windows + RTX cihazında
