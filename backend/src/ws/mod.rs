@@ -408,10 +408,23 @@ async fn send_for_transcript(
         .await;
     }
 
-    if let Some(reply) = active.process_transcript(text, is_final).await {
+    let multiplier = local_usage_multiplier(state);
+    if let Some(reply) = active.process_transcript(text, is_final, multiplier).await {
         return publish_and_send(socket, state, session, user_id, reply).await;
     }
     Ok(())
+}
+
+/// `stt.local.usage_multiplier` config değerini okur (yerel STT kota teşviki,
+/// docs/local-stt-plan.md §3). Yok/bozuk/0..1 aralığı dışı değerde indirimsiz
+/// `1.0`'a düşer — faturalama için muhafazakâr varsayılan.
+fn local_usage_multiplier(state: &AppState) -> f64 {
+    state
+        .service_config
+        .get("stt.local.usage_multiplier")
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|m| (0.0..=1.0).contains(m))
+        .unwrap_or(1.0)
 }
 
 /// Pipeline çıktısını overlay hub'ına yayınlar ve SDK'ya gönderir; plan
@@ -542,6 +555,22 @@ mod tests {
             session.as_ref().expect("session").stt_source(),
             SttSource::Local
         );
+    }
+
+    #[test]
+    fn usage_multiplier_reads_config_with_conservative_fallback() {
+        let st = state();
+        // Seed varsayılanı: 0.5.
+        assert_eq!(local_usage_multiplier(&st), 0.5);
+        st.service_config.set("stt.local.usage_multiplier", "0.75");
+        assert_eq!(local_usage_multiplier(&st), 0.75);
+        // Bozuk / aralık dışı değerler indirimsiz 1.0'a düşer.
+        st.service_config.set("stt.local.usage_multiplier", "abc");
+        assert_eq!(local_usage_multiplier(&st), 1.0);
+        st.service_config.set("stt.local.usage_multiplier", "1.5");
+        assert_eq!(local_usage_multiplier(&st), 1.0);
+        st.service_config.set("stt.local.usage_multiplier", "-0.2");
+        assert_eq!(local_usage_multiplier(&st), 1.0);
     }
 
     #[test]

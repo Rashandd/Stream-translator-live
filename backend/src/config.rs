@@ -75,6 +75,11 @@ impl ServiceConfig {
             // karakter başına faturalandığından maliyet koruması).
             ("stt.local.plans", "free,starter,pro,streamer"),
             ("stt.local.max_chars", "500"),
+            // Yerel STT kota teşviki (docs/local-stt-plan.md §3): transcript
+            // yolundan işlenen dakikalar bu çarpanla kotadan düşer (0.5 =
+            // "kotan yarı hızda tükenir"). Ses/fallback yolu her zaman 1.0 —
+            // indirim yalnız gerçekten yerel işlenen dakikalara uygulanır.
+            ("stt.local.usage_multiplier", "0.5"),
             ("translate.provider", "deepl"),
             ("translate.fallback", "google"),
             ("tts.provider", "disabled"),
@@ -225,6 +230,10 @@ mod tests {
             Some("free,starter,pro,streamer")
         );
         assert_eq!(cfg.get("stt.local.max_chars").as_deref(), Some("500"));
+        assert_eq!(
+            cfg.get("stt.local.usage_multiplier").as_deref(),
+            Some("0.5")
+        );
     }
 
     #[test]

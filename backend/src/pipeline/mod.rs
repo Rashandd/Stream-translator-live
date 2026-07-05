@@ -85,7 +85,9 @@ impl StreamSession {
     /// - STT başarısızsa `None` (frame atlanır, akış bloklanmaz),
     /// - aksi halde `Subtitle`.
     pub async fn process_audio(&mut self, audio: &[u8]) -> Option<ServerMessage> {
-        if let Some(limit_error) = self.tick_usage() {
+        // Ses yolu her zaman tam tarife: bulut STT (veya local fallback'i)
+        // çalışıyor demektir — yerel kota indirimi uygulanmaz.
+        if let Some(limit_error) = self.tick_usage(1.0) {
             return Some(limit_error);
         }
 
@@ -108,10 +110,16 @@ impl StreamSession {
     }
 
     /// Lokalde yazıya dökülmüş bir satırı işler (Faz 2.6b): STT adımı atlanır,
-    /// metin doğrudan çevrilir. Kullanım takibi ve `Subtitle` çıktısı ses
-    /// yoluyla birebir aynıdır. Boş/sadece boşluk metin sessizce atlanır.
-    pub async fn process_transcript(&mut self, text: &str, is_final: bool) -> Option<ServerMessage> {
-        if let Some(limit_error) = self.tick_usage() {
+    /// metin doğrudan çevrilir. `Subtitle` çıktısı ses yoluyla birebir aynıdır;
+    /// kullanım ise `usage_multiplier` ile indirimli işlenir (yerel STT kota
+    /// teşviki — docs/local-stt-plan.md §3). Boş/boşluk metin sessizce atlanır.
+    pub async fn process_transcript(
+        &mut self,
+        text: &str,
+        is_final: bool,
+        usage_multiplier: f64,
+    ) -> Option<ServerMessage> {
+        if let Some(limit_error) = self.tick_usage(usage_multiplier) {
             return Some(limit_error);
         }
 
@@ -124,14 +132,17 @@ impl StreamSession {
         Some(self.subtitle_for(text.to_string(), is_final).await)
     }
 
-    /// Duvar saatiyle kullanım süresini işler; plan limiti dolduysa
-    /// `Error(PlanLimitReached)` döndürür (iki pipeline yolunun ortak girişi).
-    fn tick_usage(&mut self) -> Option<ServerMessage> {
+    /// Duvar saatiyle geçen süreyi `scale` çarpanıyla kotaya işler; plan
+    /// limiti dolduysa `Error(PlanLimitReached)` döndürür (iki pipeline
+    /// yolunun ortak girişi — ses 1.0, yerel transcript indirimli).
+    fn tick_usage(&mut self, scale: f64) -> Option<ServerMessage> {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_tick).as_secs_f64();
         self.last_tick = now;
 
-        let status = self.usage.record(&self.user_id, elapsed, self.monthly_hours);
+        let status = self
+            .usage
+            .record(&self.user_id, elapsed * scale, self.monthly_hours);
         if !status.limit_reached {
             return None;
         }
@@ -178,6 +189,13 @@ impl StreamSession {
         let seq = self.sequence;
         self.sequence += 1;
         seq
+    }
+
+    /// Test yardımcısı: son tick'i geçmişe çeker — duvar saati tabanlı
+    /// kullanım ölçümünü deterministik test etmek için.
+    #[cfg(test)]
+    fn backdate_last_tick(&mut self, secs: f64) {
+        self.last_tick = Instant::now() - std::time::Duration::from_secs_f64(secs);
     }
 }
 
@@ -333,7 +351,7 @@ mod tests {
             SttSource::Local,
         );
         let msg = session
-            .process_transcript("bugün çok iyi bir gün", true)
+            .process_transcript("bugün çok iyi bir gün", true, 1.0)
             .await
             .expect("subtitle");
         match msg {
@@ -356,7 +374,7 @@ mod tests {
     async fn local_transcript_preserves_interim_flag_and_trims() {
         let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
         let msg = session
-            .process_transcript("  merha  ", false)
+            .process_transcript("  merha  ", false, 1.0)
             .await
             .expect("subtitle");
         match msg {
@@ -371,8 +389,8 @@ mod tests {
     #[tokio::test]
     async fn empty_local_transcript_skipped() {
         let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
-        assert!(session.process_transcript("   ", true).await.is_none());
-        assert!(session.process_transcript("", true).await.is_none());
+        assert!(session.process_transcript("   ", true, 1.0).await.is_none());
+        assert!(session.process_transcript("", true, 1.0).await.is_none());
     }
 
     #[tokio::test]
@@ -382,7 +400,7 @@ mod tests {
         let mut session = session_with_source(vec!["en".to_string()], -1, SttSource::Local);
         let first = session.process_audio(&[1]).await.expect("audio subtitle");
         let second = session
-            .process_transcript("merhaba", true)
+            .process_transcript("merhaba", true, 1.0)
             .await
             .expect("transcript subtitle");
         let seq = |m: &ServerMessage| match m {
@@ -391,6 +409,51 @@ mod tests {
         };
         assert_eq!(seq(&first), 0);
         assert_eq!(seq(&second), 1);
+    }
+
+    #[tokio::test]
+    async fn local_transcript_charges_discounted_usage() {
+        // 10 sn geçmiş × 0.5 çarpan → kotadan 5 sn düşer (docs/local-stt-plan.md §3).
+        let usage = Arc::new(UsageTracker::new());
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage),
+            test_logger(),
+            SttSource::Local,
+        );
+        session.backdate_last_tick(10.0);
+        session
+            .process_transcript("merhaba", true, 0.5)
+            .await
+            .expect("subtitle");
+        assert_eq!(usage.status("user-1", -1).used_seconds, 5);
+    }
+
+    #[tokio::test]
+    async fn audio_path_charges_full_usage() {
+        // Ses yolu (bulut STT veya local fallback'i) her zaman 1.0 tarife.
+        let usage = Arc::new(UsageTracker::new());
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage),
+            test_logger(),
+            SttSource::Local,
+        );
+        session.backdate_last_tick(10.0);
+        session.process_audio(&[1, 2, 3]).await.expect("subtitle");
+        assert_eq!(usage.status("user-1", -1).used_seconds, 10);
     }
 
     #[tokio::test]
@@ -410,7 +473,7 @@ mod tests {
             SttSource::Local,
         );
         let msg = session
-            .process_transcript("merhaba", true)
+            .process_transcript("merhaba", true, 1.0)
             .await
             .expect("error message");
         assert!(matches!(msg, ServerMessage::Error { code: 4003, .. }));

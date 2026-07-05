@@ -269,7 +269,10 @@ binary frame gelir                     transcript mesajı gelir (text)
 ```
 
 Deepgram ve DeepL çağrıları Tokio task'larıyla paralel — çeviri beklenirken STT bloklanmaz.
-Kullanım (plan saati) takibi iki yolda da aynıdır: frame/transcript geldikçe duvar saatiyle işlenir.
+Kullanım (plan saati) takibi iki yolda da duvar saatiyle işlenir; fark tarifededir:
+ses yolu 1.0×, transcript yolu `stt.local.usage_multiplier` (seed 0.5 — "kotan yarı
+hızda tükenir") ile indirimli. Çarpan yol bazlı uygulandığından bulut fallback
+dakikaları otomatik olarak tam tarifeye döner (bkz. `docs/local-stt-plan.md` §3).
 
 ---
 
