@@ -197,6 +197,9 @@ fn handle_control(
             source_lang,
             target_langs,
             audio_format,
+            // Pipeline entegrasyonu bir sonraki adımda (2.6b madde 3) —
+            // şimdilik alan sadece protokolde tanınıyor.
+            stt_source: _,
         } => {
             if audio_format.codec != "opus" && audio_format.codec != "pcm_s16le" {
                 state.logger.log(
@@ -254,6 +257,22 @@ fn handle_control(
             }
             *session = None;
             None
+        }
+        ClientMessage::Transcript { .. } => {
+            // Lokal STT pipeline yolu sonraki adımda bağlanıyor (2.6b madde 3);
+            // stt_source saklanmadığından bütün session'lar cloud sayılır ve
+            // transcript reddedilir — davranış, cloud session için nihai halidir.
+            if session.is_none() {
+                Some(ServerMessage::error(
+                    ErrorCode::AudioBeforeStart,
+                    "stream_not_started",
+                ))
+            } else {
+                Some(ServerMessage::error(
+                    ErrorCode::LocalSttRejected,
+                    "stt_source_not_local",
+                ))
+            }
         }
         ClientMessage::Auth { .. } => None, // zaten doğrulandı, yok say
     }

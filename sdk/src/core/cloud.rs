@@ -17,7 +17,7 @@ use tokio_tungstenite::{
 };
 
 use super::audio_frame::AudioCodec;
-use super::stream::StreamConfig;
+use super::stream::{StreamConfig, SttSource};
 
 /// Audio format block in `stream_start`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,9 +39,17 @@ pub enum ClientMessage {
         source_lang: String,
         target_langs: Vec<String>,
         audio_format: AudioFormat,
+        stt_source: SttSource,
     },
     StreamStop {
         session_id: String,
+    },
+    /// Local STT mode (phase 2.6b): the SDK transcribed the audio itself and
+    /// sends finished text instead of audio frames — the backend skips STT.
+    Transcript {
+        session_id: String,
+        text: String,
+        is_final: bool,
     },
     Ping {
         ts: i64,
@@ -163,6 +171,7 @@ impl CloudClient {
                 sample_rate: cfg.sample_rate,
                 channels: cfg.channels,
             },
+            stt_source: cfg.stt_source,
         })
         .await?;
         match self.next_message().await?.ok_or(CloudError::Closed)? {
@@ -180,6 +189,23 @@ impl CloudClient {
             .send(Message::Binary(frame.to_vec().into()))
             .await
             .map_err(|e| CloudError::Ws(e.to_string()))
+    }
+
+    /// Sends one locally-transcribed line (local STT mode, phase 2.6b).
+    /// Requires the stream to have been started with `SttSource::Local`;
+    /// the backend rejects it otherwise (error 4007).
+    pub async fn send_transcript(
+        &mut self,
+        session_id: &str,
+        text: &str,
+        is_final: bool,
+    ) -> Result<(), CloudError> {
+        self.send(&ClientMessage::Transcript {
+            session_id: session_id.to_string(),
+            text: text.to_string(),
+            is_final,
+        })
+        .await
     }
 
     /// Sends `stream_stop`.
@@ -244,10 +270,42 @@ mod tests {
                 sample_rate: 16000,
                 channels: 1,
             },
+            stt_source: SttSource::Cloud,
         };
         let json = serde_json::to_value(msg).unwrap();
         assert_eq!(json["type"], "stream_start");
         assert_eq!(json["audio_format"]["sample_rate"], 16000);
+        assert_eq!(json["stt_source"], "cloud");
+    }
+
+    #[test]
+    fn serializes_stream_start_local_stt_source() {
+        let msg = ClientMessage::StreamStart {
+            session_id: "s1".into(),
+            source_lang: "tr".into(),
+            target_langs: vec!["en".into()],
+            audio_format: AudioFormat {
+                codec: "opus".into(),
+                sample_rate: 16000,
+                channels: 1,
+            },
+            stt_source: SttSource::Local,
+        };
+        let json = serde_json::to_value(msg).unwrap();
+        assert_eq!(json["stt_source"], "local");
+    }
+
+    #[test]
+    fn serializes_transcript_with_type_tag() {
+        let msg = ClientMessage::Transcript {
+            session_id: "s1".into(),
+            text: "merhaba dünya".into(),
+            is_final: true,
+        };
+        let json = serde_json::to_value(msg).unwrap();
+        assert_eq!(json["type"], "transcript");
+        assert_eq!(json["text"], "merhaba dünya");
+        assert_eq!(json["is_final"], true);
     }
 
     #[test]

@@ -1,10 +1,23 @@
 //! Platform-independent stream session configuration.
 
+use serde::{Deserialize, Serialize};
+
 use super::audio_frame::AudioCodec;
 
 /// STT-oriented audio format for phase 1.
 pub const SAMPLE_RATE_HZ: u32 = 16_000;
 pub const CHANNELS: u8 = 1;
+
+/// Where speech-to-text runs (phase 2.6b): `Cloud` streams audio frames to
+/// the backend, `Local` runs an on-device model and sends `transcript`
+/// messages instead — the backend skips its STT step and translates directly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SttSource {
+    #[default]
+    Cloud,
+    Local,
+}
 
 /// SDK stream settings sent before binary audio frames.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,6 +28,7 @@ pub struct StreamConfig {
     pub codec: AudioCodec,
     pub sample_rate: u32,
     pub channels: u8,
+    pub stt_source: SttSource,
 }
 
 impl StreamConfig {
@@ -31,6 +45,7 @@ impl StreamConfig {
             codec,
             sample_rate: SAMPLE_RATE_HZ,
             channels: CHANNELS,
+            stt_source: SttSource::default(),
         }
     }
 
@@ -80,6 +95,8 @@ mod tests {
         assert_eq!(cfg.sample_rate, SAMPLE_RATE_HZ);
         assert_eq!(cfg.channels, CHANNELS);
         assert_eq!(cfg.codec.as_protocol_name(), "opus");
+        // Yeni config varsayılanı buluttur — local STT bilinçli seçim ister.
+        assert_eq!(cfg.stt_source, SttSource::Cloud);
         assert_eq!(cfg.validate(), Ok(()));
     }
 

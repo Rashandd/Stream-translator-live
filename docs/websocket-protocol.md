@@ -41,13 +41,43 @@ Bağlantı kurulunca ilk mesaj `auth` olmalı. 5 saniye içinde `auth` gelmezse 
     "codec": "opus",
     "sample_rate": 16000,
     "channels": 1
-  }
+  },
+  "stt_source": "cloud"
 }
 ```
-**Yanıt:** `stream_ack`
+**Yanıt:** `stream_ack` veya `error` (kod `4007` — plan lokal STT'ye izin vermiyor)
 
 `audio_format.codec` değerleri: `"opus"` (tercih) veya `"pcm_s16le"`  
 `sample_rate`: `16000` sabit (STT için yeterli, 48kHz gereksiz)
+
+`stt_source` (Faz 2.6b, opsiyonel — varsayılan `"cloud"`):
+- `"cloud"` → ses binary frame'lerle buluta gider, STT backend'de (Deepgram) çalışır
+- `"local"` → SDK sesi lokalde yazıya döker, ses yerine `transcript` mesajı gönderir;
+  backend STT adımını atlayıp direkt çevirir. Hangi planların lokal STT
+  kullanabileceği `stt.local.plans` config'iyle belirlenir (admin panel).
+  `local` session'da binary ses frame'i göndermek de geçerlidir (bulut STT
+  fallback'i) — tersi geçerli değildir (aşağıya bkz.).
+
+---
+
+### `transcript` (sadece `stt_source: "local"` session'larında)
+```json
+{
+  "type": "transcript",
+  "session_id": "<sdk_session_id>",
+  "text": "Bugün çok iyi bir gün.",
+  "is_final": true
+}
+```
+**Yanıt:** `subtitle` (backend STT'yi atlar, metni doğrudan çevirir) veya `error`
+
+`is_final` opsiyoneldir, varsayılan `true` — lokal VAD bitmiş cümle yollar.
+Kurallar:
+- `stream_start` gelmeden `transcript` → `error 4002`
+- Session `stt_source: "cloud"` ile açıldıysa → `error 4007` (`stt_source_not_local`) —
+  plan gating'i baypas etmemek için mod, yayın başında bildirilmek zorunda
+- `text` uzunluğu `stt.local.max_chars` config sınırını aşarsa → `error 4007`
+  (`transcript_too_long`); boş/sadece boşluk metin sessizce atlanır
 
 ---
 
@@ -192,6 +222,7 @@ kapatılıyor (bkz. `pipeline::StreamSession::process_audio`).
 | `4004` | Desteklenmeyen audio codec | `opus` kullan |
 | `4005` | STT sağlayıcı hatası | Log'a yaz, 3 saniye bekle, yeniden dene |
 | `4006` | Çeviri sağlayıcı hatası | Log'a yaz, fallback devreye giriyor |
+| `4007` | Lokal STT reddi (`local_stt_not_allowed` / `stt_source_not_local` / `transcript_too_long`) | Planı kontrol et; `stream_start`'ı `stt_source:"local"` ile aç; metni cümle cümle gönder |
 | `5000` | Beklenmedik sunucu hatası | 5 saniye bekle, yeniden bağlan |
 
 ---
@@ -227,16 +258,18 @@ SDK                          Backend
 ## Backend İçi Akış (Referans)
 
 ```
-binary frame gelir
-  → header parse (magic check, codec, len)
-  → Deepgram WebSocket'e ilet (ham ses)
-  → Deepgram → transcript JSON
-  → DeepL API (tüm target_langs için paralel)
-  → subtitle mesajı paketle
-  → SDK WebSocket'e gönder
+cloud STT (varsayılan):                local STT (Faz 2.6b):
+binary frame gelir                     transcript mesajı gelir (text)
+  → header parse (magic, codec, len)     → session stt_source=local mi? değilse 4007
+  → Deepgram WebSocket'e ilet            → uzunluk sınırı (stt.local.max_chars)
+  → Deepgram → transcript JSON           → STT adımı ATLANIR
+  → DeepL API (paralel) ────────────┬────┘
+  → subtitle mesajı paketle         ← iki yol da aynı Subtitle çıktısını üretir
+  → SDK WebSocket'e + overlay'e gönder
 ```
 
 Deepgram ve DeepL çağrıları Tokio task'larıyla paralel — çeviri beklenirken STT bloklanmaz.
+Kullanım (plan saati) takibi iki yolda da aynıdır: frame/transcript geldikçe duvar saatiyle işlenir.
 
 ---
 

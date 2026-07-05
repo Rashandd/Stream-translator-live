@@ -12,6 +12,23 @@ pub struct AudioFormat {
     pub channels: u8,
 }
 
+/// STT kaynağı (Faz 2.6b): ses buluta mı gidiyor (`cloud`), yoksa SDK
+/// lokalde yazıya döküp `transcript` mesajı mı gönderiyor (`local`)?
+/// Eski SDK'lar alanı hiç göndermez → `cloud` varsayılır.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SttSource {
+    #[default]
+    Cloud,
+    Local,
+}
+
+/// `transcript.is_final` alanı gönderilmezse `true` — lokal VAD bitmiş
+/// cümle yollar, interim sonuç istisnadır.
+fn default_true() -> bool {
+    true
+}
+
 /// SDK → Backend yönündeki mesajlar.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -24,9 +41,20 @@ pub enum ClientMessage {
         source_lang: String,
         target_langs: Vec<String>,
         audio_format: AudioFormat,
+        #[serde(default)]
+        stt_source: SttSource,
     },
     StreamStop {
         session_id: String,
+    },
+    /// Lokal STT (Faz 2.6b): SDK sesi kendisi yazıya döktüyse ses yerine
+    /// bitmiş metni gönderir — backend STT adımını atlar, direkt çevirir.
+    /// Sadece `stt_source: "local"` ile açılan session'larda kabul edilir.
+    Transcript {
+        session_id: String,
+        text: String,
+        #[serde(default = "default_true")]
+        is_final: bool,
     },
     Ping {
         ts: i64,
@@ -97,6 +125,10 @@ pub enum ErrorCode {
     UnsupportedCodec = 4004,
     SttProviderError = 4005,
     TranslateProviderError = 4006,
+    /// Lokal STT reddi (Faz 2.6b) — mesaj alanı sebebi söyler:
+    /// `local_stt_not_allowed` (plan izni yok), `stt_source_not_local`
+    /// (cloud session'dan transcript), `transcript_too_long`.
+    LocalSttRejected = 4007,
     InternalError = 5000,
 }
 
@@ -143,12 +175,71 @@ mod tests {
                 source_lang,
                 target_langs,
                 audio_format,
+                stt_source,
             } => {
                 assert_eq!(session_id, "s1");
                 assert_eq!(source_lang, "tr");
                 assert_eq!(target_langs, vec!["en", "de"]);
                 assert_eq!(audio_format.sample_rate, 16000);
+                // Alan gönderilmedi → eski SDK'larla geriye dönük uyum: cloud.
+                assert_eq!(stt_source, SttSource::Cloud);
             }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_start_accepts_local_stt_source() {
+        let json = r#"{
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "stt_source":"local"
+        }"#;
+        let msg: ClientMessage = serde_json::from_str(json).expect("parse stream_start");
+        match msg {
+            ClientMessage::StreamStart { stt_source, .. } => {
+                assert_eq!(stt_source, SttSource::Local);
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_start_rejects_unknown_stt_source() {
+        let json = r#"{
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "stt_source":"edge"
+        }"#;
+        assert!(serde_json::from_str::<ClientMessage>(json).is_err());
+    }
+
+    #[test]
+    fn deserializes_transcript_with_default_is_final() {
+        let json = r#"{"type":"transcript","session_id":"s1","text":"merhaba dünya"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).expect("parse transcript");
+        assert_eq!(
+            msg,
+            ClientMessage::Transcript {
+                session_id: "s1".to_string(),
+                text: "merhaba dünya".to_string(),
+                is_final: true,
+            }
+        );
+    }
+
+    #[test]
+    fn deserializes_transcript_with_explicit_interim() {
+        let json = r#"{"type":"transcript","session_id":"s1","text":"merha","is_final":false}"#;
+        let msg: ClientMessage = serde_json::from_str(json).expect("parse transcript");
+        match msg {
+            ClientMessage::Transcript { is_final, .. } => assert!(!is_final),
             other => panic!("beklenmeyen mesaj: {other:?}"),
         }
     }
