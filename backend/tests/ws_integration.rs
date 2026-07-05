@@ -248,6 +248,59 @@ async fn transcript_on_cloud_session_rejected() {
     assert_eq!(err["message"], "stt_source_not_local");
 }
 
+/// `stt.local.max_chars` sınırını aşan transcript 4007 ile reddedilir;
+/// session açık kalır, normal uzunlukta satır işlenmeye devam eder.
+#[tokio::test]
+async fn overlong_transcript_rejected_but_session_survives() {
+    let addr = spawn_server().await;
+    let url = format!("ws://{addr}/ws/stream");
+    let (mut ws, _) = tokio_tungstenite::connect_async(url)
+        .await
+        .expect("connect");
+
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"auth","token": valid_token()}),
+    )
+    .await;
+    let _ready = next_json(&mut ws).await;
+
+    send_json(
+        &mut ws,
+        serde_json::json!({
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "stt_source":"local"
+        }),
+    )
+    .await;
+    let _ack = next_json(&mut ws).await;
+
+    // Varsayılan sınır 500 karakter → 600 karakterlik satır reddedilir.
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"transcript","session_id":"s1","text":"a".repeat(600)}),
+    )
+    .await;
+    let err = next_json(&mut ws).await;
+    assert_eq!(err["type"], "error");
+    assert_eq!(err["code"], 4007);
+    assert_eq!(err["message"], "transcript_too_long");
+
+    // Session kapanmadı — normal satır hâlâ işleniyor.
+    send_json(
+        &mut ws,
+        serde_json::json!({"type":"transcript","session_id":"s1","text":"merhaba"}),
+    )
+    .await;
+    let subtitle = next_json(&mut ws).await;
+    assert_eq!(subtitle["type"], "subtitle");
+    assert_eq!(subtitle["source"]["text"], "merhaba");
+}
+
 #[tokio::test]
 async fn transcript_before_stream_start_errors() {
     let addr = spawn_server().await;

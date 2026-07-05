@@ -17,6 +17,7 @@ use axum::{
 };
 
 use crate::auth::jwt::{Claims, Jwt};
+use crate::integrations::oauth::plan_allowed;
 use crate::logging::LogLevel;
 use crate::pipeline::StreamSession;
 use crate::state::AppState;
@@ -232,6 +233,31 @@ fn handle_control(
                     "unsupported_codec",
                 ));
             }
+            // Lokal STT plan gating'i (2.6b): hangi planların stt_source=local
+            // bildirebileceği `stt.local.plans` config'inden okunur (admin
+            // panelden restart'sız değiştirilir).
+            if stt_source == SttSource::Local {
+                let plans_csv = state
+                    .service_config
+                    .get("stt.local.plans")
+                    .unwrap_or_default();
+                if !plan_allowed(&plans_csv, &claims.plan) {
+                    state.logger.log(
+                        LogLevel::Warn,
+                        "ws",
+                        &format!(
+                            "stream_start rejected: plan {} not in stt.local.plans",
+                            claims.plan
+                        ),
+                        Some(&claims.sub),
+                        Some(&session_id),
+                    );
+                    return Some(ServerMessage::error(
+                        ErrorCode::LocalSttRejected,
+                        "local_stt_not_allowed",
+                    ));
+                }
+            }
             let overlay_token = uuid::Uuid::new_v4().simple().to_string();
             let monthly_hours = monthly_hours_for(state, &claims.plan);
             state.logger.log(
@@ -355,6 +381,29 @@ async fn send_for_transcript(
         return send(
             socket,
             &ServerMessage::error(ErrorCode::LocalSttRejected, "stt_source_not_local"),
+        )
+        .await;
+    }
+
+    // Çeviri API'si karakter başına faturalanır — tek satır üst sınırı
+    // `stt.local.max_chars` (VAD bitmiş cümle yollar, 500 normalde bol).
+    let max_chars = state
+        .service_config
+        .get("stt.local.max_chars")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(500);
+    let char_count = text.chars().count();
+    if char_count > max_chars {
+        state.logger.log(
+            LogLevel::Warn,
+            "ws",
+            &format!("transcript rejected: {char_count} chars > stt.local.max_chars={max_chars}"),
+            Some(user_id),
+            None,
+        );
+        return send(
+            socket,
+            &ServerMessage::error(ErrorCode::LocalSttRejected, "transcript_too_long"),
         )
         .await;
     }
@@ -493,6 +542,39 @@ mod tests {
             session.as_ref().expect("session").stt_source(),
             SttSource::Local
         );
+    }
+
+    #[test]
+    fn stream_start_local_denied_when_plan_not_in_config() {
+        let st = state();
+        // Sadece pro'ya izin ver — claims planı "free".
+        st.service_config.set("stt.local.plans", "pro");
+        let mut session = None;
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1},"stt_source":"local"}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        match reply {
+            Some(ServerMessage::Error { code, message, .. }) => {
+                assert_eq!(code, 4007);
+                assert_eq!(message, "local_stt_not_allowed");
+            }
+            other => panic!("beklenmeyen yanıt: {other:?}"),
+        }
+        assert!(session.is_none());
+
+        // Cloud başlangıç aynı planla serbest kalır — gating sadece local'i keser.
+        let cloud = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(cloud, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+    }
+
+    #[test]
+    fn stream_start_local_allowed_by_default_config() {
+        // Varsayılan seed tüm planları içerir → free plan lokal STT açabilir.
+        let st = state();
+        let mut session = None;
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1},"stt_source":"local"}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
     }
 
     #[test]

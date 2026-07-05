@@ -68,6 +68,13 @@ impl ServiceConfig {
         let defaults = [
             ("stt.provider", "deepgram"),
             ("stt.fallback", "assemblyai"),
+            // Lokal STT (Faz 2.6b): hangi planlar `stream_start`'ta
+            // stt_source=local bildirebilir (virgülle ayrılmış liste; lokal
+            // STT bulut STT maliyetini düşürdüğünden varsayılan herkese açık)
+            // + tek transcript satırı için karakter üst sınırı (çeviri API'si
+            // karakter başına faturalandığından maliyet koruması).
+            ("stt.local.plans", "free,starter,pro,streamer"),
+            ("stt.local.max_chars", "500"),
             ("translate.provider", "deepl"),
             ("translate.fallback", "google"),
             ("tts.provider", "disabled"),
@@ -81,7 +88,20 @@ impl ServiceConfig {
             // planda açık + callback redirect tabanı. Admin panelden değiştirilebilir.
             ("integration.streamlabs.plans", "pro"),
             ("integration.youtube.plans", "free,pro"),
-            ("integration.redirect_base", "http://localhost:8080/api/integrations"),
+            (
+                "integration.redirect_base",
+                "http://localhost:8080/api/integrations",
+            ),
+            // OAuth bağlantı testleri: yayıncı dashboard'undaki "Test connection"
+            // aksiyonu kayıtlı access token ile bu yan etkisiz uçlara çıkar.
+            (
+                "providers.streamlabs.test_url",
+                "https://streamlabs.com/api/v1.0/socket/token",
+            ),
+            (
+                "providers.youtube.test_url",
+                "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+            ),
             // OAuth callback tamamlandığında frontend'e geri yönlendirme tabanı.
             // Boş = geriye dönük uyumlu JSON yanıt (callback endpoint doğrudan
             // çağrılıyormuş gibi). Admin panelden ayarlanınca Production Setup
@@ -94,8 +114,14 @@ impl ServiceConfig {
             ("billing.plan.starter.stripe_price_id", ""),
             ("billing.plan.pro.stripe_price_id", ""),
             ("billing.plan.streamer.stripe_price_id", ""),
-            ("billing.success_url", "http://localhost:3000/dashboard/billing?checkout=success"),
-            ("billing.cancel_url", "http://localhost:3000/dashboard/billing?checkout=canceled"),
+            (
+                "billing.success_url",
+                "http://localhost:3000/dashboard/billing?checkout=success",
+            ),
+            (
+                "billing.cancel_url",
+                "http://localhost:3000/dashboard/billing?checkout=canceled",
+            ),
             // Loglama (1.12): asgari seviye admin panelden değişir, restart gerekmez.
             ("log.level", "info"),
             // Overlay fan-out koruması (Faz 2 hazırlığı A1): token başına
@@ -191,6 +217,17 @@ mod tests {
     }
 
     #[test]
+    fn seeds_local_stt_defaults() {
+        let cfg = ServiceConfig::with_defaults();
+        // Lokal STT bulut maliyetini düşürür → varsayılan tüm planlara açık.
+        assert_eq!(
+            cfg.get("stt.local.plans").as_deref(),
+            Some("free,starter,pro,streamer")
+        );
+        assert_eq!(cfg.get("stt.local.max_chars").as_deref(), Some("500"));
+    }
+
+    #[test]
     fn set_overrides_without_restart() {
         let cfg = ServiceConfig::with_defaults();
         cfg.set("stt.provider", "whisper");
@@ -221,8 +258,14 @@ mod tests {
     fn snapshot_is_sorted_and_complete() {
         let cfg = ServiceConfig::with_defaults();
         let snap = cfg.snapshot();
-        assert_eq!(snap.get("dist.service.plans").map(String::as_str), Some("free,pro"));
-        assert_eq!(snap.get("dist.cloud.plans").map(String::as_str), Some("pro"));
+        assert_eq!(
+            snap.get("dist.service.plans").map(String::as_str),
+            Some("free,pro")
+        );
+        assert_eq!(
+            snap.get("dist.cloud.plans").map(String::as_str),
+            Some("pro")
+        );
         // BTreeMap garantili sıralı.
         let keys: Vec<&String> = snap.keys().collect();
         let mut sorted = keys.clone();
