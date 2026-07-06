@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/src/components/dashboard-ui";
+import { TtsProcessingPanel } from "@/src/components/tts-processing-panel";
 import { VoiceCloneStudio } from "@/src/components/voice-clone-studio";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
@@ -30,6 +31,7 @@ export default async function VoicePage({ params }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader subtitle={voice.subtitle} title={voice.title} />
+      <TtsProcessingPanel labels={voice.processing} />
       <VoiceCloneStudio labels={voice} />
     </div>
   );

@@ -23,6 +23,20 @@ pub enum SttSource {
     Local,
 }
 
+/// TTS kaynağı (Faz 2.2b — `stt_source` ile aynı desen): klonlanmış ses
+/// bulutta mı (ElevenLabs) üretiliyor, yoksa SDK kendi XTTS-v2 motoruyla
+/// lokalde mi sentezliyor (`local`)? Eski SDK'lar alanı hiç göndermez →
+/// `cloud` varsayılır. Faz 2.2b'de yalnız protokol+politika+ayar senkronu
+/// kurulur; gerçek pipeline dispatch'i (hangi yolun ne yaptığı) Faz 2.2'nin
+/// gerçek zamanlı TTS akışı iş kalemidir.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TtsSource {
+    #[default]
+    Cloud,
+    Local,
+}
+
 /// `transcript.is_final` alanı gönderilmezse `true` — lokal VAD bitmiş
 /// cümle yollar, interim sonuç istisnadır.
 fn default_true() -> bool {
@@ -43,6 +57,8 @@ pub enum ClientMessage {
         audio_format: AudioFormat,
         #[serde(default)]
         stt_source: SttSource,
+        #[serde(default)]
+        tts_source: TtsSource,
     },
     StreamStop {
         session_id: String,
@@ -180,6 +196,7 @@ mod tests {
                 target_langs,
                 audio_format,
                 stt_source,
+                tts_source,
             } => {
                 assert_eq!(session_id, "s1");
                 assert_eq!(source_lang, "tr");
@@ -187,9 +204,42 @@ mod tests {
                 assert_eq!(audio_format.sample_rate, 16000);
                 // Alan gönderilmedi → eski SDK'larla geriye dönük uyum: cloud.
                 assert_eq!(stt_source, SttSource::Cloud);
+                assert_eq!(tts_source, TtsSource::Cloud);
             }
             other => panic!("beklenmeyen mesaj: {other:?}"),
         }
+    }
+
+    #[test]
+    fn stream_start_accepts_local_tts_source() {
+        let json = r#"{
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "tts_source":"local"
+        }"#;
+        let msg: ClientMessage = serde_json::from_str(json).expect("parse stream_start");
+        match msg {
+            ClientMessage::StreamStart { tts_source, .. } => {
+                assert_eq!(tts_source, TtsSource::Local);
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_start_rejects_unknown_tts_source() {
+        let json = r#"{
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1},
+            "tts_source":"edge"
+        }"#;
+        assert!(serde_json::from_str::<ClientMessage>(json).is_err());
     }
 
     #[test]

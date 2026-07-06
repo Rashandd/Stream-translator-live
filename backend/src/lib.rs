@@ -29,6 +29,7 @@ pub mod stream_settings;
 pub mod stt_policy;
 pub mod tls;
 pub mod translate_languages;
+pub mod tts_policy;
 pub mod usage;
 pub mod users;
 pub mod voice_models;

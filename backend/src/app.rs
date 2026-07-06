@@ -296,6 +296,16 @@ pub fn router(state: AppState) -> Router {
             post(crate::sdk_link::push_command).get(crate::sdk_link::poll_commands),
         )
         .route("/api/sdk/benchmark", post(crate::sdk_link::report_benchmark))
+        // Yerel TTS politikası (2.2b) — stt/policy ile aynı desen, XTTS-v2
+        // için: plan izni + kota çarpanı + donanım/watchdog eşikleri +
+        // kullanıcının mod/benchmark durumu tek çağrıda.
+        .route("/api/tts/policy", get(crate::tts_policy::get_policy))
+        // TTS mod tercihi (2.2b): panel yazar (local için benchmark şartı),
+        // SDK policy yanıtından okur.
+        .route("/api/tts/mode", put(crate::sdk_link::set_tts_mode))
+        // TTS donanım testi sonucu (2.2b) — komut kanalı STT ile paylaşılır
+        // (`tts_benchmark` whitelist'te), sonuç ayrı depoya yazılır.
+        .route("/api/tts/benchmark", post(crate::sdk_link::report_tts_benchmark))
         // DeepL hedef dil matrisi (Faz 2.0): tam katalog + admin'in açtığı
         // diller + planın izin verdiği azami sayı + yayıncının kayıtlı
         // seçimi tek çağrıda; PUT seçimi doğrulayıp kalıcılaştırır.

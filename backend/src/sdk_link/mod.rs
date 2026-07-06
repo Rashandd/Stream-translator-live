@@ -23,8 +23,10 @@ use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::logging::{LogLevel, Logger};
 
-/// Panelin SDK'ya bırakabileceği komutlar (whitelist).
-const KNOWN_COMMANDS: &[&str] = &["benchmark"];
+/// Panelin SDK'ya bırakabileceği komutlar (whitelist). `tts_benchmark`
+/// (Faz 2.2b) `benchmark`'tan (STT) ayrı tutulur — SDK hangi donanım testini
+/// koşacağını komut adından bilir, aynı kuyruk mekanizması paylaşılır.
+const KNOWN_COMMANDS: &[&str] = &["benchmark", "tts_benchmark"];
 
 /// Kuyruğa alınmış tek bir komut.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -181,6 +183,102 @@ impl SttSettingsStore {
     }
 }
 
+/// TTS işleme modu (Faz 2.2b) — `SttMode` ile birebir aynı desen. Panel
+/// yazar, SDK okur. Varsayılan bulut (ElevenLabs).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TtsMode {
+    #[default]
+    Cloud,
+    Local,
+}
+
+/// Kullanıcı başına TTS ayarları. `BenchmarkReport` STT ile aynı ölçüm
+/// şeklini (rtf/p95/gpu/vram) paylaşır — donanım testi kavramı ortak.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UserTtsSettings {
+    #[serde(default)]
+    pub mode: TtsMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub benchmark: Option<BenchmarkReport>,
+}
+
+/// TTS ayar depolama hataları — `SttSettingsError` ile aynı şekil.
+#[derive(Debug, thiserror::Error)]
+pub enum TtsSettingsError {
+    #[error("settings file error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("settings file parse error: {0}")]
+    Parse(#[from] serde_json::Error),
+}
+
+/// Kullanıcı → TTS ayarları deposu — `SttSettingsStore` ile birebir aynı
+/// desen, ayrı depo (STT ve TTS modları birbirinden bağımsız tercihlerdir).
+pub struct TtsSettingsStore {
+    inner: Mutex<HashMap<String, UserTtsSettings>>,
+    path: Option<PathBuf>,
+}
+
+impl TtsSettingsStore {
+    /// Bellek içi depo (dev/CI — restart'ta varsayılana döner).
+    pub fn in_memory() -> Self {
+        TtsSettingsStore {
+            inner: Mutex::new(HashMap::new()),
+            path: None,
+        }
+    }
+
+    /// Dosya kalıcılığıyla kurar; mevcut içerik geri yüklenir.
+    pub fn with_file(path: impl AsRef<Path>) -> Result<Self, TtsSettingsError> {
+        let path = path.as_ref().to_path_buf();
+        let inner = match std::fs::read_to_string(&path) {
+            Ok(content) if !content.trim().is_empty() => serde_json::from_str(&content)?,
+            Ok(_) => HashMap::new(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
+            Err(e) => return Err(TtsSettingsError::Io(e)),
+        };
+        Ok(TtsSettingsStore {
+            inner: Mutex::new(inner),
+            path: Some(path),
+        })
+    }
+
+    /// Kullanıcının ayarları (kayıt yoksa varsayılan: cloud, benchmark yok).
+    pub fn get(&self, user_id: &str) -> UserTtsSettings {
+        self.inner
+            .lock()
+            .expect("tts settings lock poisoned")
+            .get(user_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Mod tercihini yazar ve kalıcılaştırır.
+    pub fn set_mode(&self, user_id: &str, mode: TtsMode) {
+        self.update(user_id, |s| s.mode = mode);
+    }
+
+    /// Benchmark sonucunu yazar ve kalıcılaştırır.
+    pub fn set_benchmark(&self, user_id: &str, report: BenchmarkReport) {
+        self.update(user_id, |s| s.benchmark = Some(report));
+    }
+
+    fn update(&self, user_id: &str, apply: impl FnOnce(&mut UserTtsSettings)) {
+        let snapshot = {
+            let mut map = self.inner.lock().expect("tts settings lock poisoned");
+            apply(map.entry(user_id.to_string()).or_default());
+            self.path
+                .as_ref()
+                .map(|_| serde_json::to_string_pretty(&*map).unwrap_or_default())
+        };
+        if let (Some(json), Some(path)) = (snapshot, &self.path) {
+            if let Err(err) = std::fs::write(path, json) {
+                tracing::warn!(error = %err, "tts settings persist failed");
+            }
+        }
+    }
+}
+
 // ── HTTP handler'ları ────────────────────────────────────────────────────
 
 /// `POST /api/sdk/commands` gövdesi.
@@ -320,6 +418,85 @@ pub async fn set_mode(
     Ok(Json(SetModeResponse { mode: req.mode }))
 }
 
+/// `POST /api/tts/benchmark` (SDK) — donanım testi sonucunu kaydeder
+/// (`report_benchmark` ile aynı desen, ayrı depoya yazar).
+pub async fn report_tts_benchmark(
+    user: AuthUser,
+    State(settings): State<Arc<TtsSettingsStore>>,
+    State(logger): State<Arc<Logger>>,
+    Json(req): Json<BenchmarkRequest>,
+) -> Json<BenchmarkReport> {
+    let report = BenchmarkReport {
+        passed: req.passed,
+        rtf: req.rtf,
+        p95_ms: req.p95_ms,
+        gpu_name: req.gpu_name,
+        vram_mb: req.vram_mb,
+        reported_at: chrono::Utc::now().timestamp(),
+    };
+    settings.set_benchmark(&user.claims.sub, report.clone());
+    logger.log(
+        LogLevel::Info,
+        "sdk_link",
+        &format!(
+            "tts benchmark reported: passed={} rtf={:.2} p95={}ms",
+            report.passed, report.rtf, report.p95_ms
+        ),
+        Some(&user.claims.sub),
+        None,
+    );
+    Json(report)
+}
+
+/// `PUT /api/tts/mode` gövdesi.
+#[derive(Debug, Deserialize)]
+pub struct SetTtsModeRequest {
+    pub mode: TtsMode,
+}
+
+/// `PUT /api/tts/mode` yanıtı.
+#[derive(Debug, Serialize)]
+pub struct SetTtsModeResponse {
+    pub mode: TtsMode,
+}
+
+/// `PUT /api/tts/mode` (panel) — TTS mod tercihini yazar (`set_mode` ile
+/// aynı desen: `local` için plan izni + geçilmiş donanım testi şart).
+pub async fn set_tts_mode(
+    user: AuthUser,
+    State(settings): State<Arc<TtsSettingsStore>>,
+    State(config): State<Arc<ServiceConfig>>,
+    State(logger): State<Arc<Logger>>,
+    Json(req): Json<SetTtsModeRequest>,
+) -> Result<Json<SetTtsModeResponse>, (StatusCode, String)> {
+    if req.mode == TtsMode::Local {
+        let plans_csv = config.get("tts.local.plans").unwrap_or_default();
+        if !crate::integrations::oauth::plan_allowed(&plans_csv, &user.claims.plan) {
+            return Err((
+                StatusCode::FORBIDDEN,
+                "local_tts_not_allowed_for_plan".to_string(),
+            ));
+        }
+        let passed = settings
+            .get(&user.claims.sub)
+            .benchmark
+            .map(|b| b.passed)
+            .unwrap_or(false);
+        if !passed {
+            return Err((StatusCode::CONFLICT, "benchmark_required".to_string()));
+        }
+    }
+    settings.set_mode(&user.claims.sub, req.mode);
+    logger.log(
+        LogLevel::Info,
+        "sdk_link",
+        &format!("tts mode set: {:?}", req.mode),
+        Some(&user.claims.sub),
+        None,
+    );
+    Ok(Json(SetTtsModeResponse { mode: req.mode }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,6 +562,69 @@ mod tests {
         let path = std::env::temp_dir().join(format!("sd-stt-corrupt-{}.json", std::process::id()));
         std::fs::write(&path, "{bozuk json").expect("write");
         assert!(SttSettingsStore::with_file(&path).is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn tts_benchmark_command_is_whitelisted() {
+        assert!(KNOWN_COMMANDS.contains(&"tts_benchmark"));
+        assert!(KNOWN_COMMANDS.contains(&"benchmark"));
+    }
+
+    #[test]
+    fn tts_settings_default_to_cloud_without_benchmark() {
+        let s = TtsSettingsStore::in_memory();
+        let got = s.get("u1");
+        assert_eq!(got.mode, TtsMode::Cloud);
+        assert!(got.benchmark.is_none());
+    }
+
+    #[test]
+    fn tts_settings_persist_and_reload() {
+        let path = std::env::temp_dir().join(format!("sd-tts-settings-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let s = TtsSettingsStore::with_file(&path).expect("create");
+            s.set_benchmark(
+                "u1",
+                BenchmarkReport {
+                    passed: true,
+                    rtf: 0.28,
+                    p95_ms: 1800,
+                    gpu_name: Some("RTX 3070".into()),
+                    vram_mb: Some(8192),
+                    reported_at: 1_720_000_000,
+                },
+            );
+            s.set_mode("u1", TtsMode::Local);
+        }
+
+        let s = TtsSettingsStore::with_file(&path).expect("reload");
+        let got = s.get("u1");
+        assert_eq!(got.mode, TtsMode::Local);
+        let b = got.benchmark.expect("benchmark");
+        assert!(b.passed);
+        assert_eq!(b.gpu_name.as_deref(), Some("RTX 3070"));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn tts_settings_and_stt_settings_are_independent_stores() {
+        // Aynı kullanıcı için STT local, TTS cloud seçebilir (bağımsız tercihler).
+        let stt = SttSettingsStore::in_memory();
+        let tts = TtsSettingsStore::in_memory();
+        stt.set_mode("u1", SttMode::Local);
+        assert_eq!(stt.get("u1").mode, SttMode::Local);
+        assert_eq!(tts.get("u1").mode, TtsMode::Cloud);
+    }
+
+    #[test]
+    fn corrupt_tts_settings_file_is_an_error_not_a_panic() {
+        let path = std::env::temp_dir().join(format!("sd-tts-corrupt-{}.json", std::process::id()));
+        std::fs::write(&path, "{bozuk json").expect("write");
+        assert!(TtsSettingsStore::with_file(&path).is_err());
         let _ = std::fs::remove_file(&path);
     }
 }

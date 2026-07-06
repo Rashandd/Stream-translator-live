@@ -14,7 +14,7 @@ use std::time::Instant;
 use crate::gateway::Gateway;
 use crate::logging::{LogLevel, Logger};
 use crate::usage::UsageTracker;
-use crate::ws::protocol::{ErrorCode, ServerMessage, SttSource, SubtitleSource};
+use crate::ws::protocol::{ErrorCode, ServerMessage, SttSource, SubtitleSource, TtsSource};
 
 /// Aktif bir stream session'ının durumu.
 pub struct StreamSession {
@@ -37,6 +37,9 @@ pub struct StreamSession {
     /// `stream_start.stt_source` — `Local` ise SDK `transcript` mesajı
     /// gönderebilir (Faz 2.6b), `Cloud` session'da transcript reddedilir.
     stt_source: SttSource,
+    /// `stream_start.tts_source` (Faz 2.2b) — dispatch'i henüz burada değil
+    /// (Faz 2.2'nin gerçek zamanlı TTS akışı iş kalemi), şimdilik saklanır.
+    tts_source: TtsSource,
 }
 
 impl StreamSession {
@@ -53,6 +56,7 @@ impl StreamSession {
         usage: Arc<UsageTracker>,
         logger: Arc<Logger>,
         stt_source: SttSource,
+        tts_source: TtsSource,
     ) -> Self {
         StreamSession {
             session_id: session_id.into(),
@@ -67,6 +71,7 @@ impl StreamSession {
             last_tick: Instant::now(),
             logger,
             stt_source,
+            tts_source,
         }
     }
 
@@ -78,6 +83,11 @@ impl StreamSession {
     /// Bu session'ın STT kaynağı (`stream_start.stt_source`).
     pub fn stt_source(&self) -> SttSource {
         self.stt_source
+    }
+
+    /// Bu session'ın TTS kaynağı (`stream_start.tts_source`, Faz 2.2b).
+    pub fn tts_source(&self) -> TtsSource {
+        self.tts_source
     }
 
     /// Bir ses parçasını işler ve bir mesaj üretir:
@@ -237,6 +247,7 @@ mod tests {
             Arc::new(UsageTracker::new()),
             test_logger(),
             stt_source,
+            TtsSource::Cloud,
         )
     }
 
@@ -296,6 +307,7 @@ mod tests {
             usage,
             Arc::clone(&logger),
             SttSource::Cloud,
+            TtsSource::Cloud,
         );
         let msg = session.process_audio(&[1, 2, 3]).await.expect("error message");
         assert!(matches!(
@@ -328,6 +340,7 @@ mod tests {
             Arc::new(UsageTracker::new()),
             Arc::clone(&logger),
             SttSource::Cloud,
+            TtsSource::Cloud,
         );
         // MockStt boş payload'ta hata verir → gateway hatası loglanır.
         assert!(session.process_audio(&[]).await.is_none());
@@ -426,6 +439,7 @@ mod tests {
             Arc::clone(&usage),
             test_logger(),
             SttSource::Local,
+            TtsSource::Cloud,
         );
         session.backdate_last_tick(10.0);
         session
@@ -450,6 +464,7 @@ mod tests {
             Arc::clone(&usage),
             test_logger(),
             SttSource::Local,
+            TtsSource::Cloud,
         );
         session.backdate_last_tick(10.0);
         session.process_audio(&[1, 2, 3]).await.expect("subtitle");
@@ -471,6 +486,7 @@ mod tests {
             usage,
             test_logger(),
             SttSource::Local,
+            TtsSource::Cloud,
         );
         let msg = session
             .process_transcript("merhaba", true, 1.0)

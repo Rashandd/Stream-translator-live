@@ -395,6 +395,22 @@ async fn build_state(
         }
     };
 
+    // Yerel TTS modu + benchmark sonucu (Faz 2.2b): TTS_SETTINGS_FILE
+    // verilirse düz JSON kalıcı (secret içermez); yoksa bellek içi.
+    let tts_settings_file = std::env::var("TTS_SETTINGS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let tts_settings = match tts_settings_file {
+        Some(path) => {
+            tracing::info!(%path, "tts settings store: persistent JSON file");
+            Arc::new(sdk_link::TtsSettingsStore::with_file(path)?)
+        }
+        None => {
+            tracing::warn!("TTS_SETTINGS_FILE not set — tts mode/benchmark reset on restart");
+            Arc::new(sdk_link::TtsSettingsStore::in_memory())
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -421,6 +437,7 @@ async fn build_state(
         stt_settings,
         stream_settings,
         voice_models,
+        tts_settings,
     })
 }
 

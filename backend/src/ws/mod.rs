@@ -219,6 +219,7 @@ fn handle_control(
             target_langs,
             audio_format,
             stt_source,
+            tts_source,
         } => {
             if audio_format.codec != "opus" && audio_format.codec != "pcm_s16le" {
                 state.logger.log(
@@ -329,6 +330,7 @@ fn handle_control(
                 Arc::clone(&state.usage),
                 Arc::clone(&state.logger),
                 stt_source,
+                tts_source,
             ));
             // EBS (Twitch Extension) kanalın canlı olduğunu buradan görür.
             state.active_streams.set(&claims.sub, &overlay_token);

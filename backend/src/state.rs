@@ -18,7 +18,7 @@ use crate::pairing::PairingStore;
 use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
-use crate::sdk_link::{SdkCommandQueue, SttSettingsStore};
+use crate::sdk_link::{SdkCommandQueue, SttSettingsStore, TtsSettingsStore};
 use crate::secrets::ManagedSecrets;
 use crate::stream_settings::StreamSettingsStore;
 use crate::usage::UsageTracker;
@@ -70,6 +70,8 @@ pub struct AppState {
     pub stream_settings: Arc<StreamSettingsStore>,
     /// Ses klonlama model kayıtları + admin onay durumu (Faz 2.1; `VOICE_MODELS_FILE`).
     pub voice_models: Arc<VoiceModelStore>,
+    /// Kullanıcı başına TTS modu + benchmark sonucu (Faz 2.2b; `TTS_SETTINGS_FILE`).
+    pub tts_settings: Arc<TtsSettingsStore>,
 }
 
 impl AppState {
@@ -105,6 +107,7 @@ impl AppState {
             stt_settings: Arc::new(SttSettingsStore::in_memory()),
             stream_settings: Arc::new(StreamSettingsStore::in_memory()),
             voice_models: Arc::new(VoiceModelStore::in_memory()),
+            tts_settings: Arc::new(TtsSettingsStore::in_memory()),
         }
     }
 }
@@ -256,5 +259,11 @@ impl FromRef<AppState> for Arc<StreamSettingsStore> {
 impl FromRef<AppState> for Arc<VoiceModelStore> {
     fn from_ref(state: &AppState) -> Self {
         state.voice_models.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<TtsSettingsStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.tts_settings.clone()
     }
 }

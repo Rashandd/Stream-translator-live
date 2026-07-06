@@ -107,6 +107,21 @@ impl ServiceConfig {
             // (PlanRegistry: free/starter=false, pro/streamer=true).
             ("tts.provider", "disabled"),
             ("tts.fallback", ""),
+            // Yerel TTS (Faz 2.2b — stt.local.* ile birebir aynı desen):
+            // hangi planlar `stream_start`'ta tts_source=local bildirebilir.
+            // Ses klonlama zaten `has_voice_clone` ile pro/streamer'a kilitli
+            // (PlanRegistry) — yerel mod bu kümenin bir alt kümesi/eşiti olur.
+            ("tts.local.plans", "pro,streamer"),
+            // Yerel TTS kota teşviki: transcript yolundaki 0.5 çarpanla aynı
+            // gerekçe (ElevenLabs karakter başı ücretlendirir, yerelde bu maliyet yok).
+            ("tts.local.usage_multiplier", "0.5"),
+            // Donanım/watchdog eşikleri — stt.local.* ile aynı alan adları,
+            // XTTS-v2'ye özgü değerler. watchdog_p95_ms=2000: roadmap 2.2'nin
+            // "metin → klonlanmış ses (2 sn altı)" hedefiyle aynı eşik.
+            ("tts.local.min_vram_mb", "6144"),
+            ("tts.local.benchmark_rtf_max", "0.5"),
+            ("tts.local.watchdog_p95_ms", "2000"),
+            ("tts.local.retry_minutes", "5"),
             ("stream.max_bitrate", "128000"),
             ("vad.enabled", "true"),
             // Dağıtım yöntemi → plan erişimi. Virgülle ayrılmış plan listesi.
