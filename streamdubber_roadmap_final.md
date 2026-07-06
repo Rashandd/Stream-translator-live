@@ -760,10 +760,10 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] Bazı dil çiftleri için DeepL "beta/formal-informal" desteği yoksa UI'da uyarı (kalite beklentisi netleşsin) <!-- Claude 2026-07-06: katalogdaki her dilde supports_formality alanı; picker'da formality desteklemeyen dilde satır içi not ("No formal/informal tone control for this language"). -->
 
 #### 2.1 Ses Klonlama — ElevenLabs
-- [ ] ElevenLabs API entegrasyonu
-- [ ] Ses kaydı stüdyo arayüzü
-- [ ] Model oluşturma pipeline'ı
-- [ ] Admin ses model onay kuyruğu
+- [x] ElevenLabs API entegrasyonu <!-- Claude 2026-07-06: gateway::tts (TtsProvider trait + MockTts + MockFallbackTts — stt.rs deseni) + gateway::elevenlabs (POST /v1/voices/add multipart clone_voice, POST /v1/text-to-speech/{id} synthesize; managed/with_endpoint, mock-server testli). Gateway.clone_voice/.synthesize dispatch: tts.provider="disabled" (varsayılan, admin PUT /admin/config ile "elevenlabs" yapar) → NoProvider. ELEVENLABS_KEY zaten secrets::MANAGED'daydı; provider_check'e XiApiKey auth stili + CheckDef eklendi (admin/secrets "Test connection" artık ElevenLabs'i de destekliyor). -->
+- [x] Ses kaydı stüdyo arayüzü <!-- Claude 2026-07-06: /dashboard/voice — voice-clone-studio.tsx: MediaRecorder ile mikrofon kaydı VEYA dosya yükleme (audio/*), Blob→base64, model listesi + durum rozetleri. -->
+- [x] Model oluşturma pipeline'ı <!-- Claude 2026-07-06: backend/src/voice_models — POST /api/voice/clone (plan has_voice_clone şartı — PlanRegistry zaten vardı, free/starter 403; base64 decode + 10MB üst sınır; gateway.clone_voice çağırır) + GET /api/voice/models (yayıncının kendi modelleri). Model plain-JSON VoiceModelStore'da (VOICE_MODELS_FILE) — ham ses örneği hiç saklanmaz, sadece sağlayıcının provider_voice_id'si. 6 e2e test (tests/voice_models_api.rs). -->
+- [x] Admin ses model onay kuyruğu <!-- Claude 2026-07-06: GET /admin/voice/models (tüm kullanıcılar) + POST .../{id}/approve|reject. Yeni model her zaman pending_review ile başlar — ElevenLabs'in kendisinde onay kavramı yok, bu StreamDubber'ın rıza/kötüye kullanım riski için koyduğu bilinçli insan-onaylı kapı (Faz 2.2 canlı TTS sadece approved modelleri kullanacak). /admin/voice-models sayfası (admin-voice-models-panel.tsx) — tablo + onayla/reddet. -->
 
 #### 2.2 Gerçek Zamanlı TTS
 - [ ] Metin → klonlanmış ses (2 sn altı)

@@ -339,6 +339,11 @@
               "icon": "Subtitles"
             },
             {
+              "label": "Voice cloning",
+              "href": "/dashboard/voice",
+              "icon": "Mic"
+            },
+            {
               "label": "Go live",
               "href": "/dashboard/go-live",
               "icon": "Play"
@@ -1058,6 +1063,39 @@
       "syncLabel": "App sync",
       "syncValue": "Waiting for the app",
       "syncTone": "warning"
+    },
+    "voice": {
+      "title": "Voice cloning studio",
+      "subtitle": "Clone your voice once — the desktop app speaks your translated captions in it. A human reviews every new voice before it goes live.",
+      "form": {
+        "nameLabel": "Voice name",
+        "namePlaceholder": "e.g. My streaming voice",
+        "recordLabel": "Record from microphone",
+        "stopLabel": "Stop recording",
+        "recordingNote": "Recording… speak naturally for 30-90 seconds, then stop.",
+        "uploadLabel": "Or upload a file",
+        "sampleReadyTemplate": "Sample ready ({seconds}s).",
+        "sampleReadyGeneric": "Sample ready.",
+        "submitLabel": "Create voice model",
+        "submittingLabel": "Uploading…",
+        "micDeniedError": "Microphone access was denied. Upload a file instead.",
+        "noSampleError": "Record or upload a sample first."
+      },
+      "modelsTitle": "Your voice models",
+      "modelsEmpty": "No voice models yet — create one above.",
+      "statusLabels": {
+        "processing": "Processing",
+        "pending_review": "Pending review",
+        "approved": "Ready to use",
+        "rejected": "Not approved"
+      },
+      "errors": {
+        "unauthorized": "Your session has expired — sign in again.",
+        "network": "Could not reach the API. Check your connection and try again.",
+        "planLocked": "Voice cloning is not available on your current plan — upgrade to Pro or Streamer.",
+        "providerDisabled": "Voice cloning isn't turned on yet — check back soon.",
+        "failed": "Could not create the voice model."
+      }
     }
   },
   "pricing": {
@@ -1305,6 +1343,11 @@
               "label": "Service routing",
               "href": "/admin/routing",
               "icon": "Route"
+            },
+            {
+              "label": "Voice models",
+              "href": "/admin/voice-models",
+              "icon": "Mic"
             },
             {
               "label": "Multistream",
@@ -1623,6 +1666,26 @@
         }
       ],
       "saveLabel": "Save"
+    },
+    "voiceModels": {
+      "title": "Voice model approval queue",
+      "subtitle": "Every cloned voice needs a human sign-off before it can be used live — consent and misuse risk, not a provider limitation.",
+      "loading": "Loading voice models…",
+      "empty": "No voice models yet.",
+      "columns": { "user": "User", "name": "Name", "status": "Status", "created": "Created", "actions": "Actions" },
+      "statusLabels": {
+        "processing": "Processing",
+        "pending_review": "Pending review",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "approveLabel": "Approve",
+      "rejectLabel": "Reject",
+      "errors": {
+        "unauthorized": "Your session has expired — sign in again.",
+        "network": "Could not reach the API. Check your connection and try again.",
+        "actionFailed": "Could not update this voice model."
+      }
     },
     "multistream": {
       "title": "Multistream distribution",

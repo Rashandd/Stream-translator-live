@@ -23,6 +23,7 @@ use crate::secrets::ManagedSecrets;
 use crate::stream_settings::StreamSettingsStore;
 use crate::usage::UsageTracker;
 use crate::users::{TwoFactorStore, UserStore};
+use crate::voice_models::VoiceModelStore;
 use crate::waitlist::WaitlistLimiter;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
@@ -67,6 +68,8 @@ pub struct AppState {
     pub stt_settings: Arc<SttSettingsStore>,
     /// Kullanıcı başına hedef dil seçimi (Faz 2.0; `STREAM_SETTINGS_FILE`).
     pub stream_settings: Arc<StreamSettingsStore>,
+    /// Ses klonlama model kayıtları + admin onay durumu (Faz 2.1; `VOICE_MODELS_FILE`).
+    pub voice_models: Arc<VoiceModelStore>,
 }
 
 impl AppState {
@@ -101,6 +104,7 @@ impl AppState {
             sdk_commands: Arc::new(SdkCommandQueue::new()),
             stt_settings: Arc::new(SttSettingsStore::in_memory()),
             stream_settings: Arc::new(StreamSettingsStore::in_memory()),
+            voice_models: Arc::new(VoiceModelStore::in_memory()),
         }
     }
 }
@@ -246,5 +250,11 @@ impl FromRef<AppState> for Arc<SttSettingsStore> {
 impl FromRef<AppState> for Arc<StreamSettingsStore> {
     fn from_ref(state: &AppState) -> Self {
         state.stream_settings.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<VoiceModelStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.voice_models.clone()
     }
 }

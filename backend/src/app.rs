@@ -306,6 +306,19 @@ pub fn router(state: AppState) -> Router {
         // Katalogun tamamı (auth gerekmez, gizli veri yok) — admin panelin
         // "hangi diller açık" listesini oluşturması için.
         .route("/api/translate/catalog", get(crate::stream_settings::get_catalog))
+        // Ses klonlama (Faz 2.1): yayıncı örnek yollar, model oluşur
+        // (pending_review) — admin onaylamadan Faz 2.2'de kullanılamaz.
+        .route("/api/voice/clone", post(crate::voice_models::clone_voice))
+        .route("/api/voice/models", get(crate::voice_models::list_my_voice_models))
+        .route("/admin/voice/models", get(crate::voice_models::list_all_voice_models))
+        .route(
+            "/admin/voice/models/{id}/approve",
+            post(crate::voice_models::approve_voice_model),
+        )
+        .route(
+            "/admin/voice/models/{id}/reject",
+            post(crate::voice_models::reject_voice_model),
+        )
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

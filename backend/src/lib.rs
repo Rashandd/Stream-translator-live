@@ -31,5 +31,6 @@ pub mod tls;
 pub mod translate_languages;
 pub mod usage;
 pub mod users;
+pub mod voice_models;
 pub mod waitlist;
 pub mod ws;

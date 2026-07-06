@@ -7,9 +7,11 @@
 pub mod assemblyai;
 pub mod deepgram;
 pub mod deepl;
+pub mod elevenlabs;
 pub mod google_translate;
 pub mod stt;
 pub mod translate;
+pub mod tts;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,11 +22,13 @@ use crate::config::ServiceConfig;
 use crate::ws::protocol::Translation;
 use stt::{SttError, SttProvider, Transcript};
 use translate::{TranslateError, TranslateProvider};
+use tts::{TtsError, TtsProvider};
 
 /// Kayıtlı sağlayıcıları tutan ve config'e göre yönlendiren gateway.
 pub struct Gateway {
     stt: HashMap<String, Arc<dyn SttProvider>>,
     translate: HashMap<String, Arc<dyn TranslateProvider>>,
+    tts: HashMap<String, Arc<dyn TtsProvider>>,
     config: Arc<ServiceConfig>,
 }
 
@@ -37,6 +41,8 @@ pub enum GatewayError {
     Stt(#[from] SttError),
     #[error("translate failed (primary and fallback): {0}")]
     Translate(#[from] TranslateError),
+    #[error("tts failed: {0}")]
+    Tts(#[from] TtsError),
 }
 
 impl Gateway {
@@ -45,6 +51,7 @@ impl Gateway {
         Gateway {
             stt: HashMap::new(),
             translate: HashMap::new(),
+            tts: HashMap::new(),
             config,
         }
     }
@@ -58,6 +65,11 @@ impl Gateway {
     pub fn register_translate(&mut self, provider: Arc<dyn TranslateProvider>) {
         self.translate
             .insert(provider.name().to_string(), provider);
+    }
+
+    /// Bir TTS/ses klonlama sağlayıcısı kaydeder.
+    pub fn register_tts(&mut self, provider: Arc<dyn TtsProvider>) {
+        self.tts.insert(provider.name().to_string(), provider);
     }
 
     /// Ses parçasını aktif STT sağlayıcısıyla (gerekirse fallback) transkribe eder.
@@ -139,6 +151,37 @@ impl Gateway {
             })
             .collect()
     }
+
+    /// Bir ses örneğinden aktif TTS sağlayıcısıyla klonlanmış bir ses modeli
+    /// oluşturur (Faz 2.1). `tts.provider` "disabled" ise (varsayılan —
+    /// admin panelden açılır) `NoProvider` döner.
+    pub async fn clone_voice(&self, name: &str, sample: &[u8]) -> Result<String, GatewayError> {
+        let provider_name = self
+            .config
+            .get("tts.provider")
+            .filter(|p| p != "disabled")
+            .ok_or(GatewayError::NoProvider("tts.provider"))?;
+        let provider = self
+            .tts
+            .get(&provider_name)
+            .ok_or(GatewayError::NoProvider("tts.provider"))?;
+        Ok(provider.clone_voice(name, sample).await?)
+    }
+
+    /// Bir metni klonlanmış sesle konuşur (Faz 2.2 gerçek zamanlı TTS
+    /// pipeline'ı bunu kullanır).
+    pub async fn synthesize(&self, voice_id: &str, text: &str) -> Result<Vec<u8>, GatewayError> {
+        let provider_name = self
+            .config
+            .get("tts.provider")
+            .filter(|p| p != "disabled")
+            .ok_or(GatewayError::NoProvider("tts.provider"))?;
+        let provider = self
+            .tts
+            .get(&provider_name)
+            .ok_or(GatewayError::NoProvider("tts.provider"))?;
+        Ok(provider.synthesize(voice_id, text).await?)
+    }
 }
 
 /// Primary → fallback sırasıyla tek çeviri dener. Hepsi başarısızsa `None`.
@@ -167,6 +210,7 @@ mod tests {
     use super::*;
     use stt::MockStt;
     use translate::MockTranslate;
+    use tts::MockTts;
 
     fn gateway() -> Gateway {
         let config = Arc::new(ServiceConfig::with_defaults());
@@ -175,6 +219,7 @@ mod tests {
         gw.register_stt(Arc::new(MockStt::new("assemblyai")));
         gw.register_translate(Arc::new(MockTranslate::new("deepl")));
         gw.register_translate(Arc::new(MockTranslate::new("google")));
+        gw.register_tts(Arc::new(MockTts::new("elevenlabs")));
         gw
     }
 
@@ -205,5 +250,29 @@ mod tests {
             gw.transcribe(&[1], "tr").await,
             Err(GatewayError::NoProvider(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn tts_disabled_by_default() {
+        // tts.provider seed'i "disabled" — admin panelden açılana kadar
+        // ses klonlama/synthesize hep NoProvider döner.
+        let gw = gateway();
+        assert!(matches!(
+            gw.clone_voice("x", &[1, 2, 3]).await,
+            Err(GatewayError::NoProvider(_))
+        ));
+        assert!(matches!(
+            gw.synthesize("voice-1", "hello").await,
+            Err(GatewayError::NoProvider(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn tts_dispatches_once_enabled() {
+        let gw = gateway();
+        gw.config.set("tts.provider", "elevenlabs");
+        let voice_id = gw.clone_voice("my voice", &[1, 2, 3]).await.expect("clone");
+        let audio = gw.synthesize(&voice_id, "merhaba").await.expect("synth");
+        assert!(!audio.is_empty());
     }
 }

@@ -35,6 +35,7 @@ const testableProviders: Record<string, string> = {
   DEEPL_KEY: "deepl",
   GOOGLE_TRANSLATE_KEY: "google",
   STRIPE_SECRET_KEY: "stripe",
+  ELEVENLABS_KEY: "elevenlabs",
 };
 
 type TestOutcome = { ok: boolean; detail: string };

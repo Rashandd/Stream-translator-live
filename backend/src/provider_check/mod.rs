@@ -67,6 +67,8 @@ enum AuthStyle {
     QueryKey,
     /// HTTP Basic (kullanıcı=key, şifre boş) (Stripe)
     Basic,
+    /// `xi-api-key: <key>` (ElevenLabs)
+    XiApiKey,
 }
 
 fn defs() -> &'static [CheckDef] {
@@ -106,6 +108,13 @@ fn defs() -> &'static [CheckDef] {
             url_key: "providers.stripe.test_url",
             default_url: "https://api.stripe.com/v1/balance",
             auth: AuthStyle::Basic,
+        },
+        CheckDef {
+            provider: "elevenlabs",
+            secret_name: names::ELEVENLABS_KEY,
+            url_key: "providers.elevenlabs.test_url",
+            default_url: "https://api.elevenlabs.io/v1/user",
+            auth: AuthStyle::XiApiKey,
         },
     ]
 }
@@ -205,6 +214,7 @@ pub async fn run_check(
             .header("Authorization", format!("DeepL-Auth-Key {key}")),
         AuthStyle::QueryKey => http.get(&url),
         AuthStyle::Basic => http.get(&url).basic_auth(&key, Some("")),
+        AuthStyle::XiApiKey => http.get(&url).header("xi-api-key", key.clone()),
     };
 
     match request.send().await {
@@ -386,9 +396,10 @@ mod tests {
     #[test]
     fn provider_defs_lists_all_testable_providers_with_secret_names() {
         let defs = provider_defs();
-        assert_eq!(defs.len(), 5);
+        assert_eq!(defs.len(), 6);
         assert!(defs.contains(&("deepgram", names::DEEPGRAM_KEY)));
         assert!(defs.contains(&("stripe", names::STRIPE_SECRET_KEY)));
+        assert!(defs.contains(&("elevenlabs", names::ELEVENLABS_KEY)));
     }
 
     #[test]

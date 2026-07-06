@@ -99,7 +99,14 @@ impl ServiceConfig {
             // sonunda gerçek değerle doldurulur (katalog çalışma zamanında
             // üretiliyor, literal değil).
             ("translate.deepl.enabled_targets", ""),
+            // Ses klonlama/TTS (Faz 2.1): "disabled" iken Gateway::clone_voice
+            // ve ::synthesize hep NoProvider döner — admin panelden
+            // "elevenlabs" yapılınca devreye girer (PUT /admin/config;
+            // ext.twitch.enabled ile aynı "kapalı varsayılan, admin açar"
+            // deseni). Ayrıca yayıncı planında `has_voice_clone` şart
+            // (PlanRegistry: free/starter=false, pro/streamer=true).
             ("tts.provider", "disabled"),
+            ("tts.fallback", ""),
             ("stream.max_bitrate", "128000"),
             ("vad.enabled", "true"),
             // Dağıtım yöntemi → plan erişimi. Virgülle ayrılmış plan listesi.

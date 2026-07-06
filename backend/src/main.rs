@@ -18,9 +18,11 @@ use streamdubber_backend::{
         assemblyai::AssemblyAiStt,
         deepgram::DeepgramStt,
         deepl::DeeplTranslate,
+        elevenlabs::ElevenLabsTts,
         google_translate::GoogleTranslate,
         stt::{MockFallbackStt, SttProvider},
         translate::{MockFallbackTranslate, TranslateProvider},
+        tts::{MockFallbackTts, TtsProvider},
         Gateway,
     },
     integrations::{token_store::TokenVault, Integrations},
@@ -37,6 +39,7 @@ use streamdubber_backend::{
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
     tls::{self, TlsSettings},
+    voice_models,
     waitlist::WaitlistLimiter,
 };
 use tokio::net::TcpListener;
@@ -211,6 +214,14 @@ async fn build_state(
             Arc::clone(&service_config),
         )
     };
+    let tts = |name: &'static str, key: &'static str, real: Arc<dyn TtsProvider>| {
+        MockFallbackTts::new(
+            name,
+            SecretRef::store(Arc::clone(&store), key),
+            real,
+            Arc::clone(&service_config),
+        )
+    };
 
     gateway.register_stt(Arc::new(stt(
         "deepgram",
@@ -231,6 +242,11 @@ async fn build_state(
         "google",
         names::GOOGLE_TRANSLATE_KEY,
         Arc::new(GoogleTranslate::managed(Arc::clone(&store))),
+    )));
+    gateway.register_tts(Arc::new(tts(
+        "elevenlabs",
+        names::ELEVENLABS_KEY,
+        Arc::new(ElevenLabsTts::managed(Arc::clone(&store))),
     )));
     tracing::info!("providers registered (keys resolved per-call from secret store)");
 
@@ -362,6 +378,23 @@ async fn build_state(
         }
     };
 
+    // Ses klonlama model kayıtları (Faz 2.1): VOICE_MODELS_FILE verilirse
+    // düz JSON kalıcı (metadata secret değil — ham ses örneği hiç
+    // saklanmaz); yoksa bellek içi.
+    let voice_models_file = std::env::var("VOICE_MODELS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let voice_models = match voice_models_file {
+        Some(path) => {
+            tracing::info!(%path, "voice model store: persistent JSON file");
+            Arc::new(voice_models::VoiceModelStore::with_file(path)?)
+        }
+        None => {
+            tracing::warn!("VOICE_MODELS_FILE not set — voice model records reset on restart");
+            Arc::new(voice_models::VoiceModelStore::in_memory())
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -387,6 +420,7 @@ async fn build_state(
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
         stream_settings,
+        voice_models,
     })
 }
 
