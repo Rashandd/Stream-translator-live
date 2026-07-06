@@ -40,10 +40,15 @@ migrate edilir. Roadmap'teki yeni bölümdeki "Görevler" listesi + "Bu, Şu Ank
 Etkiliyor" alt başlığı doğrudan implementasyon sıralaması olarak kullanılabilir.
 
 ## Neredeyim? (GÜNCEL — 2026-07-06, bu oturumun sonu)
-Kullanıcı isteği: **"@CLAUDE.md roadmapte faz 2 görevlerinden devam et"**, sonra
-**"Faz 2 yi tamamla — elinde olmayan bir şey olunca admin paneline benim veri
-girişimi bekle, windows veya linux gerçek testler için beni bekle, admin
-panelde olmalı ama her şey"**.
+Kullanıcı isteği zinciri (hepsi aynı gün): **"@CLAUDE.md roadmapte faz 2 görevlerinden devam et"**
+→ **"Faz 2 yi tamamla — elinde olmayan bir şey olunca admin paneline benim veri girişimi bekle,
+windows veya linux gerçek testler için beni bekle, admin panelde olmalı ama her şey"** → (task 2.2
+yarım kalınca context handoff notu yazıldı) → yeni bir oturumda kullanıcı önce büyük bir tasarım
+genişletmesi (bkz. aşağıda "Öz Kaynaklı Ses Klonlama" özeti) yazdı, sonra **"S2S en sona not olarak
+atansın onun dışını faz 2 ye ekleyip faz2yi ve sessiondaki taskları bitirmeye başla"** dedi — yani
+genişletmenin S2S/self-hosted-motor-özel kısmı roadmap'in sonunda bir araştırma notu olarak kalsın,
+GERİ KALANI (dil ataması şeması, şifreli örnek saklama, admin ataması, kota) Faz 2'ye (2.1/2.2)
+girip HEMEN kodlansın. Bu oturum tam olarak bunu yaptı — bkz. "BU OTURUMDA TAMAMLANAN" altında.
 
 Anlaşılan çalışma politikası (kullanıcı onayladı, tüm oturum boyunca izlendi):
 - Kod tarafında yapılabilecek HER ŞEYİ yap (gerçek API entegrasyonu, gerçek
@@ -51,16 +56,19 @@ Anlaşılan çalışma politikası (kullanıcı onayladı, tüm oturum boyunca i
 - Gerçek API key/secret gerekiyorsa: admin panelden girilebilir hale getir
   (zaten var olan `/admin/secrets` genel mekanizmasına ekle), kendin key'e
   sahip değilsin, mock-fallback ile test et.
-- Native derleme gerektiren şeyler (whisper.cpp, XTTS-v2 — ikisi de cmake
+- Native derleme gerektiren şeyler (whisper.cpp, XTTS-v2, self-hosted S2S — hepsi cmake
   ister, bu makinede cmake YOK) → ERTELE, roadmap'e açıkça "KALAN" notu düş.
 - Gerçek donanım/OBS/Windows testi gerekenler → kullanıcı aksiyonu olarak işaretle.
+- Mimari çatal niteliğindeki kararlar (whisper.cpp/cmake kurulumu, mux/audio-splice tasarımı gibi)
+  varsayımla geçilmez — kullanıcıyla AYRI görüşülür.
 - Her task: TDD, ayrı commit, workspace regresyon (`cargo test --workspace` +
   `cargo clippy --workspace --all-targets` + frontend `tsc/lint/test/build`)
   yeşilken commit'le. Roadmap'teki `[ ]` → `[x]` + `<!-- Claude TARIH: ... -->`
   detaylı not.
 
-### Bu oturumda TAMAMLANIP COMMIT'LENEN (main branch, hepsi yeşil regresyonla)
+### Önceki oturumda TAMAMLANIP COMMIT'LENEN (main branch, hepsi yeşil regresyonla)
 ```
+6e2937a docs: oturum notu — Faz 2 durumu + task 2.2 tasarım kararları (context handoff)
 c65a947 2.2b: TTS kaynağı Bulut/Cihazında — 2.6b'nin birebir aynısı
 4bcad2a 2.1: Ses klonlama — ElevenLabs gateway, stüdyo, admin onay kuyruğu
 e25311c 2.8: /dashboard/sdk — gerçek pairing kodu + stream key wiring
@@ -70,223 +78,189 @@ ff379ac roadmap: Faz 2 görev detaylandırma (önceki oturumdan commit'lenmemiş
 d4cc7e0 2.6b: model indirme + SHA-256 doğrulama — sdk model_fetch
 605661b 2.6b: GPU/VRAM yoklama — nvidia-smi tabanlı donanım probe'u
 ```
-(Son 3'ü — 605661b/d4cc7e0/9c84f9d — 2.6b'nin bu oturumdan ÖNCEKİ leftover
-maddeleriydi, "Faz 2'den devam et" isteğiyle bu oturumda bitirildi.)
 
-**Regresyon durumu (c65a947 sonrası):** backend 285 unit + tüm e2e; sdk 106
-unit + tüm e2e; frontend 119 vitest testi. clippy/lint/tsc/build hepsi temiz.
+### BU OTURUMDA TAMAMLANAN — Task 2.2 (Gerçek Zamanlı TTS) + kullanıcının genişletme kararı
+Önceki oturumun context handoff notunda sorduğu 2 soru zaten yanıtlanmıştı (voice model dil ataması:
+admin curation; dublaj tetikleme: toggle+Kick 2 hesap+kredi). Bu oturum ÖNCE kota biriminin ne
+olacağını netleştirdi (kullanıcı: **"Saniye ama müşteriye saat başına fiyatlandırma"** — iç takip
+saniye, ama plan/kota kullanıcıya hep saat cinsinden gösteriliyor, zaten mevcut `UsageTracker`
+deseni bu), SONRA kullanıcı roadmap'e büyük bir "Öz Kaynaklı Ses Klonlama + Speech-to-Speech" bölümü
+ekledi (ElevenLabs bağımlılığını kaldırma, ham örnek saklama, language_mode şeması, dublaj/S2S
+toggle, seçili sesler, admin-konfigüre kredi sistemi) ve **"S2S dışındakini Faz 2'ye ekle"** dedi.
+Sonuç: aşağıdaki HEPSİ TEK OTURUMDA kodlandı, test edildi, regresyon yeşil:
 
-### ŞU AN YARIM KALAN: Task 2.2 (Gerçek Zamanlı TTS — pipeline wiring)
-2.2b bitince sıradaki task 2.2'ye geçtim. Backend'in canlı pipeline'ına
-(StreamSession) TTS synthesize çağrısını gerçekten bağlamak, tasarımda
-mevcut bir örnek yok (STT'nin `stt_source` deseni gibi 1:1 kopyalanacak bir
-şey yok) — bu yüzden kullanıcıya 2 soru sordum, YANITLADI, ama context
-bitmeden HİÇBİR KOD YAZILMADI. Yanıtlar:
+**1) `VoiceModel` şema genişletmesi (2.1'e eklendi):**
+- `language_mode: LanguageMode` (`SingleToSingle`/`MultiToSingle`/`SingleToMulti`) — düz
+  `language: String` yerine (kullanıcının "ikisine de uyumlu olsun" kararı). `SingleToSingle`/
+  `MultiToSingle` = model tek bir hedef dile kilitli (N hedef = N ayrı model); `SingleToMulti` =
+  ElevenLabs'in bugünkü gerçek davranışı, aynı model N hedef dilde yeniden kullanılabilir.
+- `source_languages`/`target_languages: Vec<String>` — `target_languages` clone anında BOŞ başlar,
+  admin `assign` ile doldurur (aşağıda).
+- `mode: VoiceMode` (`Dubbing`/`SpeechToSpeech`, varsayılan `Dubbing`) + `source: VoiceSource`
+  (`UserCloned`/`Preset`, varsayılan `UserCloned`) — ŞEMA hazır ama dashboard'da `SpeechToSpeech`/
+  `Preset` SEÇİLEMEZ (ikisi de self-hosted motor gerektiriyor, KALAN — bkz. roadmap sonu).
+- Ham ses örneği artık **AES-256-GCM şifreli saklanıyor** (`voice_models::VoiceSampleStore`, yeni
+  dosya `sample_store.rs`) — önceki "hiç saklama" kararının BİLİNÇLİ tersi. `relay::
+  RelayTargetStore` ile BİREBİR AYNI desen (tüm JSON blob'u tek parça şifreli, `VOICE_SAMPLES_FILE`,
+  `main.rs`'te `streamdubber.voice_samples.v1` context'iyle key derive). Model metadata'sından
+  (gizli değil) kasıtlı ayrı dosyada. `clone_voice` best-effort persist eder — şifreleme/disk hatası
+  model oluşturmayı ENGELLEMEZ, sadece `has_stored_sample=false` kalır.
+- `backend/tests/voice_models_api.rs`'e yeni e2e testler (language_mode doğrulama, assign akışı).
 
-**Soru 1 — Hangi ses modeli hangi dilde kullanılsın?**
-> Kullanıcı: "Admin panelde Voice model kullanabilmeli yayıncı dili
-> seçtiğinde benim admin panelden o dil için seçtiğim en iyi modeli
-> kullansın."
+**2) Admin dil ataması (2.2'ye eklendi):**
+- `VoiceModelStore::set_active_for_language(model_id, lang)` + `POST /admin/voice/models/{id}/
+  assign` — model onaylı değilse 422, `SingleToSingle`/`MultiToSingle` zaten farklı bir dile
+  atanmışsa 409 (bu modlar tek hedefe kilitli), `SingleToMulti` çoklu dile atanabilir.
+  `active_model_for(user_id,lang)` admin modeli SONRADAN reddederse stale atamayı görmezden gelir
+  (status filtresi — atama haritası ayrıca temizlenmiyor, gerek yok).
+- `admin-voice-models-panel.tsx`: dil sütunu (language_mode + source→target özeti) + onaylı
+  modeller için dil seçici + "Assign" butonu.
 
-Yani: **"en son onaylanan modeli kullan"** (benim önerdiğim basit seçenek)
-DEĞİL — kullanıcı **ikinci seçeneği** (dil alanı + admin curation) seçti:
-- `VoiceModel`'e `language: String` alanı eklenmeli (şu an YOK).
-- Admin panelde, bir kullanıcının (user_id, language) çifti için "bu model
-  kullanılsın" diye SEÇEBİLECEĞİ bir mekanizma gerekiyor — muhtemelen
-  `POST /admin/voice/models/{id}/assign` gibi bir uç + `VoiceModel`'e
-  `is_active_for_lang: bool` benzeri bir alan (aynı user+lang için sadece
-  biri aktif olabilir, admin manuel seçiyor).
-- `voice_models::clone_voice` request'ine `language` alanı eklenmeli (şu an
-  sadece `name` + `sample_base64` alıyor).
-- Onay kuyruğu admin UI'ında (`admin-voice-models-panel.tsx`) dil sütunu +
-  "bu dil için aktif yap" aksiyonu eklenmeli.
+**3) Gateway::synthesize → pipeline dispatch (2.2'nin çekirdeği):**
+- `pipeline::StreamSession.synthesize_dubs` — final (`is_final=true`) çeviri sonrası, `tts_source=
+  Cloud` VE hedef dil için aktif+onaylı model varsa `gateway.synthesize` GERÇEKTEN çağrılır. Sonuç
+  `ws::protocol::ServerMessage::Subtitle.dubbed_audio` (yeni alan — `Vec<DubbedAudioTrack{lang,
+  audio_base64}>`, `translations` ile paralel, eski SDK'lar serde default ile yok sayar) içine
+  eklenir. Model yoksa/sağlayıcı hata verirse o dil sessizce atlanır (`translate_all`'ın best-effort
+  deseniyle aynı) — bir dilin dub hatası ne diğer dilleri ne altyazının kendisini etkiler.
+  `tts_source=Local`'de backend HİÇ sentezlemez (SDK kendi motoruyla sentezleyecek, motor KALAN).
+- 6 yeni pipeline testi (dispatch var/yok, local hiç dispatch etmiyor, interim hiç dispatch etmiyor,
+  sağlayıcı hatası fatal değil, kota gerçekten işleniyor).
+- "2 sn altı" gecikme hedefi CANLI ElevenLabs key'i olmadan ÖLÇÜLEMEDİ — dispatch kodu gerçek ve
+  testli, uçtan uca gecikme doğrulaması kullanıcı aksiyonu.
 
-**Soru 2 — Dublaj ne zaman devreye girsin?**
-> Kullanıcı: "Yayıncı açıp kapayabilecek zaten kickte dublaj için 2 hesap
-> gerekecek orda her hesap için dublaj dili seçecek dublajda kredi yesin
-> bütün herşey kredi mantığında iyiymiş."
+**4) TTS kota/kredi tüketimi (2.2'ye eklendi, kullanıcının "saniye ama saat-fiyatlandırma" kararı):**
+- `gateway::elevenlabs` artık `output_format="mp3_44100_128"` AÇIKÇA istiyor (tahmini karakter/
+  saniye oranı DEĞİL — kesin bilinen bitrate). `pipeline::tts_audio_seconds` bu sabitten
+  `bytes*8/128_000` ile gerçek süreyi hesaplar, indirimsiz uygular (STT'nin `process_audio`
+  1.0-tarife mantığıyla aynı — cloud sağlayıcı tam maliyetli). Aynı `UsageTracker` havuzuna
+  (`usage.record`) işler — STT ile PAYLAŞILAN, ayrı bir sayaç YOK (kullanıcının isteği buydu).
+  Limit kontrolü burada ayrıca yapılmıyor — aynı havuzu paylaştığı için STT'nin bir sonraki tick'i
+  zaten yakalıyor (bir tick gecikmeli ama doğru, yeni bir "session kapatma" yolu icat edilmedi).
+- Yerel TTS (`tts_source=local`) kullanım tüketimi KALAN — gerçek motor yok (2.2b), backend'e ses/
+  karakter hiç ulaşmıyor, ölçülecek bir "TTS anı" henüz yok.
 
-Bu yanıt **hem 2.2'yi hem 2.3'ü (İkili Yayın) etkiliyor**, ve benim
-sunduğum 2 basit seçenekten HİÇBİRİ tam karşılamıyor — üçüncü, daha büyük
-bir tasarım ortaya çıktı:
-- Yayıncı dublajı **açıp kapayabilmeli** (explicit toggle — muhtemelen
-  `stream_start`'a yeni alan VEYA platform bağlantısı bazında bir ayar).
-- **Kick'te dublaj için 2 hesap gerekiyor** — bu, 1.6/2.3'teki "İkili Yayın"
-  konseptiyle birebir örtüşüyor (TR ses → hesap 1, EN klonlanmış ses →
-  hesap 2). Şu an `RelayTarget{platform, rtmp_url, stream_key}`'de dil
-  bilgisi YOK — her bağlı hesaba (`RelayTarget` veya gelecekteki OAuth
-  Platform Hesapları kaydı) **kendi dublaj dili** atanabilmeli.
-- **Dublaj kota/kredi tüketmeli** — "bütün herşey kredi mantığında" demek,
-  mevcut `UsageTracker`/saat kotası sistemine (STT'nin
-  `stt.local.usage_multiplier` deseni gibi) TTS için de gerçek bir kullanım
-  ölçümü+düşümü eklenmeli. Şu an `tts.local.usage_multiplier` config'i VAR
-  ama HİÇBİR YERDE tüketilmiyor (2.2b'de sadece policy'de expose edildi).
+**5) Frontend:**
+- `voice-clone-studio.tsx`: `/api/translate/catalog`'tan (2.0) beslenen dil kataloğu + 3 modlu
+  language_mode seçici + moda göre tekli/çoklu kaynak-dil seçici; `POST /api/voice/clone` artık
+  `language_mode`+`source_languages` gönderiyor (backend şemasıyla birlikte güncellendi — 422
+  riskinden kaçınıldı). Model listesinde language_mode/source/target özeti gösteriliyor.
+  `voice-cloning.test.ts`'e yeni testler (catalog fetch, request body alanları, 3 mod için dictionary
+  kapsaması).
 
-**Bu ikisi birlikte şu anlama geliyor:** 2.2 artık basit bir "pipeline'a
-senkron bir synthesize çağrısı ekle" işi değil — gerçek bir şema
-değişikliği (VoiceModel+language, RelayTarget+dub_language veya benzeri) +
-yeni admin endpoint'leri + kota/kredi entegrasyonu gerektiriyor. **Sonraki
-ajan muhtemelen kullanıcıya 1-2 ek soru sormalı** (örn: "RelayTarget'a mı
-yoksa yeni bir PlatformDubSettings tablosuna mı dil ekleyeyim?", "kota
-TTS için AYRI bir sayaç mı yoksa STT ile aynı 'saat' havuzunu mu paylaşsın,
-hangi birimde (karakter/saniye) düşülsün?") — küçük klarifikasyonlarla
-devam edilebilir, sıfırdan tasarlamaya gerek yok, ANA KARARLAR YUKARIDA VERİLDİ.
+**6) Roadmap yeniden düzenleme (kullanıcının "S2S sona, gerisi Faz 2'ye" kararı):**
+- 2.1/2.2'ye yukarıdaki maddeler `[x]` + detaylı Claude notu olarak eklendi.
+- Dosya sonundaki "Öz Kaynaklı Ses Klonlama..." bölümü TRIM edildi: language_mode şeması, şifreli
+  saklama, mode/source alanları, admin ataması, kota — hepsi "Faz 2'ye Taşınanlar" notuyla
+  çıkarıldı. Kalan (gerçekten ayrı, hâlâ faza atanmamış): gerçek S2S sentez motoru (metin ara
+  katmanı olmadan çalışan ses-dalgasından-ses-dalgasına model), ElevenLabs bağımlılığının
+  kaldırılması, self-hosted klonlama+TTS motoru, "seçili sesler" (self-hosted çıktısı gerektiriyor),
+  çok-sağlayıcılı kredi/kota admin ekranı (bugün tek sağlayıcı olduğu için erken).
 
-**ÖNERİLEN SIRALAMA (yarım kalan tasarımı tamamlamak için):**
-1. `VoiceModel`'e `language: String` ekle (backend/src/voice_models/mod.rs)
-   — migration yok (plain JSON store), sadece struct+endpoint güncellemesi.
-   `clone_voice` request'ine `language` alanı ekle, frontend
-   `voice-clone-studio.tsx`'e dil seçici ekle (muhtemelen
-   `translate_languages::DEEPL_TARGET_LANGUAGES` kataloğundan — Faz 2.0'da
-   zaten var, aynı listeyi burada da kullan).
-2. Admin "bu model bu dil için aktif" ataması — `VoiceModelStore`'a
-   `set_active_for_language(user_id, lang, model_id)` benzeri bir metod +
-   `POST /admin/voice/models/{id}/assign` + admin UI'da buton.
-3. `Gateway::synthesize` çağrısını gerçekten pipeline'a bağla — StreamSession
-   çeviri sonrası, EĞER (a) `tts.provider != disabled`, (b) yayıncının
-   planı `has_voice_clone`, (c) o hedef dil için aktif/approved bir model
-   VARSA, `gateway.synthesize(model.provider_voice_id, translated_text)`
-   çağırsın. `tts_source` alanına göre: cloud→ses baytlarını yeni bir
-   ServerMessage ile SDK'ya gönder; local→SADECE metni gönder (SDK kendi
-   motoruyla sentezleyecek, motor kendisi Faz 3/ayrı iş).
-4. Kota/kredi: `UsageTracker`'a TTS için ayrı bir tick mekanizması (veya
-   aynı saat havuzuna ekleme) — `stt.local.usage_multiplier` deseniyle
-   tutarlı, `tts.local.usage_multiplier` zaten config'te var, sadece
-   TÜKETİLMİYOR.
-5. 2.3 (İkili Yayın): dublaj dilinin RelayTarget/platform bağlantısı bazında
-   seçilmesi — muhtemelen `RelayTarget`'a `dub_language: Option<String>`
-   eklemek en basiti (yeni tablo yerine).
+### Regresyon durumu (bu oturum sonu)
+- **Backend:** `cargo build` temiz, `cargo test --workspace` → 301 unit + tüm e2e testler (yeni
+  `voice_models_api.rs` testleri dahil) yeşil, `cargo clippy --workspace --all-targets` temiz.
+- **Frontend:** `npx tsc --noEmit` temiz, `npm run lint` temiz, `npm run test` → 121 test yeşil,
+  `npm run build` başarılı (35 sayfa).
+- `sdk` crate'i bu oturumda DEĞİŞMEDİ (TTS dispatch tamamen backend tarafında, `tts_source=local`
+  hâlâ protokol-seviyesinde taşınıyor, SDK motoru KALAN).
 
-Bunların HİÇBİRİ bu oturumda yazılmadı — SIFIRDAN başlanacak, ama tasarım
-kararları netleşti, direkt implementasyona geçilebilir.
+### Sonraki Adım (TAM OLARAK)
+1. **Roadmap'te 2.1/2.2'nin yeni checkbox'larını + trim edilen "Öz Kaynaklı..." bölümünü commit'le**
+   (bu oturumun son işi — commit henüz atılmadı, bu notla birlikte atılacak).
+2. **[CHECKPOINT] Task 2.2'nin TEK kalan maddesi: SDK'da video + klonlanmış ses birleştirme (mux)**
+   — `sdk/src/core/mux.rs` şu an SADECE bir enum (`OutputPlan`, gerçek kod YOK). RTMP relay
+   (`sdk/src/core/rtmp/relay.rs`) audio/video tag'lerini OPAK byte-blob olarak fan-out ediyor,
+   codec'e dokunmuyor. OBS'in orijinal ses tag'lerini bu oturumda üretilen `dubbed_audio` ile GERÇEKTEN
+   değiştirmek yeni bir encoder+senkron stratejisi gerektirir — whisper.cpp/cmake sorusuyla AYNI
+   ciddiyette bir mimari çatal (basit AAC pass-through encoder mı, ffmpeg sidecar mı, Faz 3'e mi
+   ertelenir). **AskUserQuestion ile AYRI görüşülmeli, bu oturumda sorulmadı/kodlanmadı.**
+3. **Task 2.3 (İkili Yayın)** — `RelayTarget`'a `dub_language: Option<String>` eklemek (kullanıcının
+   önceki oturumda verdiği "Kick'te dublaj için 2 hesap" kararı) — 2.2'nin dispatch mekanizması
+   hazır olduğu için artık daha az belirsiz, muhtemelen aynı oturumda gider.
+4. **Task 2.7** (Admin — hibrit kontrol genişletme + canlı maliyet) — `/admin/routing` sayfasının
+   STT/TTS/Translate provider toggle'ları hâlâ TAMAMEN statik/dekoratif (onClick yok, DeepL kartı
+   hariç). Bu task o sayfayı gerçek `PUT /admin/config`'e bağlamalı. Ayrıca "canlı maliyet
+   göstergesi" — `UsageTracker` üzerine config-seeded $/birim tablosu (çok-sağlayıcılı kredi
+   konfigürasyonu da muhtemelen buraya girer, bkz. roadmap sonu).
+5. **Task 2.6** (faster-whisper bulut) — sadece `gateway/whisper_cloud.rs` (deepgram.rs deseni,
+   self-hosted REST endpoint) + admin toggle. Hetzner GPU sunucu provisioning + TR kalite testi
+   KULLANICI AKSİYONU.
+6. **Task 2.5** (Chrome Extension) — `extension/js/shared.js` Twitch-agnostic, doğrudan taşınabilir.
+   Chrome Web Store başvurusu KULLANICI AKSİYONU.
+7. **Task 2.4 kalanı** — Twitch console kaydı/Hosted Test/review başvurusu, sertifikalar,
+   releases.strovak.com hosting, Hetzner — HİÇBİRİ kodla tamamlanamaz.
 
 ## Değiştirdiğim Alanlar (bu oturum — dosya/klasör bazında özet)
 **Backend (Rust):**
-- `backend/src/translate_languages.rs` (yeni) — DeepL 29 dil kataloğu
-- `backend/src/stream_settings/mod.rs` (yeni) — hedef dil seçimi store+endpoint
-- `backend/src/gateway/tts.rs`, `gateway/elevenlabs.rs` (yeni) — TtsProvider
-- `backend/src/voice_models/mod.rs` (yeni) — ses modeli + onay kuyruğu
-  **(bkz. yukarıda — language alanı EKSİK, sonraki iş)**
-- `backend/src/tts_policy/mod.rs` (yeni) — stt_policy'nin TTS aynası
-- `backend/src/sdk_link/mod.rs` — TtsMode/TtsSettingsStore/set_tts_mode/
-  report_tts_benchmark eklendi (STT karşılıklarıyla aynı desen)
-- `backend/src/gateway/mod.rs` — tts map + clone_voice/synthesize dispatch
-- `backend/src/gateway/deepl.rs` — source_lang=auto düzeltmesi
-- `backend/src/ws/protocol.rs` — TtsSource enum + StreamStart.tts_source
-- `backend/src/pipeline/mod.rs` — StreamSession.tts_source alanı (henüz
-  DISPATCH YOK — sadece taşıma, task 2.2'nin işi)
-- `backend/src/provider_check/mod.rs` — ElevenLabs xi-api-key auth stili
-- `backend/src/config.rs` — tts.*, translate.deepl.enabled_targets seed'leri
-- `backend/src/{app,state,main,lib}.rs` — yeni store'ların wiring'i
-
-**SDK (Rust, pure — native bağımlılık yok):**
-- `sdk/src/core/gpu_probe.rs` (yeni) — nvidia-smi tabanlı GPU/VRAM probe
-- `sdk/src/core/model_fetch.rs` (yeni) — genel model indirme+SHA-256 (TTS
-  modeli için de DOĞRUDAN kullanılabilir, değişiklik gerekmez)
-- `sdk/src/core/local_tts.rs`, `tts_watchdog.rs` (yeni) — STT çekirdeğinin
-  TTS aynası (LocalTtsEngine/MockTtsEngine/run_benchmark, TtsWatchdog)
-- `sdk/src/lib.rs` — run_desktop_shell artık `Option<SttControlHandle>`
-  alıyor (periyodik STT-control poll loop) — main.rs bilerek `None` geçiyor
-  (gerçek whisper.cpp motoru yok)
+- `backend/src/voice_models/sample_store.rs` (yeni) — `VoiceSampleStore`, AES-256-GCM şifreli ham
+  örnek deposu (`relay::RelayTargetStore` deseni).
+- `backend/src/voice_models/mod.rs` — `LanguageMode`/`VoiceMode`/`VoiceSource` enum'ları,
+  `VoiceModel` şeması genişletildi, `set_active_for_language`/`active_model_for`, `assign_voice_model`
+  handler'ı, `clone_voice` request/validasyon güncellendi.
+- `backend/src/pipeline/mod.rs` — `StreamSession.voice_models` alanı, `synthesize_dubs`,
+  `tts_audio_seconds`, `subtitle_for` artık `dubbed_audio` üretiyor.
+- `backend/src/ws/protocol.rs` — `DubbedAudioTrack` + `ServerMessage::Subtitle.dubbed_audio`.
+- `backend/src/ws/mod.rs` — `StreamSession::new` çağrısına `voice_models` eklendi.
+- `backend/src/gateway/elevenlabs.rs` — `output_format="mp3_44100_128"` açıkça isteniyor.
+- `backend/src/state.rs`, `backend/src/main.rs`, `backend/src/app.rs` — `VoiceSampleStore` wiring'i
+  (state field+FromRef+skeleton, main.rs encrypted-store construction, `/admin/voice/models/{id}/
+  assign` route), `overlay/mod.rs` ve `ext_twitch/mod.rs`'teki `ServerMessage::Subtitle` literal'leri
+  yeni `dubbed_audio` alanı için güncellendi.
+- `backend/tests/voice_models_api.rs` — language_mode validasyon + assign akışı e2e testleri.
 
 **Frontend (Next.js):**
-- `/dashboard/captions` — target-language-picker.tsx (2.0)
-- `/dashboard/sdk` — sdk-pairing-panel.tsx, sdk-stream-key-panel.tsx (2.8)
-- `/dashboard/voice` (yeni sayfa) — tts-processing-panel.tsx +
-  voice-clone-studio.tsx (2.1/2.2b)
-- `/admin/routing` — admin-deepl-languages-panel.tsx eklendi (sayfanın GERİ
-  KALANI hâlâ statik mockup — bu Faz 2.7'nin işi)
-- `/admin/voice-models` (yeni sayfa) — admin-voice-models-panel.tsx
-- `copy-row.tsx` — "Copy" butonu hiçbir şey yapmıyordu, gerçek
-  `navigator.clipboard.writeText` eklendi
-- `icon.tsx` — Upload ikonu eklendi
+- `voice-clone-studio.tsx` — language_mode + kaynak dil seçici, `/api/translate/catalog` fetch,
+  model listesinde dil özeti.
+- `admin-voice-models-panel.tsx` — dil sütunu + assign seçici/butonu.
+- `src/i18n/dictionaries/en.json` — `dashboard.voice.form`/`modelMeta` ve `admin.voiceModels` yeni
+  alanlar.
+- `src/i18n/dictionaries/voice-cloning.test.ts` — yeni testler.
 
-## Son Kararlar (bu oturum)
-- **Mimari desen: "mirror, generalize etme."** Her STT-analog TTS parçası
-  (TtsSettingsStore/SttSettingsStore, tts_policy/stt_policy modülleri vb.)
-  PARALEL DUPLICATE olarak yazıldı, ortak soyutlamaya ÇEKİLMEDİ — roadmap
-  metninin kendisi "aynı desen" diyor, "aynı kod" demiyor; codebase'in
-  genel eğilimi de (StreamSettingsError/SttSettingsError/VoiceModelError
-  gibi) küçük tekrarları kabul ediyor.
-- **whisper.cpp VE XTTS-v2 native motor bind'i ERTELENDİ** — bu makinede
-  `cmake` yok (Arch/CachyOS, kurulu değil). Kullanıcı onayladı: "önce diğer
-  parçaları bitir" (whisper.cpp sorusu — önceki oturum). Aynı mantık
-  XTTS-v2 için de geçerli, ayrıca sormaya gerek kalmadı.
-- **Bu makinede GERÇEK donanım var:** NVIDIA RTX 3070 Laptop GPU (8GB),
-  `nvidia-smi` çalışıyor — GPU probe testleri gerçek donanıma karşı koştu.
-- **`/dashboard/sdk` "stream key"** = `RelayTarget{platform:"obs",
-  rtmp_url:"rtmp://127.0.0.1:19350/live"}` tek sentetik hedef — çoklu
-  platform OAuth hesap bağlama (Platform Hesapları) henüz kurulmadığı için
-  basitleştirildi. `/api/relay/targets` LİSTE alıyor ama şu an hep 1 eleman.
-- **DeepL EN/PT bölgesel kod nüansı (EN-GB/EN-US, PT-PT/PT-BR) BİLEREK
-  atlandı** — Faz 1.8'in basit-kod davranışı korundu (`en`/`pt` düz kod),
-  gerçek DeepL API'sinde bu ayrım gerekebilir ama canlı key yokken
-  doğrulanamadı; `translate_languages.rs`'te yorum olarak not düşüldü.
-- **`ws_integration.rs` ve `sdk/tests/cloud_e2e.rs`'teki bazı testler
-  "free" plandan "pro"ya çekildi** — 2.0'da eklenen plan-bazlı hedef-dil
-  sayısı sınırı (PlanRegistry.max_languages, ÖNCEDEN VARDI ama hiç enforce
-  edilmiyordu) bu testlerin 2 hedef dil göndermesini artık haklı olarak
-  reddediyordu; testlerin asıl amacı çoklu-dil akışını kanıtlamaktı, plan
-  sınırını değil.
-- **`run_desktop_shell` (SDK'nın gerçek giriş noktası) HÂLÂ gerçek bir
-  `stream_start` kurmuyor** — sadece relay wiring + opsiyonel stt-control
-  polling loop var. Bu, gerçek zamanlı ses/altyazı/TTS akışının SDK
-  tarafında UÇTAN UCA henüz hiç çalıştırılmadığı anlamına geliyor (sadece
-  `sdk/tests/cloud_e2e.rs`'in kendi test harness'i üzerinden). Task 2.2/2.3
-  ilerledikçe bu gerçek wiring boşluğu daha da görünür olacak — ayrı,
-  büyük bir iş (muhtemelen kendi checkpoint'ini gerektirir).
+**Roadmap/docs:**
+- `streamdubber_roadmap_final.md` — 2.1/2.2 checkbox'ları + notlar; "Öz Kaynaklı Ses Klonlama..."
+  bölümü trim edildi (yalnız gerçek S2S/self-hosted-motor kısmı kaldı) + Watch Party bölümünün
+  sondaki notunun yanlış yerde kalması düzeltildi (araya girmişti).
 
-## Sonraki Adım (TAM OLARAK)
-1. **Task 2.2'yi TAMAMLA** — yukarıdaki "ÖNERİLEN SIRALAMA" (5 madde) ile
-   başla. Muhtemelen kullanıcıya 1-2 küçük klarifikasyon sorusu daha
-   gerekir (kota biriminin ne olacağı, RelayTarget'a mı yeni bir yapıya mı
-   dil ekleneceği) — sıfırdan tasarım DEĞİL, küçük detay soruları.
-2. Roadmap'te 2.2'nin checkbox'larını işaretle + commit.
-3. **Task 2.3 (İkili Yayın)** — 2.2'nin dub_language kararına bağlı,
-   muhtemelen aynı oturumda birlikte gider.
-4. **[CHECKPOINT] Task 2.2/2.3'ün mux kısmı** — `sdk/src/core/mux.rs` şu an
-   SADECE bir enum (OutputPlan, gerçek kod YOK). RTMP relay
-   (`sdk/src/core/rtmp/relay.rs`) audio/video tag'lerini OPAK byte-blob
-   olarak fan-out ediyor, codec'e dokunmuyor. Klonlanmış sesi GERÇEKTEN
-   yayına koymak (OBS'in orijinal ses tag'lerini TTS çıktısıyla
-   değiştirmek) yeni bir encoder+senkron stratejisi gerektirir — bu, önceki
-   whisper.cpp/cmake sorusu gibi KULLANICIYLA AYRI GÖRÜŞÜLMELİ (AskUserQuestion
-   ile: basit AAC pass-through encoder mı, ffmpeg sidecar mı, Faz 3'e mi
-   ertelenir).
-5. **Task 2.7** (Admin — hibrit kontrol genişletme + canlı maliyet) —
-   `/admin/routing` sayfasının STT/TTS/Translate provider toggle'ları hâlâ
-   TAMAMEN statik/dekoratif (onClick yok). Bu task o sayfayı gerçek
-   `PUT /admin/config`'e bağlamalı. Ayrıca "canlı maliyet göstergesi" —
-   `UsageTracker` üzerine config-seeded $/birim tablosu.
-6. **Task 2.6** (faster-whisper bulut) — sadece `gateway/whisper_cloud.rs`
-   (deepgram.rs deseni, self-hosted REST endpoint) + admin toggle. Hetzner
-   GPU sunucu provisioning + TR kalite testi KULLANICI AKSİYONU.
-7. **Task 2.5** (Chrome Extension) — `extension/js/shared.js` Twitch-agnostic,
-   doğrudan taşınabilir. `bindings::ChannelBindingStore` zaten
-   platform-bağımsız tasarlandı ("Chrome Extension aynı depoyu kullanacak"
-   yorumu kodda zaten var). Chrome Web Store başvurusu KULLANICI AKSİYONU.
-8. **Task 2.4 kalanı** — Twitch console kaydı/Hosted Test/review başvurusu,
-   sertifikalar, releases.strovak.com hosting, Hetzner — HİÇBİRİ kodla
-   tamamlanamaz, sadece işaretlemek için task listesinde tutuluyor.
+## Son Kararlar (bu oturum + önceki oturumdan taşınanlar)
+- **Kota birimi: saniye (iç), saat (kullanıcıya gösterilen)** — kullanıcının net kararı. Cloud TTS
+  gerçek ses baytından KESİN hesaplanır (tahmini karakter/saniye oranı DEĞİL — `output_format`
+  açıkça istendiği için). Bu, mevcut `UsageTracker`/`monthly_hours` deseniyle bire bir örtüşüyor,
+  yeni bir "kredi" soyutlaması İCAT EDİLMEDİ (kodda "kredi" diye bir şey hâlâ yok — kullanıcının
+  "kredi mantığı" dediği şey, zaten var olan saat havuzunun ta kendisi).
+- **Mimari desen: "mirror, generalize etme."** Her STT-analog TTS parçası (TtsSettingsStore/
+  SttSettingsStore, tts_policy/stt_policy modülleri vb.) PARALEL DUPLICATE olarak yazıldı, ortak
+  soyutlamaya ÇEKİLMEDİ — roadmap metninin kendisi "aynı desen" diyor, "aynı kod" demiyor.
+- **whisper.cpp, XTTS-v2 VE self-hosted S2S native motor bind'i ERTELENDİ** — bu makinede `cmake`
+  yok (Arch/CachyOS, kurulu değil). Üçü de AYNI blocker kategorisi; kullanıcı "önce diğer parçaları
+  bitir" dedi (whisper.cpp sorusu, önceki oturum) — self-hosted S2S için de aynı mantık, ayrıca
+  sorulmadı çünkü kullanıcının kendisi "S2S sona not olarak kalsın" dedi.
+- **`VoiceModel.mode`/`source` şemada var ama dashboard'da sadece `Dubbing`/`UserCloned` seçilebilir**
+  — `SpeechToSpeech`/`Preset` gerçek bir self-hosted motor gerektiriyor, o olmadan UI'da sunmak
+  yanıltıcı olurdu (çalışmayan bir seçenek gibi görünürdü).
+- **Admin panelde çok-sağlayıcılı kredi/oran konfigürasyonu YAPILMADI** — bugün TEK cloud sağlayıcı
+  (ElevenLabs, sabit 1:1 oran) olduğu için karşılaştırılacak ikinci bir oran yok; self-hosted motor
+  gelince (2.7 veya ayrı bir admin ekranı) anlamlı olacak.
+- **Bu makinede GERÇEK donanım var:** NVIDIA RTX 3070 Laptop GPU (8GB), `nvidia-smi` çalışıyor.
+- **`ws_integration.rs` ve `sdk/tests/cloud_e2e.rs`'teki bazı testler "free" plandan "pro"ya
+  çekildi** (önceki oturum) — 2.0'daki plan-bazlı hedef-dil sınırı testleri artık haklı reddediyordu.
+- **`run_desktop_shell` (SDK'nın gerçek giriş noktası) HÂLÂ gerçek bir `stream_start` kurmuyor** —
+  sadece relay wiring + opsiyonel stt-control polling loop var. TTS dispatch bu oturumda TAMAMEN
+  backend tarafında kodlandı ve test edildi (pipeline unit testleri) ama SDK'nın gerçek bir yayın
+  sırasında bunu uçtan uca tetiklediği hiç gösterilmedi — ayrı, büyük bir iş.
 
 ## Blokerlar / Dikkat
-- **cmake yok** (bu makine) — whisper.cpp VE XTTS-v2 native bind'i
-  engelliyor. Kurulum önerilirse kullanıcıya sorulmalı (sistem paketi,
-  onay gerekir) — önceki oturumda bu soru soruldu, kullanıcı "önce diğerini
-  bitir" dedi, cmake kurulumu hiç yapılmadı.
-- **Mux/audio-splice tasarımı ayrı bir kullanıcı görüşmesi gerektirir**
-  (yukarıda #4). Bu konuda AŞIRI VARSAYIM yapıp direkt kod yazmaya
-  BAŞLAMA — whisper.cpp/cmake sorusuyla AYNI ciddiyette bir mimari çatal.
-- **`/admin/routing` sayfası** DeepL kartı hariç TAMAMEN statik mockup —
-  eğer bir gelecek task "bu buton çalışmıyor" bulursa, bu BİLİNEN ve zaten
-  task 2.7'ye atanmış bir durum, yeni bir bug değil.
-- **VoiceModel şeması değişecek** (language alanı ekleniyor) — eğer bu
-  arada frontend/backend ayrı ayrı güncellenirse (`clone_voice` request
-  şekli, `voice-clone-studio.tsx`'in gönderdiği body) İKİSİNİ BİRLİKTE
-  güncellemeyi unutma, aksi halde 422/deserialize hatası.
-- **Kredi/kota sistemi henüz TTS'i hiç düşmüyor** — `tts.local.
-  usage_multiplier` config'te var ama tüketen kod YOK. STT'nin
-  `tick_usage(scale)` deseni (`backend/src/pipeline/mod.rs`) referans al.
+- **cmake yok** (bu makine) — whisper.cpp, XTTS-v2 VE self-hosted S2S native bind'ini engelliyor.
+  Kurulum önerilirse kullanıcıya sorulmalı (sistem paketi, onay gerekir).
+- **Mux/audio-splice tasarımı ayrı bir kullanıcı görüşmesi gerektirir** (bkz. "Sonraki Adım" #2).
+  Bu konuda AŞIRI VARSAYIM yapıp direkt kod yazmaya BAŞLAMA.
+- **`/admin/routing` sayfası** DeepL kartı hariç TAMAMEN statik mockup — BİLİNEN, task 2.7'ye atanmış.
+- **`VoiceModel` şeması artık NİHAİ** (bu oturumda tamamlandı) — ileride `mode=SpeechToSpeech`/
+  `source=Preset`'i gerçek anlamda kullanılabilir hâle getirmek şemayı DEĞİŞTİRMEZ, sadece yeni bir
+  sentez pipeline'ı/motor bağlar. Frontend/backend `clone_voice` request şekli artık senkron —
+  ikisi ayrı güncellenirse yine 422 riski var, unutma.
+- **Yerel TTS (tts_source=local) kullanım tüketimi HÂLÂ YOK** — gerçek motor gelmeden ölçülecek
+  bir "TTS anı" yok, bilerek ertelendi.
 - Workspace regresyon komutları (HER commit'ten önce mutlaka koş):
   ```bash
   cargo test --workspace && cargo clippy --workspace --all-targets
@@ -362,4 +336,3 @@ kararları netleşti, direkt implementasyona geçilebilir.
 ## Faz 1 Blokerlar / Dikkat (arşiv)
 - Migration canlı Postgres'e karşı çalıştırılmadı (yerel DB yok) — SQL schema.md'den birebir, sqlx derleme zamanı gömme başarılı.
 - Gerçek STT/DeepL key'leri yok — entegrasyon (1.7/1.8) için Deepgram/DeepL hesabı gerekli.
-- Vault local dev kurulumu (`vault server -dev`) hâlâ dökümente değil; JWT_SECRET şimdilik düz env var.

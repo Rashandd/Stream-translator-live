@@ -619,6 +619,7 @@ mod tests {
                 Translation { lang: "en".into(), text: "hello".into() },
                 Translation { lang: "de".into(), text: "hallo".into() },
             ],
+            dubbed_audio: vec![],
             ts_start_ms: 0,
             ts_end_ms: 0,
         }];

@@ -15,6 +15,12 @@ use crate::secrets::{names, SecretRef, SecretStore};
 
 const DEFAULT_BASE_URL: &str = "https://api.elevenlabs.io";
 const DEFAULT_MODEL_ID: &str = "eleven_multilingual_v2";
+/// Çıktı formatı AÇIKÇA istenir (ElevenLabs'in "şu an ne varsayılıyorsa"
+/// davranışına güvenmemek için) — `pipeline::StreamSession` bu sabit
+/// bitrate'ten (128 kbps) gerçek ses süresini hesaplayıp TTS kotasını buna
+/// göre düşer (bkz. `pipeline::ASSUMED_TTS_BITRATE_BPS`). İkisi birlikte
+/// değişmeli.
+const OUTPUT_FORMAT: &str = "mp3_44100_128";
 
 /// ElevenLabs REST client'ı.
 pub struct ElevenLabsTts {
@@ -118,7 +124,11 @@ impl TtsProvider for ElevenLabsTts {
             .client
             .post(format!("{}/v1/text-to-speech/{voice_id}", self.base_url))
             .header("xi-api-key", api_key)
-            .json(&serde_json::json!({ "text": text, "model_id": DEFAULT_MODEL_ID }))
+            .json(&serde_json::json!({
+                "text": text,
+                "model_id": DEFAULT_MODEL_ID,
+                "output_format": OUTPUT_FORMAT,
+            }))
             .send()
             .await
             .map_err(|e| TtsError::Request(e.to_string()))?;
@@ -175,7 +185,8 @@ mod tests {
                 return Err(StatusCode::UNAUTHORIZED);
             }
             let text = body["text"].as_str().unwrap_or_default();
-            Ok(format!("audio-bytes:{text}").into_bytes())
+            let output_format = body["output_format"].as_str().unwrap_or("missing");
+            Ok(format!("audio-bytes:{text}:{output_format}").into_bytes())
         }
 
         let app = Router::new()
@@ -202,7 +213,9 @@ mod tests {
         let base = spawn_elevenlabs_mock().await;
         let tts = ElevenLabsTts::with_base_url("test-key", base);
         let audio = tts.synthesize("voice-1", "merhaba").await.unwrap();
-        assert_eq!(audio, b"audio-bytes:merhaba");
+        // output_format açıkça isteniyor — pipeline'ın bitrate-tabanlı süre
+        // hesabı (ASSUMED_TTS_BITRATE_BPS) bu sabit formata bağlı.
+        assert_eq!(audio, b"audio-bytes:merhaba:mp3_44100_128");
     }
 
     #[tokio::test]

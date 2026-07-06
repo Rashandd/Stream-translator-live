@@ -84,7 +84,7 @@ fn request(method: &str, path: &str, token: Option<&str>, json: Option<&str>) ->
 
 fn clone_request_body(name: &str, sample: &[u8]) -> String {
     format!(
-        r#"{{"name":"{name}","sample_base64":"{}"}}"#,
+        r#"{{"name":"{name}","sample_base64":"{}","language_mode":"single_to_multi","source_languages":["tr"]}}"#,
         B64.encode(sample)
     )
 }
@@ -254,4 +254,129 @@ async fn users_do_not_see_each_others_voice_models() {
     let (_, body) = http(addr, &request("GET", "/api/voice/models", Some(&user_b), None)).await;
     let list: serde_json::Value = serde_json::from_str(&body).expect("json");
     assert!(list.as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn language_mode_source_language_count_is_validated() {
+    let (addr, _cfg) = spawn_server(true).await;
+    let pro = token("00000000-0000-0000-0000-0000000000p5", "broadcaster", "pro");
+
+    // single_to_single iki kaynak dille reddedilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&format!(
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"single_to_single","source_languages":["tr","en"]}}"#,
+                B64.encode(b"sample")
+            )),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    // multi_to_single tek kaynak dille reddedilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&format!(
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr"]}}"#,
+                B64.encode(b"sample")
+            )),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    // Geçerli kombinasyon kabul edilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&format!(
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr","en"]}}"#,
+                B64.encode(b"sample")
+            )),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+}
+
+#[tokio::test]
+async fn admin_assign_activates_model_for_owner_and_language() {
+    let (addr, _cfg) = spawn_server(true).await;
+    let pro = token("00000000-0000-0000-0000-0000000000p6", "broadcaster", "pro");
+    let admin = token("admin-2", "admin", "streamer");
+
+    let (_, body) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&clone_request_body("My Voice", b"sample")),
+        ),
+    )
+    .await;
+    let model: serde_json::Value = serde_json::from_str(&body).expect("json");
+    let model_id = model["id"].as_str().expect("id").to_string();
+
+    // Onaylanmadan atama reddedilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            &format!("/admin/voice/models/{model_id}/assign"),
+            Some(&admin),
+            Some(r#"{"target_language":"en"}"#),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    http(
+        addr,
+        &request(
+            "POST",
+            &format!("/admin/voice/models/{model_id}/approve"),
+            Some(&admin),
+            Some("{}"),
+        ),
+    )
+    .await;
+
+    let (status, body) = http(
+        addr,
+        &request(
+            "POST",
+            &format!("/admin/voice/models/{model_id}/assign"),
+            Some(&admin),
+            Some(r#"{"target_language":"en"}"#),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    let assigned: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(assigned["target_languages"], serde_json::json!(["en"]));
+
+    // Broadcaster admin uç noktasına erişemez.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            &format!("/admin/voice/models/{model_id}/assign"),
+            Some(&pro),
+            Some(r#"{"target_language":"de"}"#),
+        ),
+    )
+    .await;
+    assert_eq!(status, 403);
 }

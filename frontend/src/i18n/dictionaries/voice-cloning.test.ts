@@ -30,9 +30,27 @@ describe("voice cloning studio + admin approval queue (Faz 2.1)", () => {
     expect(studioSource).toContain('type="file"');
   });
 
-  it("admin panel talks to the real queue + approve/reject endpoints", () => {
+  it("studio sends language_mode + source_languages and fetches the language catalog", () => {
+    expect(studioSource).toContain('userFetch("/api/translate/catalog")');
+    expect(studioSource).toContain("language_mode: languageMode");
+    expect(studioSource).toContain("source_languages: sourceLangs");
+  });
+
+  it("admin panel talks to the real queue + approve/reject/assign endpoints", () => {
     expect(adminPanelSource).toContain('adminFetch("/admin/voice/models")');
     expect(adminPanelSource).toContain("/admin/voice/models/${id}/${action}");
+    expect(adminPanelSource).toContain("/admin/voice/models/${id}/assign");
+    expect(adminPanelSource).toContain("target_language");
+  });
+
+  it("has language mode copy for all three modes on both broadcaster and admin sides", () => {
+    const modes = ["single_to_single", "multi_to_single", "single_to_multi"] as const;
+    for (const mode of modes) {
+      expect(voice.form.languageModeOptions[mode].title).toBeTruthy();
+      expect(voice.form.languageModeOptions[mode].description).toBeTruthy();
+      expect(voice.modelMeta.languageModeLabels[mode]).toBeTruthy();
+      expect(voiceModels.languageModeLabels[mode]).toBeTruthy();
+    }
   });
 
   it("has all four status labels on both broadcaster and admin sides", () => {

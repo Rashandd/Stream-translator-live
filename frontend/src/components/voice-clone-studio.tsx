@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/src/components/icon";
 import { userFetch } from "@/src/lib/api";
+
+type LanguageMode = "single_to_single" | "multi_to_single" | "single_to_multi";
 
 /** `GET/POST /api/voice/...` model kaydı (backend voice_models::VoiceModel). */
 type VoiceModel = {
@@ -10,7 +12,19 @@ type VoiceModel = {
   name: string;
   status: "processing" | "pending_review" | "approved" | "rejected";
   created_at: number;
+  language_mode: LanguageMode;
+  source_languages: string[];
+  target_languages: string[];
 };
+
+/** `GET /api/translate/catalog` kaydı (auth gerekmez, gizli veri yok). */
+type LanguageCatalogEntry = {
+  code: string;
+  name: string;
+  supports_formality: boolean;
+};
+
+type LanguageModeOption = { title: string; description: string };
 
 type FormLabels = {
   nameLabel: string;
@@ -25,6 +39,20 @@ type FormLabels = {
   submittingLabel: string;
   micDeniedError: string;
   noSampleError: string;
+  languageModeLabel: string;
+  languageModeOptions: Record<LanguageMode, LanguageModeOption>;
+  sourceLanguageLabel: string;
+  sourceLanguagesLabel: string;
+  sourceLanguagePlaceholder: string;
+  noSourceLanguageError: string;
+  notEnoughSourceLanguagesError: string;
+};
+
+type ModelMetaLabels = {
+  languageModeLabels: Record<LanguageMode, string>;
+  sourceLabel: string;
+  targetLabel: string;
+  targetUnassigned: string;
 };
 
 type Labels = {
@@ -32,6 +60,7 @@ type Labels = {
   modelsTitle: string;
   modelsEmpty: string;
   statusLabels: Record<VoiceModel["status"], string>;
+  modelMeta: ModelMetaLabels;
   errors: {
     unauthorized: string;
     network: string;
@@ -67,6 +96,8 @@ const statusTone: Record<VoiceModel["status"], string> = {
   rejected: "border-danger/25 bg-danger/10 text-ink",
 };
 
+const LANGUAGE_MODES: LanguageMode[] = ["single_to_multi", "single_to_single", "multi_to_single"];
+
 export function VoiceCloneStudio({ labels }: { labels: Labels }) {
   const [name, setName] = useState("");
   const [sample, setSample] = useState<Blob | null>(null);
@@ -75,6 +106,9 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [models, setModels] = useState<VoiceModel[] | null>(null);
+  const [catalog, setCatalog] = useState<LanguageCatalogEntry[]>([]);
+  const [languageMode, setLanguageMode] = useState<LanguageMode>("single_to_multi");
+  const [sourceLangs, setSourceLangs] = useState<string[]>([]);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -90,9 +124,37 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
     }
   }, []);
 
+  const loadCatalog = useCallback(async () => {
+    try {
+      const res = await userFetch("/api/translate/catalog");
+      if (!res.ok) return;
+      setCatalog((await res.json()) as LanguageCatalogEntry[]);
+    } catch {
+      // Sessizce yut — dil seçici boş kalır, kullanıcı yine de kayıt/yükleme yapabilir.
+    }
+  }, []);
+
   useEffect(() => {
     void loadModels();
-  }, [loadModels]);
+    void loadCatalog();
+  }, [loadModels, loadCatalog]);
+
+  const needsMultipleSourceLanguages = languageMode === "multi_to_single";
+
+  const selectSingleSourceLang = useCallback((code: string) => {
+    setSourceLangs(code ? [code] : []);
+  }, []);
+
+  const toggleSourceLang = useCallback((code: string) => {
+    setSourceLangs((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+  }, []);
+
+  const changeLanguageMode = useCallback((mode: LanguageMode) => {
+    setLanguageMode(mode);
+    setSourceLangs([]);
+  }, []);
 
   const startRecording = useCallback(async () => {
     setError(null);
@@ -132,12 +194,25 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
       setError(labels.form.noSampleError);
       return;
     }
+    if (sourceLangs.length === 0) {
+      setError(labels.form.noSourceLanguageError);
+      return;
+    }
+    if (needsMultipleSourceLanguages && sourceLangs.length < 2) {
+      setError(labels.form.notEnoughSourceLanguagesError);
+      return;
+    }
     setSubmitting(true);
     try {
       const sampleBase64 = await blobToBase64(sample);
       const res = await userFetch("/api/voice/clone", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim() || "Untitled voice", sample_base64: sampleBase64 }),
+        body: JSON.stringify({
+          name: name.trim() || "Untitled voice",
+          sample_base64: sampleBase64,
+          language_mode: languageMode,
+          source_languages: sourceLangs,
+        }),
       });
       if (res.status === 401) {
         setError(labels.errors.unauthorized);
@@ -151,6 +226,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
         setName("");
         setSample(null);
         setRecordedSeconds(0);
+        setSourceLangs([]);
         await loadModels();
       }
     } catch {
@@ -158,7 +234,23 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
     } finally {
       setSubmitting(false);
     }
-  }, [labels.errors, labels.form.noSampleError, loadModels, name, sample]);
+  }, [
+    labels.errors,
+    labels.form.noSampleError,
+    labels.form.noSourceLanguageError,
+    labels.form.notEnoughSourceLanguagesError,
+    languageMode,
+    loadModels,
+    name,
+    needsMultipleSourceLanguages,
+    sample,
+    sourceLangs,
+  ]);
+
+  const languageNameByCode = useMemo(
+    () => new Map(catalog.map((entry) => [entry.code, entry.name])),
+    [catalog],
+  );
 
   return (
     <div className="space-y-6">
@@ -182,6 +274,77 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
             value={name}
           />
         </div>
+
+        <div>
+          <p className="text-xs font-medium text-muted">{labels.form.languageModeLabel}</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {LANGUAGE_MODES.map((mode) => {
+              const option = labels.form.languageModeOptions[mode];
+              const active = languageMode === mode;
+              return (
+                <button
+                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                    active
+                      ? "border-blue bg-blue/5 text-ink"
+                      : "border-border text-muted hover:border-blue hover:text-ink"
+                  }`}
+                  key={mode}
+                  onClick={() => changeLanguageMode(mode)}
+                  type="button"
+                >
+                  <span className="block font-semibold">{option.title}</span>
+                  <span className="mt-0.5 block leading-5">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {needsMultipleSourceLanguages ? (
+          <div>
+            <p className="text-xs font-medium text-muted">{labels.form.sourceLanguagesLabel}</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {catalog.map((entry) => {
+                const checked = sourceLangs.includes(entry.code);
+                return (
+                  <li key={entry.code}>
+                    <label
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        checked ? "border-blue bg-blue/5 text-ink" : "border-border text-muted"
+                      }`}
+                    >
+                      <input
+                        checked={checked}
+                        onChange={() => toggleSourceLang(entry.code)}
+                        type="checkbox"
+                      />
+                      {entry.name}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="voice-source-lang">
+              {labels.form.sourceLanguageLabel}
+            </label>
+            <select
+              className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+              id="voice-source-lang"
+              onChange={(event) => selectSingleSourceLang(event.target.value)}
+              value={sourceLangs[0] ?? ""}
+            >
+              <option value="">{labels.form.sourceLanguagePlaceholder}</option>
+              {catalog.map((entry) => (
+                <option key={entry.code} value={entry.code}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -239,7 +402,20 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
                 className="flex items-center justify-between rounded-lg border border-hairline bg-canvas px-4 py-3"
                 key={model.id}
               >
-                <span className="text-sm font-semibold text-ink">{model.name}</span>
+                <div>
+                  <span className="text-sm font-semibold text-ink">{model.name}</span>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {labels.modelMeta.languageModeLabels[model.language_mode]}
+                    {" · "}
+                    {labels.modelMeta.sourceLabel}{" "}
+                    {model.source_languages.map((code) => languageNameByCode.get(code) ?? code).join(", ")}
+                    {" · "}
+                    {labels.modelMeta.targetLabel}{" "}
+                    {model.target_languages.length > 0
+                      ? model.target_languages.map((code) => languageNameByCode.get(code) ?? code).join(", ")
+                      : labels.modelMeta.targetUnassigned}
+                  </p>
+                </div>
                 <span
                   className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone[model.status]}`}
                 >

@@ -11,10 +11,30 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
+
 use crate::gateway::Gateway;
 use crate::logging::{LogLevel, Logger};
 use crate::usage::UsageTracker;
-use crate::ws::protocol::{ErrorCode, ServerMessage, SttSource, SubtitleSource, TtsSource};
+use crate::voice_models::VoiceModelStore;
+use crate::ws::protocol::{
+    DubbedAudioTrack, ErrorCode, ServerMessage, SttSource, SubtitleSource, Translation, TtsSource,
+};
+
+/// ElevenLabs `synthesize` çağrısına açıkça verdiğimiz sabit çıktı formatının
+/// (bkz. `gateway::elevenlabs` — `mp3_44100_128`) bit hızı. TTS kota tüketimi
+/// (Faz 2.2) gerçek ses süresini bu sabitten hesaplar (`bytes*8/bitrate`) —
+/// tahmini bir karakter/saniye oranı değil, sağlayıcıya EXPLICIT istenen
+/// formattan türetilen kesin değer. Farklı bir cloud sağlayıcı eklenirse bu
+/// sabit sağlayıcı başına bir değere taşınmalı (şimdilik tek cloud sağlayıcı
+/// ElevenLabs olduğu için global sabit yeterli).
+const ASSUMED_TTS_BITRATE_BPS: f64 = 128_000.0;
+
+/// Ham ses baytından saniye hesaplar (`bytes*8/bitrate`).
+fn tts_audio_seconds(audio_len_bytes: usize) -> f64 {
+    (audio_len_bytes as f64 * 8.0) / ASSUMED_TTS_BITRATE_BPS
+}
 
 /// Aktif bir stream session'ının durumu.
 pub struct StreamSession {
@@ -37,9 +57,14 @@ pub struct StreamSession {
     /// `stream_start.stt_source` — `Local` ise SDK `transcript` mesajı
     /// gönderebilir (Faz 2.6b), `Cloud` session'da transcript reddedilir.
     stt_source: SttSource,
-    /// `stream_start.tts_source` (Faz 2.2b) — dispatch'i henüz burada değil
-    /// (Faz 2.2'nin gerçek zamanlı TTS akışı iş kalemi), şimdilik saklanır.
+    /// `stream_start.tts_source` (Faz 2.2b): `Cloud` ise backend hedef dil
+    /// başına onaylı+aktif bir ses modeli varsa gerçekten sentezler (Faz
+    /// 2.2); `Local` ise SDK kendi motoruyla `translations` metnini
+    /// sentezler, backend hiç ses üretmez.
     tts_source: TtsSource,
+    /// Admin'in (kullanıcı, hedef dil) başına aktif kıldığı onaylı ses
+    /// modelleri — cloud TTS dispatch'i (Faz 2.2) bunu okur.
+    voice_models: Arc<VoiceModelStore>,
 }
 
 impl StreamSession {
@@ -57,6 +82,7 @@ impl StreamSession {
         logger: Arc<Logger>,
         stt_source: SttSource,
         tts_source: TtsSource,
+        voice_models: Arc<VoiceModelStore>,
     ) -> Self {
         StreamSession {
             session_id: session_id.into(),
@@ -72,6 +98,7 @@ impl StreamSession {
             logger,
             stt_source,
             tts_source,
+            voice_models,
         }
     }
 
@@ -171,11 +198,21 @@ impl StreamSession {
 
     /// Kaynak metni tüm hedef dillere çevirip `Subtitle` mesajını kurar —
     /// cloud (STT çıktısı) ve local (transcript mesajı) yollarının ortak sonu.
+    /// `is_final` ise ve `tts_source: Cloud` ise, hedef dil başına onaylı+aktif
+    /// bir ses modeli varsa gerçekten sentezleyip `dubbed_audio`'ya ekler
+    /// (Faz 2.2). Interim sonuçlar hiç dublajlanmaz (gereksiz sağlayıcı
+    /// çağrısı/kota tüketimi olurdu).
     async fn subtitle_for(&mut self, text: String, is_final: bool) -> ServerMessage {
         let translations = self
             .gateway
             .translate_all(&text, &self.source_lang, &self.target_langs)
             .await;
+
+        let dubbed_audio = if is_final && self.tts_source == TtsSource::Cloud {
+            self.synthesize_dubs(&translations).await
+        } else {
+            Vec::new()
+        };
 
         let ts = chrono::Utc::now().timestamp_millis();
         let seq = self.next_sequence();
@@ -189,9 +226,49 @@ impl StreamSession {
                 is_final,
             },
             translations,
+            dubbed_audio,
             ts_start_ms: ts,
             ts_end_ms: ts,
         }
+    }
+
+    /// Her çeviri için, o kullanıcı+hedef dil için admin'in aktif kıldığı
+    /// onaylı bir model varsa gerçekten sentezler. Model yoksa/sağlayıcı
+    /// hata verirse o dil sessizce atlanır (best-effort — translate_all'ın
+    /// başarısız dilleri atlaması ile aynı desen); bir dilin başarısızlığı
+    /// diğerlerini engellemez. Başarılı her sentez, gerçek ses baytından
+    /// hesaplanan saniyeyi (indirimsiz — cloud sağlayıcı tam maliyetli)
+    /// aynı kullanım havuzuna (`UsageTracker`, STT ile PAYLAŞILAN) işler; bu
+    /// havuzun limiti STT'nin bir sonraki tick'inde zaten kontrol edilir, bu
+    /// yüzden burada ayrıca session kapatılmaz.
+    async fn synthesize_dubs(&mut self, translations: &[Translation]) -> Vec<DubbedAudioTrack> {
+        let mut tracks = Vec::with_capacity(translations.len());
+        for t in translations {
+            let Some(model) = self.voice_models.active_model_for(&self.user_id, &t.lang) else {
+                continue;
+            };
+            match self.gateway.synthesize(&model.provider_voice_id, &t.text).await {
+                Ok(audio) => {
+                    let seconds = tts_audio_seconds(audio.len());
+                    self.usage.record(&self.user_id, seconds, self.monthly_hours);
+                    tracks.push(DubbedAudioTrack {
+                        lang: t.lang.clone(),
+                        audio_base64: B64.encode(&audio),
+                    });
+                }
+                Err(err) => {
+                    tracing::debug!(error = %err, lang = %t.lang, "tts synthesize failed, skipping dub");
+                    self.logger.log(
+                        LogLevel::Warn,
+                        "gateway",
+                        &format!("tts synthesize failed for {}, skipping dub: {err}", t.lang),
+                        Some(&self.user_id),
+                        Some(&self.session_id),
+                    );
+                }
+            }
+        }
+        tracks
     }
 
     /// Bir sonraki sıra numarasını döndürür (her altyazıda artar).
@@ -227,6 +304,10 @@ mod tests {
         Arc::new(Logger::in_memory(Arc::new(ServiceConfig::with_defaults())))
     }
 
+    fn test_voice_models() -> Arc<VoiceModelStore> {
+        Arc::new(VoiceModelStore::in_memory())
+    }
+
     fn session(target_langs: Vec<String>, monthly_hours: i64) -> StreamSession {
         session_with_source(target_langs, monthly_hours, SttSource::Cloud)
     }
@@ -248,6 +329,7 @@ mod tests {
             test_logger(),
             stt_source,
             TtsSource::Cloud,
+            test_voice_models(),
         )
     }
 
@@ -308,6 +390,7 @@ mod tests {
             Arc::clone(&logger),
             SttSource::Cloud,
             TtsSource::Cloud,
+            test_voice_models(),
         );
         let msg = session.process_audio(&[1, 2, 3]).await.expect("error message");
         assert!(matches!(
@@ -341,6 +424,7 @@ mod tests {
             Arc::clone(&logger),
             SttSource::Cloud,
             TtsSource::Cloud,
+            test_voice_models(),
         );
         // MockStt boş payload'ta hata verir → gateway hatası loglanır.
         assert!(session.process_audio(&[]).await.is_none());
@@ -440,6 +524,7 @@ mod tests {
             test_logger(),
             SttSource::Local,
             TtsSource::Cloud,
+            test_voice_models(),
         );
         session.backdate_last_tick(10.0);
         session
@@ -465,6 +550,7 @@ mod tests {
             test_logger(),
             SttSource::Local,
             TtsSource::Cloud,
+            test_voice_models(),
         );
         session.backdate_last_tick(10.0);
         session.process_audio(&[1, 2, 3]).await.expect("subtitle");
@@ -487,11 +573,235 @@ mod tests {
             test_logger(),
             SttSource::Local,
             TtsSource::Cloud,
+            test_voice_models(),
         );
         let msg = session
             .process_transcript("merhaba", true, 1.0)
             .await
             .expect("error message");
         assert!(matches!(msg, ServerMessage::Error { code: 4003, .. }));
+    }
+
+    // ── Gerçek zamanlı TTS dispatch (Faz 2.2) ────────────────────────────
+
+    use async_trait::async_trait;
+    use crate::gateway::tts::{MockTts, TtsError, TtsProvider};
+    use crate::voice_models::{LanguageMode, VoiceModel, VoiceModelStatus, VoiceMode, VoiceSource};
+
+    #[test]
+    fn tts_audio_seconds_uses_explicit_bitrate() {
+        // 128_000 bps / 8 = 16_000 bayt/sn — bitrate açıkça istendiği için
+        // (gateway::elevenlabs `mp3_44100_128`) tahmini değil, kesin hesap.
+        assert_eq!(tts_audio_seconds(16_000), 1.0);
+        assert_eq!(tts_audio_seconds(32_000), 2.0);
+        assert_eq!(tts_audio_seconds(8_000), 0.5);
+    }
+
+    fn gateway_with_tts(tts: Arc<dyn TtsProvider>) -> Arc<Gateway> {
+        let config = Arc::new(ServiceConfig::with_defaults());
+        config.set("tts.provider", "elevenlabs");
+        let mut gw = Gateway::new(config);
+        gw.register_stt(Arc::new(MockStt::new("deepgram")));
+        gw.register_translate(Arc::new(MockTranslate::new("deepl")));
+        gw.register_tts(tts);
+        Arc::new(gw)
+    }
+
+    /// `user_id`'nin `lang` hedefi için onaylı+aktif tek bir modeli olan depo.
+    fn voice_models_with_active(user_id: &str, lang: &str, provider_voice_id: &str) -> Arc<VoiceModelStore> {
+        let store = VoiceModelStore::in_memory();
+        let model = VoiceModel {
+            id: "m1".to_string(),
+            user_id: user_id.to_string(),
+            name: "test voice".to_string(),
+            provider_voice_id: provider_voice_id.to_string(),
+            status: VoiceModelStatus::PendingReview,
+            created_at: 0,
+            language_mode: LanguageMode::SingleToMulti,
+            source_languages: vec!["tr".to_string()],
+            target_languages: Vec::new(),
+            mode: VoiceMode::Dubbing,
+            source: VoiceSource::UserCloned,
+            has_stored_sample: false,
+        };
+        store.insert(model);
+        store.set_status("m1", VoiceModelStatus::Approved);
+        store.set_active_for_language("m1", lang).unwrap();
+        Arc::new(store)
+    }
+
+    struct FailingTts;
+    #[async_trait]
+    impl TtsProvider for FailingTts {
+        fn name(&self) -> &str {
+            "elevenlabs"
+        }
+        async fn clone_voice(&self, _name: &str, _sample: &[u8]) -> Result<String, TtsError> {
+            Err(TtsError::Request("clone should not be called here".into()))
+        }
+        async fn synthesize(&self, _voice_id: &str, _text: &str) -> Result<Vec<u8>, TtsError> {
+            Err(TtsError::Request("synthesize always fails in this test".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn cloud_tts_dispatches_dub_when_active_model_exists() {
+        let voice_models = voice_models_with_active("user-1", "en", "voice-abc");
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            test_logger(),
+            SttSource::Cloud,
+            TtsSource::Cloud,
+            voice_models,
+        );
+        let msg = session.process_audio(&[1, 2, 3]).await.expect("subtitle");
+        match msg {
+            ServerMessage::Subtitle { dubbed_audio, .. } => {
+                assert_eq!(dubbed_audio.len(), 1);
+                assert_eq!(dubbed_audio[0].lang, "en");
+                assert!(!dubbed_audio[0].audio_base64.is_empty());
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn cloud_tts_skips_dub_when_no_active_model() {
+        // Hedef dil "en" için hiç atama yok — dub üretilmez ama altyazı/çeviri
+        // etkilenmez.
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            test_logger(),
+            SttSource::Cloud,
+            TtsSource::Cloud,
+            test_voice_models(),
+        );
+        let msg = session.process_audio(&[1, 2, 3]).await.expect("subtitle");
+        match msg {
+            ServerMessage::Subtitle { translations, dubbed_audio, .. } => {
+                assert_eq!(translations.len(), 1);
+                assert!(dubbed_audio.is_empty());
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn local_tts_source_never_dispatches_dub() {
+        // tts_source=local: SDK kendi motoruyla sentezler, backend hiç
+        // sentezlemez — aktif model olsa bile dubbed_audio boş kalır.
+        let voice_models = voice_models_with_active("user-1", "en", "voice-abc");
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            test_logger(),
+            SttSource::Cloud,
+            TtsSource::Local,
+            voice_models,
+        );
+        let msg = session.process_audio(&[1, 2, 3]).await.expect("subtitle");
+        assert!(matches!(msg, ServerMessage::Subtitle { dubbed_audio, .. } if dubbed_audio.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn interim_transcript_never_dispatches_dub() {
+        // is_final=false: gereksiz sentez çağrısı/kota tüketimi olmasın.
+        let voice_models = voice_models_with_active("user-1", "en", "voice-abc");
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            test_logger(),
+            SttSource::Local,
+            TtsSource::Cloud,
+            voice_models,
+        );
+        let msg = session
+            .process_transcript("merhaba", false, 1.0)
+            .await
+            .expect("subtitle");
+        assert!(matches!(msg, ServerMessage::Subtitle { dubbed_audio, .. } if dubbed_audio.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn tts_synthesize_failure_is_skipped_not_fatal() {
+        let voice_models = voice_models_with_active("user-1", "en", "voice-abc");
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(FailingTts)),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::new(UsageTracker::new()),
+            test_logger(),
+            SttSource::Cloud,
+            TtsSource::Cloud,
+            voice_models,
+        );
+        let msg = session.process_audio(&[1, 2, 3]).await.expect("subtitle still produced");
+        match msg {
+            ServerMessage::Subtitle { translations, dubbed_audio, .. } => {
+                assert_eq!(translations.len(), 1, "çeviri dub hatasından etkilenmemeli");
+                assert!(dubbed_audio.is_empty());
+            }
+            other => panic!("beklenmeyen mesaj: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn cloud_tts_charges_usage_pool_shared_with_stt() {
+        // Uzun bir metin → gerçek ses baytı 0.5 sn eşiğini rahatça aşar,
+        // rounding belirsizliği olmadan pozitif bir kullanım kanıtlanır.
+        let voice_models = voice_models_with_active("user-1", "en", "voice-abc");
+        let usage = Arc::new(UsageTracker::new());
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage),
+            test_logger(),
+            SttSource::Local,
+            TtsSource::Cloud,
+            voice_models,
+        );
+        // (11 + 9 + 20_000) bayt ≈ 20_020 → 20_020*8/128_000 ≈ 1.25 sn (0.5
+        // yuvarlama eşiğinden rahatça uzak).
+        let long_text = "a".repeat(20_000);
+        session
+            .process_transcript(&long_text, true, 1.0)
+            .await
+            .expect("subtitle");
+        assert!(usage.status("user-1", -1).used_seconds > 0);
     }
 }

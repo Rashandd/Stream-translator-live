@@ -329,6 +329,12 @@ pub fn router(state: AppState) -> Router {
             "/admin/voice/models/{id}/reject",
             post(crate::voice_models::reject_voice_model),
         )
+        // Dil ataması (Faz 2.2): admin, yayıncının hedef dili için hangi
+        // onaylı modelin aktif kullanılacağını seçer.
+        .route(
+            "/admin/voice/models/{id}/assign",
+            post(crate::voice_models::assign_voice_model),
+        )
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

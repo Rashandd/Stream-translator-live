@@ -92,6 +92,18 @@ pub struct Translation {
     pub text: String,
 }
 
+/// Bir hedef dil için sentezlenmiş dublaj sesi (Faz 2.2 gerçek zamanlı TTS).
+/// Yalnızca `tts_source: "cloud"` session'larda dolar — `local` modda SDK
+/// kendi motoruyla `translations` metnini sentezler, backend ses baytı hiç
+/// üretmez/göndermez.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DubbedAudioTrack {
+    pub lang: String,
+    /// Ham ses baytının base64 kodlanmış hâli (sağlayıcının döndürdüğü format
+    /// — bkz. `gateway::elevenlabs`, `mp3_44100_128`).
+    pub audio_base64: String,
+}
+
 /// Backend → SDK yönündeki mesajlar.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -114,6 +126,11 @@ pub enum ServerMessage {
         sequence: u64,
         source: SubtitleSource,
         translations: Vec<Translation>,
+        /// Faz 2.2 — cloud TTS ile sentezlenen dublaj parçaları (varsa).
+        /// Eski SDK'lar bu alanı basitçe yok sayar (bilinmeyen alan hatası
+        /// vermez, serde default davranışı zaten böyle).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        dubbed_audio: Vec<DubbedAudioTrack>,
         ts_start_ms: i64,
         ts_end_ms: i64,
     },
