@@ -15,7 +15,10 @@ async fn main() {
             .unwrap_or_else(|_| "127.0.0.1:19350".to_string()),
     };
 
-    if let Err(err) = streamdubber_sdk::run_desktop_shell(cfg).await {
+    // stt_control: None — whisper.cpp bind ("2.6b" roadmap kalanı) henüz
+    // yok; poll loop mekaniği hazır ve test edilmiş (core::stt_control::
+    // run_polling_loop), gerçek motor lanınca burada Some(...) olur.
+    if let Err(err) = streamdubber_sdk::run_desktop_shell(cfg, None).await {
         tracing::error!(%err, "desktop shell exited with error");
         std::process::exit(1);
     }

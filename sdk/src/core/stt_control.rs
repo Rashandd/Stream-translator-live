@@ -217,3 +217,39 @@ pub async fn handle_pending_commands(
     }
     Ok(handled)
 }
+
+/// Runs [`handle_pending_commands`] on a fixed interval until the task is
+/// aborted/dropped — this is what the desktop shell spawns once a real
+/// [`LocalSttEngine`] exists (whisper.cpp bind, roadmap 2.6b). A poll
+/// failure (network hiccup, backend restart) is logged and swallowed: a
+/// flaky poll must never take the tray agent down, it just retries next
+/// tick. GPU/VRAM are re-probed every tick — `nvidia-smi` is a cheap
+/// subprocess call and ticks are infrequent (15–30 s per the plan).
+pub async fn run_polling_loop(
+    http: reqwest::Client,
+    base_url: String,
+    device_token: String,
+    mut engine: Box<dyn LocalSttEngine>,
+    sample: BenchmarkSample,
+    poll_interval: std::time::Duration,
+) {
+    let mut ticker = tokio::time::interval(poll_interval);
+    loop {
+        ticker.tick().await;
+        let hardware = super::gpu_probe::probe();
+        match handle_pending_commands(
+            &http,
+            &base_url,
+            &device_token,
+            engine.as_mut(),
+            &sample,
+            &hardware,
+        )
+        .await
+        {
+            Ok(0) => {}
+            Ok(handled) => tracing::info!(handled, "processed sdk command(s)"),
+            Err(err) => tracing::warn!(%err, "stt control poll failed, will retry next tick"),
+        }
+    }
+}
