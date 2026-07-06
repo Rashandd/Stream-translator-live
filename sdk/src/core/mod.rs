@@ -6,6 +6,7 @@ pub mod cloud;
 pub mod gate;
 pub mod gpu_probe;
 pub mod local_stt;
+pub mod model_fetch;
 pub mod mux;
 pub mod pairing;
 pub mod preprocess;
