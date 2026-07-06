@@ -1111,4 +1111,104 @@ Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RT
 - [ ] Hukuki/ToS notu: sekme sesi yakalama kullanıcının **kendi** cihazında render edilen sesi kişisel kullanım için çeviriyor — yeniden yayın/dağıtım değil. Netflix/YouTube gibi platformların ToS'una aykırı olmayan "erişilebilirlik amaçlı kişisel altyazı" çerçevesinde konumlandırılmalı; pazarlama metninde "DRM atlatma" gibi ifadelerden kaçınılmalı (hukuki risk)
 - [ ] Tarayıcı uyumluluğu testi — `getDisplayMedia` sekme-sesi paylaşımı Chrome/Edge'de net, Safari/Firefox'ta kısıtlı/farklı davranabilir; desteklenmeyen tarayıcıda net bir uyarı gerekir
 
+---
+
+## Öz Kaynaklı Ses Klonlama + Speech-to-Speech (Faz 3 sonrası / araştırma — henüz hiçbir faza atanmadı)
+
+> Kaynak: kullanıcı isteği, 2026-07-06. Şu anki ses klonlama (2.1/2.2) tamamen ElevenLabs'a bağımlı
+> (`backend/src/gateway/elevenlabs.rs` — `/v1/voices/add` + `/v1/text-to-speech/{id}`, ham ses örneği
+> hiç saklanmıyor, sadece `provider_voice_id`). Bu bölüm bunu **kendi barındırdığımız** bir modele
+> taşıma + izleyiciye gerçek Speech-to-Speech (metin ara katmanı olmadan) sunma kararını not eder.
+
+### Kullanıcı Kararları (birebir)
+1. **Yayıncı panelden seçebilmeli: "dublaj" (klonlanmış ses ile TTS) mı yoksa "kendi sesi" (orijinal
+   sesin korunduğu S2S) mı kullanılsın.** İki mod da dashboard'da açık seçenek olmalı.
+2. **Eğitim için ses örneği biz saklayalım** — yayıncıya panelden birkaç cümle okutulur (eğitim için
+   en iyi/en verimli örneklem ne gerektiriyorsa, kaç cümle/kaç saniye teknik olarak belirlenmeli),
+   **yayıncının kendi yerel dilinde** okutulur (TR yayıncı TR cümle okur — model kaynağı dilde
+   eğitilir, hedef dile S2S/TTS aşamasında çevrilir). Şu anki `VoiceModelStore` ham örneği hiç
+   saklamıyor — bu kararla **değişiyor**: örnek (şifreli, at-rest AES-256) saklanmalı ki
+   yeniden-eğitim/provider değişimi/model iyileştirme mümkün olsun.
+3. **ElevenLabs'a bağımlılık kaldırılmalı** — kendi self-hosted klonlama+TTS/S2S modelimiz olmalı
+   (örn. XTTS-v2/Coqui, veya gerçek S2S için Seamless/StyleTTS2 ailesi — 2.2b'de zaten
+   "Faz 3'ten Faz 2'ye çekildi" notuyla planlanan yerel motor, ama şimdi **birincil** olacak şekilde
+   genişletiliyor, sadece "cihazda opsiyonel" değil).
+4. **Alternatif olarak "seçili sesler"den de kullanılabilsin** — yani ElevenLabs'in hazır ses
+   kütüphanesi değil, **bizim kendi modelimizle** üretilmiş, önceden hazırlanmış hazır seslerden
+   birini seçme opsiyonu da olmalı (klonlama yapmadan hızlı başlangıç için).
+5. **Bu, ElevenLabs'e göre daha az kredi/kota tüketmeli** — kendi altyapımızda çalıştığı için
+   birim maliyet düşük, kota/kredi mantığına bu avantaj yansıtılmalı (bkz. 2.2 yarım kalan kota
+   entegrasyonu — `tts.local.usage_multiplier` deseni referans).
+6. **Kredi/kota sistemi TAMAMEN admin panelden konfigüre edilebilir olmalı** — hangi mod (dublaj/S2S/
+   ElevenLabs/self-hosted) kaç kredi/karakter/saniye tükettiği, plan bazlı çarpanlar, hepsi
+   `config::get` deseniyle DB'den okunmalı, hard-coded olmamalı (CLAUDE.md "Hiçbir Şey Hard-coded
+   Olmaz" kuralına birebir uyar).
+7. **`VoiceModel`e eklenecek `language` alanı yerine bir `language_mode` alanı gelecek** — modelin
+   dil yeteneğini açıkça belirtir, hem "hedef dil bazlı model" hem "kaynak dilden eğitilip çok
+   dile sentezleyen model" senaryolarıyla UYUMLU tek şema (2026-07-06 kullanıcı kararı, "ikisine de
+   uyumlu olsun" isteğiyle). Üç değerli enum:
+   - **`SingleToSingle`** — tek kaynak dilini algılar/kabul eder, tek hedef dile çevirir/sentezler.
+     Aynı yayıncı için N hedef dil varsa N ayrı model gerekir (admin her (yayıncı, hedef dil) çifti
+     için ayrı model atar — önceki oturumda konuşulan "admin panelden dil için en iyi modeli
+     seçsin" senaryosu budur).
+   - **`MultiToSingle`** — birden fazla kaynak dilini algılayabilir (çok dilli STT/girdi), ama tek
+     sabit hedef dile çevirir (örn. yayıncı TR/EN karışık konuşuyor, hepsi tek hedef dile — örn.
+     DE — sentezleniyor).
+   - **`SingleToMulti`** — tek kaynak dilinden (yayıncının kendi ana dilinden okuduğu eğitim
+     örneği) eğitilir, ama motor çok dilli olduğu için (ElevenLabs `eleven_multilingual_v2`,
+     XTTS-v2 de öyle) AYNI model birden fazla hedef dile sentez yapabilir — ayrı model/onay
+     gerekmez, tek klonlanmış ses N hedef dilde kullanılır. **Şu anki ElevenLabs entegrasyonu bu
+     moda en yakın** (tek `provider_voice_id`, `synthesize` çağrısı hangi dilde metin verirsen o
+     dilde konuşturur).
+   `VoiceModel` şeması: `language_mode: SingleToSingle | MultiToSingle | SingleToMulti` +
+   `source_languages: Vec<String>` (eğitim örneğinin/örneklerinin dili — SingleToSingle/SingleToMulti
+   için tek eleman, MultiToSingle için birden fazla) + `target_languages: Vec<String>` (SingleToSingle
+   için tek eleman — admin'in o dil için atadığı; MultiToSingle için tek eleman; SingleToMulti için
+   BOŞ bırakılabilir = "hepsinde kullan" ya da admin'in izin verdiği hedeflerin listesi). Admin onay
+   ekranında model listelenirken bu mod açıkça gösterilmeli ki hangi modelin kaç hedef dilde tekrar
+   kullanılabilir olduğu belli olsun.
+
+### Bu, Şu Anki Mimariyi Nasıl Etkiliyor
+- **`VoiceModel` şeması genişlemeli:** 2.2'nin yarım kalan tasarımındaki düz `language: String` alanı
+  yerine yukarıdaki (madde 7) **`language_mode` + `source_languages` + `target_languages`** üçlüsü
+  gelecek + ayrıca `mode: Dubbing | SpeechToSpeech`, `source: UserCloned | Preset`, ham örneğin
+  şifreli saklandığı bir referans (dosya yolu/blob id — `SecretStore`/AES-256 deseniyle, `.env`'e/
+  koda gömülmeden).
+- **Yeni bir `TtsProvider`/`S2sProvider` implementasyonu** self-hosted motor için gerekiyor —
+  ElevenLabs'takiyle aynı trait deseni (`gateway::tts`), ama gerçek S2S modelin ses dalgasından
+  ses dalgasına çalışması STT→çeviri→TTS zincirinden **farklı bir pipeline dalı** gerektirir
+  (metin ara katmanı yok — bkz. önceki oturumda konuşulan S2ST/voice-conversion farkı).
+- **Native motor derlemesi gerekir** (whisper.cpp ile aynı blocker ailesi) — bu makinede `cmake`
+  yok, bu yüzden gerçek motor entegrasyonu yine ERTELENECEK, ama trait/API/DB şeması/admin panel
+  konfigürasyonu şimdiden koda dökülebilir (mock motor ile test edilir, CLAUDE.md deseni).
+- **Admin panelde yeni bir "Kredi/Kota Konfigürasyonu" ekranı** gerekiyor (muhtemelen 2.7'nin
+  kapsamına giriyor — `/admin/routing`'in "canlı maliyet göstergesi" maddesiyle birleştirilebilir):
+  her mod/sağlayıcı için birim-başı kredi tüketimi admin'den girilebilir, restart gerektirmez.
+
+### Görevler (henüz faza atanmadı — muhtemelen Faz 3 veya ayrı bir "Faz 2.9")
+- [ ] `VoiceModel`e `mode` (dubbing/s2s) + `source` (cloned/preset) + `language_mode`
+      (`SingleToSingle`/`MultiToSingle`/`SingleToMulti`, madde 7) + `source_languages`/
+      `target_languages` (`Vec<String>`) alanları
+- [ ] Yayıncı dashboard'da (`/dashboard/voice`) eğitim akışı: "birkaç cümle okuyun" UI'ı — cümleler
+      yayıncının panel dilinde/hedef ana dilinde, kaç cümle/saniye en iyi sonucu veriyorsa
+      (self-hosted motor seçilince netleşecek bir teknik detay)
+- [ ] Ham ses örneğinin şifreli saklanması (AES-256 at-rest, mevcut `crypto.rs`/`SecretStore`
+      deseniyle) — şu anki "hiç saklama" kararının BİLİNÇLİ tersine çevrilmesi, gerekçe: yeniden
+      eğitim/motor değişimi/kalite iyileştirme
+- [ ] Self-hosted klonlama+TTS motoru seçimi (XTTS-v2/Coqui gibi) + gerçek S2S motoru araştırması
+      (Seamless/StyleTTS2 ailesi) — native derleme gerektirdiği için cmake kararı kullanıcıyla
+      AYRI görüşülmeli (whisper.cpp sorusuyla aynı ciddiyette)
+- [ ] "Seçili sesler" (bizim ürettiğimiz hazır ses kütüphanesi) — klonlama yapmadan hızlı başlangıç
+- [ ] Dashboard'da yayıncı seçimi: "Dublaj" (klonlanmış ses + TTS, metin ara katmanlı) vs
+      "Kendi Sesim" (S2S, orijinal ses karakteristiği/tonlama korunur)
+- [ ] Kredi/kota: self-hosted mod için ElevenLabs'e göre daha düşük çarpan (`usage_multiplier`
+      deseni) — admin panelden TAM konfigüre edilebilir (her mod/sağlayıcı için ayrı birim-kredi
+      oranı, restart'sız, `config::get` üzerinden)
+- [ ] ElevenLabs bağımlılığının admin panelden opsiyonel/kaldırılabilir hale getirilmesi (fallback
+      zinciri: self-hosted → ElevenLabs, tersi değil — maliyet önceliği self-hosted'da)
+
+> Bu bölüm SIRF tasarım/niyet notudur — hiçbir kod bu oturumda yazılmadı. Sonraki ajan bu maddeleri
+> mevcut task 2.2 (yarım kalan `VoiceModel.language` tasarımı) ile BİRLİKTE ele almalı, çünkü ikisi
+> de aynı şemaya (`VoiceModel`) dokunuyor — ayrı ayrı yapılırsa şema iki kez migrate edilir.
+
 > Bu özellik SDK'dan bağımsız, tamamen web tabanlı olduğu için Faz 1-3'ün SDK/RTMP/multistream işiyle çakışmaz — ayrı, paralel geliştirilebilecek bir görev grubu. Hangi faza (Faz 2 sonrası mı, Faz 4 büyüme kapsamında mı) alınacağı kullanıcı kararı bekliyor; şimdilik sadece "Coming Soon" kataloğunda ve bu analiz bölümünde duruyor.

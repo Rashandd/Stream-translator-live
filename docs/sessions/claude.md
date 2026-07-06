@@ -3,6 +3,42 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
+## YENİ KULLANICI İSTEĞİ (2026-07-06, en güncel — bu oturum sadece NOT DÜŞTÜ, kod YAZMADI)
+Kullanıcı, ses klonlama/dublaj konusunda mevcut ElevenLabs-bağımlı tasarımı GENİŞLETME kararı verdi.
+Tam detay + görev listesi roadmap'in EN SONUNA eklendi: bkz.
+`streamdubber_roadmap_final.md` → "Öz Kaynaklı Ses Klonlama + Speech-to-Speech (Faz 3 sonrası /
+araştırma)" bölümü. Özet (sonraki ajan roadmap'teki bölümü OKUMADAN kod yazmaya başlamasın):
+
+1. Yayıncı dashboard'dan **"Dublaj" (klonlanmış ses+TTS) vs "Kendi Sesim" (S2S, metin ara katmanı
+   yok, orijinal tonlama korunur)** arasında seçim yapabilmeli.
+2. Eğitim için ses örneği artık **biz saklayacağız** (şu anki "ham örnek hiç saklanmaz" kararının
+   BİLİNÇLİ tersine çevrilmesi) — yayıncıya panelden birkaç cümle okutulacak, **kendi yerel
+   dilinde**, eğitim için teknik olarak en verimli sayıda cümle/saniye ne ise.
+3. **ElevenLabs bağımlılığı kaldırılmalı** — kendi self-hosted klonlama+TTS/S2S motorumuz olmalı
+   (native derleme gerektirir, whisper.cpp'deki cmake blocker'ıyla AYNI kategori — kullanıcıyla
+   ayrı görüşülmeli).
+4. **"Seçili sesler"** (bizim ürettiğimiz hazır ses kütüphanesi) seçeneği de olmalı — klonlama
+   yapmadan hızlı başlangıç.
+5. Self-hosted mod ElevenLabs'e göre **daha az kredi tüketmeli**.
+6. **Kredi/kota tamamen admin panelden konfigüre edilebilir olmalı** (her mod/sağlayıcı için
+   birim-kredi oranı, restart'sız, hard-coded değil).
+7. **(2026-07-06, ek karar) `language` alanı yerine `language_mode` gelecek** — hem "hedef dil
+   bazlı model" hem "kaynak dilden eğitilip çok dile sentezleyen model" senaryosuyla UYUMLU tek
+   şema. Üç değerli enum: `SingleToSingle` (tek kaynak dili algılar, tek hedef dile çevirir — N
+   hedef dil = N ayrı model), `MultiToSingle` (birden fazla kaynak dilini algılar, tek sabit hedef
+   dile çevirir), `SingleToMulti` (tek kaynak dilinden eğitilir — ElevenLabs/XTTS-v2 gibi çok
+   dilli motor sayesinde AYNI model birden fazla hedef dile sentez yapabilir; **şu anki ElevenLabs
+   entegrasyonu bu moda en yakın**). Şema: `language_mode` + `source_languages: Vec<String>` +
+   `target_languages: Vec<String>` (SingleToMulti'de boş = "hepsinde kullan"). Tam detay roadmap'teki
+   bölümün madde 7'sinde.
+
+**Önemli:** Bu, aşağıdaki "ŞU AN YARIM KALAN: Task 2.2" ile AYNI ŞEMAYA (`VoiceModel`) dokunuyor —
+düz `language: String` alanı yerine artık yukarıdaki madde 7'deki üçlü (`language_mode`/
+`source_languages`/`target_languages`) + `mode`/`source`/şifreli-örnek-referansı ekleniyor.
+Sonraki ajan **ikisini birlikte** tasarlamalı, ayrı ayrı yapılırsa `VoiceModel` şeması iki kez
+migrate edilir. Roadmap'teki yeni bölümdeki "Görevler" listesi + "Bu, Şu Anki Mimariyi Nasıl
+Etkiliyor" alt başlığı doğrudan implementasyon sıralaması olarak kullanılabilir.
+
 ## Neredeyim? (GÜNCEL — 2026-07-06, bu oturumun sonu)
 Kullanıcı isteği: **"@CLAUDE.md roadmapte faz 2 görevlerinden devam et"**, sonra
 **"Faz 2 yi tamamla — elinde olmayan bir şey olunca admin paneline benim veri
