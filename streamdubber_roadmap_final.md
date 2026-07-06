@@ -831,8 +831,8 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [ ] `releases.strovak.com` statik host kurulumu (S3/Cloudflare) — build artefaktları + `latest.json`
 - [ ] `tauri-plugin-updater` runtime init (`run_desktop_shell()` içine wiring)
 - [ ] `/dashboard/sdk` indirme butonunu gerçek release URL'ine bağla (platforma göre: Windows .msi/.exe öncelik, macOS/Linux "yakında" durumu CLAUDE.md'ye göre korunur)
-- [ ] Pairing kodu üretme butonunu gerçek `POST /api/pairing/code`'a bağla (backend endpoint 1.3/1.4'te hazır, frontend hâlâ statik kod gösteriyor)
-- [ ] Stream key alanını gerçek `GET/PUT /api/relay/targets`'a bağla (backend hazır — bkz. Faz 1 "Dashboard/Backend Wiring" listesi — frontend hâlâ config'ten statik değer okuyor)
+- [x] Pairing kodu üretme butonunu gerçek `POST /api/pairing/code`'a bağla (backend endpoint 1.3/1.4'te hazır, frontend hâlâ statik kod gösteriyor) <!-- Claude 2026-07-06: sdk-pairing-panel.tsx — userFetch("/api/pairing/code", POST), kod+geçerlilik süresi (dk) gösterir, 401/ağ/genel hata durumları ayrı. -->
+- [x] Stream key alanını gerçek `GET/PUT /api/relay/targets`'a bağla (backend hazır — bkz. Faz 1 "Dashboard/Backend Wiring" listesi — frontend hâlâ config'ten statik değer okuyor) <!-- Claude 2026-07-06: sdk-stream-key-panel.tsx — GET ile mevcut "obs" hedefini okur (platform sabiti — YouTube/Twitch/Kick OAuth hesap bağlama henüz kurulmadığından tek hedef), yoksa istemci tarafında rastgele anahtar üretip PUT ile kaydeder; Regenerate aynı akışı tekrarlar. Ayrıca copy-row.tsx'teki "Copy" butonu hiçbir şey yapmıyordu (dekoratifti) — artık navigator.clipboard.writeText çağırıyor + "Kopyalandı" durumu gösteriyor. -->
 - [ ] İndirme sonrası ilk-kurulum akışı: SDK açılışta pairing kodu ister, dashboard'daki kodu girince otomatik eşleşir (kullanıcı testi)
 
 **Faz 2 tamamlandığında:**

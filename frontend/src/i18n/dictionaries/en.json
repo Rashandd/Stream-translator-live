@@ -1033,15 +1033,28 @@
       "pairingTitle": "Pair the desktop app",
       "pairingNote": "Enter this 6-digit code in the desktop app to pair it with your account. The code expires in 10 minutes.",
       "pairingCodeLabel": "Pairing code",
-      "pairingCode": "•• •• ••",
+      "pairingPlaceholder": "•• •• ••",
       "generateLabel": "Generate code",
+      "generatingLabel": "Generating…",
+      "expiresInTemplate": "Expires in {minutes} minutes.",
+      "pairingErrors": {
+        "unauthorized": "Your session has expired — sign in again to generate a code.",
+        "network": "Could not reach the API. Check your connection and try again.",
+        "failed": "Could not generate a pairing code."
+      },
       "streamKeyTitle": "Stream key",
       "streamKeyNote": "Your stream key is delivered to the connected desktop app automatically and kept in sync. With your own service you never paste it anywhere — the app uses it for you.",
       "streamKeyLabel": "Stream key",
-      "streamKey": "sd-live-•••••••••••••",
+      "streamKeyLoading": "Loading…",
       "copyLabel": "Copy",
+      "copiedLabel": "Copied",
       "regenerateLabel": "Regenerate",
       "regenerateNote": "Regenerating revokes the old key and pushes the new one to the desktop app. Any active stream stops.",
+      "streamKeyErrors": {
+        "unauthorized": "Your session has expired — sign in again to manage your stream key.",
+        "network": "Could not reach the API. Check your connection and try again.",
+        "saveFailed": "Could not save the stream key."
+      },
       "syncLabel": "App sync",
       "syncValue": "Waiting for the app",
       "syncTone": "warning"

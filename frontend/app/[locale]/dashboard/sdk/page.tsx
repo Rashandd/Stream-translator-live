@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
-import { CopyRow } from "@/src/components/copy-row";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
+import { SdkPairingPanel } from "@/src/components/sdk-pairing-panel";
+import { SdkStreamKeyPanel } from "@/src/components/sdk-stream-key-panel";
 import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
@@ -63,16 +64,15 @@ export default async function SdkPage({ params }: Props) {
 
         <SectionCard subtitle={sdk.pairingNote} title={sdk.pairingTitle}>
           <p className="text-xs font-medium text-muted">{sdk.pairingCodeLabel}</p>
-          <div className="mt-1 rounded-lg border border-border bg-canvas px-4 py-5 text-center">
-            <code className="font-mono text-3xl font-semibold tracking-[0.3em] text-ink">{sdk.pairingCode}</code>
-          </div>
-          <button
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border bg-white px-5 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
-            type="button"
-          >
-            <Icon className="h-4 w-4" name="KeyRound" />
-            {sdk.generateLabel}
-          </button>
+          <SdkPairingPanel
+            labels={{
+              placeholder: sdk.pairingPlaceholder,
+              generateLabel: sdk.generateLabel,
+              generatingLabel: sdk.generatingLabel,
+              expiresInTemplate: sdk.expiresInTemplate,
+              errors: sdk.pairingErrors,
+            }}
+          />
         </SectionCard>
       </div>
 
@@ -87,16 +87,15 @@ export default async function SdkPage({ params }: Props) {
         title={sdk.streamKeyTitle}
       >
         <p className="text-xs font-medium text-muted">{sdk.streamKeyLabel}</p>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <CopyRow className="flex-1" copyLabel={sdk.copyLabel} value={sdk.streamKey} />
-          <button
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border bg-white px-4 text-sm font-semibold text-ink transition hover:border-danger hover:text-danger"
-            type="button"
-          >
-            <Icon className="h-4 w-4" name="KeyRound" />
-            {sdk.regenerateLabel}
-          </button>
-        </div>
+        <SdkStreamKeyPanel
+          labels={{
+            copyLabel: sdk.copyLabel,
+            copiedLabel: sdk.copiedLabel,
+            regenerateLabel: sdk.regenerateLabel,
+            loading: sdk.streamKeyLoading,
+            errors: sdk.streamKeyErrors,
+          }}
+        />
         <p className="mt-3 text-sm leading-6 text-muted">{sdk.regenerateNote}</p>
       </SectionCard>
     </div>
