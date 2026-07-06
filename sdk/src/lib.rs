@@ -8,6 +8,8 @@ pub mod audio;
 pub mod core;
 pub mod integrations;
 
+use core::capture::CaptureConfig;
+use core::cloud_session::run_cloud_session;
 use core::local_stt::LocalSttEngine;
 use core::relay_service::{accept_and_relay, bind_ingest_listener, RelayServiceError};
 use core::relay_sync::{fetch_relay_targets, RelaySyncError};
@@ -82,6 +84,33 @@ pub async fn run_desktop_shell(
 
     let engine = accept_and_relay(&listener, targets).await?;
     tracing::info!("relay engine started");
+
+    // Mic → cloud → subtitles, running alongside the relay. Best-effort: a
+    // capture-open failure (e.g. Linux/macOS Phase-1 skeletons) or a session
+    // error only logs — it must never take the RTMP relay down with it.
+    // Not joined, same fire-and-forget posture as the stt_control loop above:
+    // lifecycle sync with OBS connect/disconnect is future work (RelayEngine
+    // doesn't expose a "stopped" signal to key off yet).
+    {
+        let http = http.clone();
+        let backend_base_url = cfg.backend_base_url.clone();
+        let device_token = cfg.device_token.clone();
+        tokio::spawn(async move {
+            match audio::open_capture(CaptureConfig::default()) {
+                Ok(capture) => {
+                    match run_cloud_session(&http, &backend_base_url, &device_token, capture).await {
+                        Ok(outcome) => {
+                            tracing::info!(subtitles = outcome.subtitles_received, "cloud session ended")
+                        }
+                        Err(err) => tracing::warn!(%err, "cloud session ended with an error"),
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(%err, "microphone capture unavailable — subtitles/dubbing disabled")
+                }
+            }
+        });
+    }
 
     // Keep the process alive while the relay runs. Stop/restart control is
     // future Tauri command work — this milestone only proves the wiring.

@@ -49,3 +49,7 @@ path = "../tests/stt_control_wiring.rs"
 [[test]]
 name = "stt_control_loop"
 path = "../tests/stt_control_loop.rs"
+
+[[test]]
+name = "cloud_session_wiring"
+path = "../tests/cloud_session_wiring.rs"

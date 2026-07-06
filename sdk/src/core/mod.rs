@@ -3,6 +3,7 @@
 pub mod audio_frame;
 pub mod capture;
 pub mod cloud;
+pub mod cloud_session;
 pub mod gate;
 pub mod gpu_probe;
 pub mod local_stt;

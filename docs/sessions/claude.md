@@ -3,7 +3,62 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
-## Neredeyim? (GÜNCEL — 2026-07-06, doğrulama oturumu sonu)
+## Neredeyim? (GÜNCEL — 2026-07-07, SDK ses wiring oturumu sonu)
+
+### Bu oturum — Task 2.3'e girişim, mimari bulgu, kapsam değişti, sonunda gerçek bir ön koşul kodlandı
+Kullanıcı **"2.3 ü yap"** dedi (İkili Yayın — TR ses → hesap 1, EN klonlanmış ses → hesap 2). İki bulgu
+kapsamı tamamen değiştirdi:
+1. **Mux motoru yok** — `sdk/src/core/mux.rs` hâlâ sadece `OutputPlan` enum'u; RTMP relay (`rtmp/relay.rs`)
+   her hedefe AYNI orijinal sesi opak byte olarak fan-out ediyor, hedef başına farklı ses (dub_language)
+   göndermenin fiziksel yolu yok. Kullanıcıya bunu **açık açık "mux ne demek" dahil** anlattım (kullanıcı
+   "mux ne anlamadım" dedi, mux/demux kavramını örnekle açıkladım).
+2. Kullanıcı mux için karar verdi: **"cihazda mux = az kredi, buluttan mux = çok kredi"** — yayıncı
+   seçebilecek, buluttan mux'ta dublaj hedefinin videosu da (SADECE o hedef için) buluta gidecek. Bu,
+   CLAUDE.md'nin "video buluta çıkmaz" kuralına istisna gerektirdiği için **CLAUDE.md'yi güncelledim**
+   (proje özeti + SDK Mimarisi bölümü — video artık "varsayılan olarak" lokal, ikili yayında opt-in
+   "buluttan mux" istisnası var) + `docs/multistream.md`'ye "Mux modu" alt bölümünü ekledim (cihazda/
+   buluttan, kredi farkı, Faz 3 Mod C ile ilişkisi).
+3. Plan-mode'da 2.3'ü gerçekten kodlamaya girişirken İKİNCİ, daha büyük bir bulgu çıktı: **SDK'nın ses
+   buluta gönderme istemcisi (`core::cloud::CloudClient`) hiçbir çalışan yere bağlı değildi.**
+   `run_desktop_shell` sadece RTMP relay'i başlatıyordu; capture (`wasapi.rs`) → VAD/preprocess/framing
+   (`gate.rs`) → `CloudClient` zinciri hiç kurulmamıştı (her parça izole test edilmişti ama birbirine
+   bağlı değildi). Bu, roadmap'te 758. satırın NOT'unda zaten "ayrı iş" olarak işaretliydi. Kullanıcıya
+   sordum: 2.3'ü yarım/yanıltıcı şema olarak mı bırakalım, yoksa önce bu ön koşulu mu bitirelim —
+   **"Önce SDK ses wiring'ini bitirelim"** dedi.
+4. **Kodlandı ve TAMAMLANDI:** yeni `sdk/src/core/cloud_session.rs` — `GET /api/translate/languages`
+   çeker (relay_sync.rs deseni), `StreamConfig` kurar, `CloudClient` connect→authenticate→start_stream,
+   `CapturePipeline`'ı (capture+preprocess+VAD, zaten var olan `gate.rs`) `spawn_blocking`'te çalıştırıp
+   `tokio::mpsc` ile async tarafa köprüler, `tokio::select!` ile ses gönderip `Subtitle`/`UsageUpdate`/
+   `Error` okur, kapanışta 500ms drain penceresiyle son altyazıyı kaçırmaz. `capture.rs`'e
+   `impl CaptureSource for Box<dyn CaptureSource>` eklendi (generic pipeline boxed capture'ı kabul etsin
+   diye). `run_desktop_shell` (lib.rs) relay başladıktan sonra bunu ayrı `tokio::spawn` ile başlatıyor
+   (stt_control'ün "logla+yut, join etme" duruşuyla aynı — capture açılamazsa/Linux-Mac'te sadece loglar,
+   RTMP relay'i etkilemez). `sdk/tests/cloud_session_wiring.rs` (2 yeni e2e, gerçek backend'e karşı):
+   tam ses→altyazı döngüsü (MockCapture, 1 konuşma karesi→1 altyazı) + dil seçilmemişse NoTargetLanguages
+   reddi. Roadmap 2.0'ın sonuna yeni checkbox + 758'in NOT'u "ÇÖZÜLDÜ" olarak güncellendi.
+5. **Regresyon:** `cargo build -p streamdubber-sdk` temiz, `cargo test --workspace` → backend 301 unit +
+   sdk 109 unit (yeni 3 test dahil: `ws_url_converts_http_schemes`, `ws_url_passes_through_already_ws_schemes`,
+   `generate_session_id_is_unique_across_calls`) + tüm e2e suite'ler (yeni `cloud_session_wiring.rs` 2/2
+   dahil) yeşil. `cargo clippy --workspace --all-targets` temiz. Windows cross-check (`x86_64-pc-windows-gnu`)
+   bu makinede `x86_64-w64-mingw32-gcc` eksik olduğu için DENENEMEDİ — ortam eksikliği (mingw-w64
+   kurulu değil), koddan kaynaklanmıyor, önceki oturumların cross-check'i bu ortamda artık tekrarlanamıyor.
+   Frontend'e dokunulmadı (bu oturum saf backend/SDK).
+6. **Task 2.3'ün kendisi (gerçek mux) hâlâ kodlanmadı** — sadece ön koşulu (SDK ses wiring) bitti ve
+   mux kararı (cihazda/buluttan) CLAUDE.md+docs'a işlendi. Mux'un GERÇEK implementasyonu (ffmpeg
+   sidecar önerisi — bu makinede `ffmpeg` binary'si KURULU, cmake gibi bir blocker YOK, ama backend'e
+   yeni video-ingest transport + SDK'da ffmpeg process orkestrasyonu gerektiren büyük bir iş) ayrı bir
+   oturumda ele alınmalı — henüz sorulmadı/planlanmadı.
+
+### Sonraki Adım (TAM OLARAK)
+1. **Task 2.3'ün gerçek mux implementasyonu** — cihazda mux (SDK ffmpeg sidecar) + buluttan mux
+   (backend'e yeni video-ingest + ffmpeg + RTMP publish) ayrı ayrı tasarlanmalı. `ffmpeg` bu makinede
+   kurulu (native derleme blocker'ı yok) ama iş büyük — kapsam kullanıcıyla netleştirilmeli (hangisi
+   önce, ikisi birden mi).
+2. `RelayTarget.dub_language` alanı henüz eklenmedi (mux olmadan yanıltıcı olurdu, kasıtlı).
+3. Diğer her şey önceki oturumdan değişmedi: whisper.cpp/XTTS native motor (cmake yok), self-hosted
+   S2S/ElevenLabs bağımsızlığı, Task 2.7 (admin routing gerçek toggle), 2.6/2.5/2.4 kalanı.
+
+### Önceki oturum (2026-07-06, doğrulama oturumu sonu) — aşağıda, kronolojik olarak ÖNCEKİ
 
 ### Bu oturum — SADECE doğrulama + git senkronu, KOD YAZMADI
 Önceki (uygulama) oturumu bittikten sonra kullanıcı **"@CLAUDE.md @docs/sessions/claude.md şuanki

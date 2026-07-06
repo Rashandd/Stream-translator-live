@@ -56,6 +56,18 @@ pub trait CaptureSource: Send {
     fn next_frame(&mut self) -> Result<Option<Vec<i16>>, CaptureError>;
 }
 
+/// Lets `audio::open_capture()`'s boxed trait object plug directly into
+/// `CapturePipeline<S: CaptureSource>` without callers unboxing it first.
+impl CaptureSource for Box<dyn CaptureSource> {
+    fn config(&self) -> CaptureConfig {
+        (**self).config()
+    }
+
+    fn next_frame(&mut self) -> Result<Option<Vec<i16>>, CaptureError> {
+        (**self).next_frame()
+    }
+}
+
 /// In-memory capture source for tests and offline demos.
 ///
 /// Yields the queued frames in order, then `None`.
