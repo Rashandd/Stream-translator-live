@@ -4,6 +4,7 @@ pub mod audio_frame;
 pub mod capture;
 pub mod cloud;
 pub mod gate;
+pub mod gpu_probe;
 pub mod local_stt;
 pub mod mux;
 pub mod pairing;
