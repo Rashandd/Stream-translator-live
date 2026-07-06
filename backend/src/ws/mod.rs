@@ -331,6 +331,7 @@ fn handle_control(
                 Arc::clone(&state.logger),
                 stt_source,
                 tts_source,
+                Arc::clone(&state.voice_models),
             ));
             // EBS (Twitch Extension) kanalın canlı olduğunu buradan görür.
             state.active_streams.set(&claims.sub, &overlay_token);

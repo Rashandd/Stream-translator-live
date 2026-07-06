@@ -1122,7 +1122,27 @@
         "submitLabel": "Create voice model",
         "submittingLabel": "Uploading…",
         "micDeniedError": "Microphone access was denied. Upload a file instead.",
-        "noSampleError": "Record or upload a sample first."
+        "noSampleError": "Record or upload a sample first.",
+        "languageModeLabel": "How should this voice work across languages?",
+        "languageModeOptions": {
+          "single_to_multi": {
+            "title": "One recording, many languages",
+            "description": "Read one sample in your own language — the same voice can dub into any language you enable (recommended)."
+          },
+          "single_to_single": {
+            "title": "One recording, one language",
+            "description": "Read one sample; an admin pins this voice to a single dubbing language. Clone again for each extra language."
+          },
+          "multi_to_single": {
+            "title": "Multiple recordings, one language",
+            "description": "Read samples in more than one language, all mapped to a single fixed dubbing language."
+          }
+        },
+        "sourceLanguageLabel": "Language you'll read the sample in",
+        "sourceLanguagesLabel": "Languages you'll read samples in (choose at least two)",
+        "sourceLanguagePlaceholder": "Choose a language",
+        "noSourceLanguageError": "Choose a source language first.",
+        "notEnoughSourceLanguagesError": "Choose at least two source languages for this mode."
       },
       "modelsTitle": "Your voice models",
       "modelsEmpty": "No voice models yet — create one above.",
@@ -1131,6 +1151,16 @@
         "pending_review": "Pending review",
         "approved": "Ready to use",
         "rejected": "Not approved"
+      },
+      "modelMeta": {
+        "languageModeLabels": {
+          "single_to_single": "Single language",
+          "multi_to_single": "Multiple sources → one language",
+          "single_to_multi": "Multilingual"
+        },
+        "sourceLabel": "Trained in",
+        "targetLabel": "Active for",
+        "targetUnassigned": "not assigned yet"
       },
       "errors": {
         "unauthorized": "Your session has expired — sign in again.",
@@ -1715,19 +1745,37 @@
       "subtitle": "Every cloned voice needs a human sign-off before it can be used live — consent and misuse risk, not a provider limitation.",
       "loading": "Loading voice models…",
       "empty": "No voice models yet.",
-      "columns": { "user": "User", "name": "Name", "status": "Status", "created": "Created", "actions": "Actions" },
+      "columns": {
+        "user": "User",
+        "name": "Name",
+        "status": "Status",
+        "language": "Language",
+        "created": "Created",
+        "actions": "Actions"
+      },
       "statusLabels": {
         "processing": "Processing",
         "pending_review": "Pending review",
         "approved": "Approved",
         "rejected": "Rejected"
       },
+      "languageModeLabels": {
+        "single_to_single": "Single language",
+        "multi_to_single": "Multiple sources → one language",
+        "single_to_multi": "Multilingual"
+      },
+      "targetUnassigned": "not assigned",
       "approveLabel": "Approve",
       "rejectLabel": "Reject",
+      "assignPlaceholder": "Assign to language…",
+      "assignLabel": "Assign",
+      "assigningLabel": "Assigning…",
       "errors": {
         "unauthorized": "Your session has expired — sign in again.",
         "network": "Could not reach the API. Check your connection and try again.",
-        "actionFailed": "Could not update this voice model."
+        "actionFailed": "Could not update this voice model.",
+        "assignNotApproved": "Approve this model before assigning it to a language.",
+        "assignConflict": "This model is already assigned to a different language."
       }
     },
     "multistream": {

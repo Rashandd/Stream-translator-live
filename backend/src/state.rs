@@ -23,7 +23,7 @@ use crate::secrets::ManagedSecrets;
 use crate::stream_settings::StreamSettingsStore;
 use crate::usage::UsageTracker;
 use crate::users::{TwoFactorStore, UserStore};
-use crate::voice_models::VoiceModelStore;
+use crate::voice_models::{VoiceModelStore, VoiceSampleStore};
 use crate::waitlist::WaitlistLimiter;
 
 /// Tüm handler'ların paylaştığı state. Ucuz klonlanır (içte `Arc`).
@@ -72,6 +72,8 @@ pub struct AppState {
     pub voice_models: Arc<VoiceModelStore>,
     /// Kullanıcı başına TTS modu + benchmark sonucu (Faz 2.2b; `TTS_SETTINGS_FILE`).
     pub tts_settings: Arc<TtsSettingsStore>,
+    /// Ham ses örneği, AES-256 şifreli (Faz 2.2; `VOICE_SAMPLES_FILE`).
+    pub voice_samples: Arc<VoiceSampleStore>,
 }
 
 impl AppState {
@@ -108,6 +110,7 @@ impl AppState {
             stream_settings: Arc::new(StreamSettingsStore::in_memory()),
             voice_models: Arc::new(VoiceModelStore::in_memory()),
             tts_settings: Arc::new(TtsSettingsStore::in_memory()),
+            voice_samples: Arc::new(VoiceSampleStore::in_memory()),
         }
     }
 }
@@ -265,5 +268,11 @@ impl FromRef<AppState> for Arc<VoiceModelStore> {
 impl FromRef<AppState> for Arc<TtsSettingsStore> {
     fn from_ref(state: &AppState) -> Self {
         state.tts_settings.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<VoiceSampleStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.voice_samples.clone()
     }
 }

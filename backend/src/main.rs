@@ -411,6 +411,25 @@ async fn build_state(
         }
     };
 
+    // Ham ses örneği (2026-07-06 kararı — "Öz Kaynaklı Ses Klonlama"):
+    // VOICE_SAMPLES_FILE verilirse AES-256 şifreli kalıcı; yoksa bellek içi
+    // (restart'ta kaybolur — yeniden eğitim/motor değişimi mümkün olmaz,
+    // sadece dev/test için kabul edilir).
+    let voice_samples_file = std::env::var("VOICE_SAMPLES_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let voice_samples = match voice_samples_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.voice_samples.v1").await?;
+            tracing::info!(%path, "voice sample store: encrypted persistent file");
+            Arc::new(voice_models::VoiceSampleStore::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("VOICE_SAMPLES_FILE not set — raw voice samples are lost on restart");
+            Arc::new(voice_models::VoiceSampleStore::in_memory())
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -438,6 +457,7 @@ async fn build_state(
         stream_settings,
         voice_models,
         tts_settings,
+        voice_samples,
     })
 }
 

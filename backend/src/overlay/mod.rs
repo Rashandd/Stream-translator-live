@@ -279,6 +279,7 @@ mod tests {
                 is_final: true,
             },
             translations: vec![],
+            dubbed_audio: vec![],
             ts_start_ms: 0,
             ts_end_ms: 0,
         }
@@ -291,6 +292,7 @@ mod tests {
                 sequence,
                 mut source,
                 translations,
+                dubbed_audio,
                 ts_start_ms,
                 ts_end_ms,
             } => {
@@ -300,6 +302,7 @@ mod tests {
                     sequence,
                     source,
                     translations,
+                    dubbed_audio,
                     ts_start_ms,
                     ts_end_ms,
                 }

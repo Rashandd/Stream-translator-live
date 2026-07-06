@@ -764,10 +764,14 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] Ses kaydı stüdyo arayüzü <!-- Claude 2026-07-06: /dashboard/voice — voice-clone-studio.tsx: MediaRecorder ile mikrofon kaydı VEYA dosya yükleme (audio/*), Blob→base64, model listesi + durum rozetleri. -->
 - [x] Model oluşturma pipeline'ı <!-- Claude 2026-07-06: backend/src/voice_models — POST /api/voice/clone (plan has_voice_clone şartı — PlanRegistry zaten vardı, free/starter 403; base64 decode + 10MB üst sınır; gateway.clone_voice çağırır) + GET /api/voice/models (yayıncının kendi modelleri). Model plain-JSON VoiceModelStore'da (VOICE_MODELS_FILE) — ham ses örneği hiç saklanmaz, sadece sağlayıcının provider_voice_id'si. 6 e2e test (tests/voice_models_api.rs). -->
 - [x] Admin ses model onay kuyruğu <!-- Claude 2026-07-06: GET /admin/voice/models (tüm kullanıcılar) + POST .../{id}/approve|reject. Yeni model her zaman pending_review ile başlar — ElevenLabs'in kendisinde onay kavramı yok, bu StreamDubber'ın rıza/kötüye kullanım riski için koyduğu bilinçli insan-onaylı kapı (Faz 2.2 canlı TTS sadece approved modelleri kullanacak). /admin/voice-models sayfası (admin-voice-models-panel.tsx) — tablo + onayla/reddet. -->
+- [x] Ses modeline dil ataması şeması: `language_mode` (`single_to_single`/`multi_to_single`/`single_to_multi`) + `source_languages`/`target_languages` — düz `language: String` yerine (2026-07-06 kullanıcı kararı, bkz. dosya sonu "Öz Kaynaklı..." bölümü) <!-- Claude 2026-07-06: voice_models::LanguageMode enum + VoiceModel.source_languages/target_languages: Vec<String>. clone_voice request'i language_mode+source_languages alır (target_languages BOŞ başlar, admin sonradan assign ile doldurur — bkz. 2.2). Doğrulama: single_to_single/single_to_multi tam 1 source_language ister, multi_to_single en az 2. voice-clone-studio.tsx'e 3 modlu seçici + /api/translate/catalog'dan (2.0) beslenen kaynak-dil seçici eklendi (tekli select veya çoklu checkbox, moda göre). -->
+- [x] Ham ses örneği artık AES-256-GCM şifreli saklanır (2026-07-06 kullanıcı kararı — önceki "hiç saklama" kararının bilinçli tersi, gerekçe: yeniden eğitim/sağlayıcı değişimi/model iyileştirme) <!-- Claude 2026-07-06: voice_models::VoiceSampleStore (yeni dosya, sample_store.rs) — relay::RelayTargetStore ile BİREBİR AYNI desen: tüm JSON blob'u (model_id→base64 örnek) tek parça AES-256-GCM şifreli, ayrı dosyada (VOICE_SAMPLES_FILE, main.rs'te streamdubber.voice_samples.v1 context'iyle derive_key). Model metadata'sından (VoiceModelStore, gizli değil) kasıtlı AYRI tutuldu. clone_voice best-effort persist eder — şifreleme/disk hatası model oluşturmayı ENGELLEMEZ, sadece VoiceModel.has_stored_sample=false kalır. VoiceModel'e ayrıca mode (Dubbing|SpeechToSpeech, varsayılan Dubbing) + source (UserCloned|Preset, varsayılan UserCloned) alanları eklendi — şema hazır ama dashboard'da SpeechToSpeech/Preset SEÇİLEMEZ (gerçek self-hosted motor/S2S pipeline'ı dosya sonundaki ayrı işe bağlı). -->
 
 #### 2.2 Gerçek Zamanlı TTS
-- [ ] Metin → klonlanmış ses (2 sn altı)
-- [ ] SDK'da video + klonlanmış ses birleştirme
+- [x] Metin → klonlanmış ses (2 sn altı) <!-- Claude 2026-07-06: pipeline::StreamSession.synthesize_dubs — final (is_final=true) altyazı çevirisi sonrası, tts_source=cloud VE hedef dil için admin'in aktif kıldığı onaylı bir model varsa gateway.synthesize gerçekten çağrılır; sonuç ws::protocol::ServerMessage::Subtitle.dubbed_audio'ya (yeni alan, Vec<DubbedAudioTrack{lang,audio_base64}>, eski SDK'lar serde default ile yok sayar) eklenir. Model yoksa/sağlayıcı hata verirse o dil sessizce atlanır (gateway.translate_all'ın best-effort deseniyle aynı) — bir dilin dub başarısızlığı ne diğer dilleri ne altyazının kendisini etkiler. tts_source=local'de (SDK kendi motoruyla sentezleyecek, KALAN — bkz. 2.2b) backend hiç sentezlemez, sadece translations metnini taşır. "2 sn altı" gecikme hedefi CANLI ElevenLabs key'i olmadan ÖLÇÜLEMEDİ (ağ+model gecikmesi) — dispatch kodu gerçek ve 6 yeni pipeline testiyle (mock TTS + gerçek/başarısız senaryolar) doğrulandı, uçtan uca gecikme doğrulaması kullanıcı aksiyonu. -->
+- [ ] SDK'da video + klonlanmış ses birleştirme <!-- KALAN: sdk/src/core/mux.rs (şu an sadece OutputPlan enum'u, gerçek kod yok) + rtmp/relay.rs'in (audio/video tag'lerini opak byte-blob olarak fan-out ediyor, codec'e dokunmuyor) gerçek bir encoder+senkron stratejisiyle genişletilmesini gerektirir — OBS'in orijinal ses tag'lerini bu task'ta üretilen dubbed_audio ile DEĞİŞTİRMEK demek. whisper.cpp/cmake sorusuyla AYNI ciddiyette bir mimari çatal (basit AAC pass-through encoder mı, ffmpeg sidecar mı, Faz 3'e mi ertelenir) — kullanıcıyla AYRI görüşülmeli, bu oturumda sorulmadı/kodlanmadı. -->
+- [x] Admin: yayıncı dil seçtiğinde o dil için hangi onaylı modelin kullanılacağının (kullanıcı, hedef dil) başına seçilmesi <!-- Claude 2026-07-06: voice_models::VoiceModelStore.set_active_for_language(model_id, lang) + POST /admin/voice/models/{id}/assign (AdminUser). Model onaylı değilse 422; single_to_single/multi_to_single zaten FARKLI bir dile atanmışsa 409 (bu modlar tek hedefe kilitli tasarım gereği — N hedef dil = N ayrı model); single_to_multi aynı anda birden fazla dile atanabilir (target_languages büyür). active_model_for(user_id,lang) admin modeli SONRADAN reddederse bile stale atamayı görmezden gelir (status=Approved filtresi, atama haritası ayrıca temizlenmez). /admin/voice-models sayfasına dil sütunu (language_mode+source→target özeti) + onaylı modeller için dil seçici+"Assign" butonu eklendi. -->
+- [x] TTS kota/kredi tüketimi — gerçek ses baytından hesaplanan saniye, STT ile PAYLAŞILAN aynı `UsageTracker` havuzuna (kullanıcı kararı: "saniye ama müşteriye saat başına fiyatlandırma") <!-- Claude 2026-07-06: gateway::elevenlabs artık output_format="mp3_44100_128" AÇIKÇA istiyor (tahmini karakter/saniye oranı DEĞİL, kesin bilinen bitrate) — pipeline bytes*8/128_000 ile gerçek süreyi hesaplar, indirimsiz uygular (cloud sağlayıcı tam maliyetli — STT'nin process_audio'sundaki 1.0 tarife mantığıyla aynı). Ayrıca limit kontrolü YAPILMIYOR burada — aynı havuzu paylaştığı için STT'nin bir sonraki tick'i zaten yakalıyor (bir tick gecikmeli ama doğru, yeni bir "session kapatma" yolu icat edilmedi). Yerel TTS (tts_source=local) kullanım tüketimi KALAN — gerçek motor yok (2.2b), backend'e ses/karakter hiç ulaşmıyor, ölçülecek bir "TTS anı" henüz yok. -->
 
 #### 2.2b TTS Kaynağı — Bulut (ElevenLabs) vs Yayıncı PC'si (Local XTTS-v2, Faz 3'ten taşındı)
 > Kullanıcı kararı: XTTS-v2 yerel ses klonlama, STT'nin 2.6b'de kurduğu bulut/cihaz toggle desenine uyacak şekilde Faz 3'ten Faz 2'ye çekildi. Aynı mimari tekrar kullanılır: SDK'da opsiyonel yerel motor + donanım benchmark + watchdog + fallback, backend'de kaynak alanı + plan gating + kota teşviki, dashboard'da Bulut/Cihazında kartı.
@@ -1112,3 +1116,81 @@ Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RT
 - [ ] Tarayıcı uyumluluğu testi — `getDisplayMedia` sekme-sesi paylaşımı Chrome/Edge'de net, Safari/Firefox'ta kısıtlı/farklı davranabilir; desteklenmeyen tarayıcıda net bir uyarı gerekir
 
 > Bu özellik SDK'dan bağımsız, tamamen web tabanlı olduğu için Faz 1-3'ün SDK/RTMP/multistream işiyle çakışmaz — ayrı, paralel geliştirilebilecek bir görev grubu. Hangi faza (Faz 2 sonrası mı, Faz 4 büyüme kapsamında mı) alınacağı kullanıcı kararı bekliyor; şimdilik sadece "Coming Soon" kataloğunda ve bu analiz bölümünde duruyor.
+
+---
+
+## Öz Kaynaklı Ses Klonlama + Gerçek Speech-to-Speech (Faz 3 sonrası / araştırma — henüz hiçbir faza atanmadı)
+
+> Kaynak: kullanıcı isteği, 2026-07-06. **Güncelleme (aynı gün):** kullanıcı bu bölümün büyük kısmını
+> ("dublaj" modu için gerekenler — dil ataması şeması, ham örneğin şifreli saklanması, `mode`/`source`
+> alanları) Faz 2'ye (2.1/2.2) taşınıp hemen kodlanmasına karar verdi; bkz. 2.1'in yeni maddeleri ve
+> aşağıdaki "Faz 2'ye Taşınanlar" notu. Burada SADECE gerçekten ayrı bir faz/karar gerektiren kısım
+> kaldı: **gerçek Speech-to-Speech motoru** (metin ara katmanı olmadan, orijinal ses tonlaması
+> korunarak çalışan bir ses-dalgasından-ses-dalgasına model) + **ElevenLabs bağımlılığının
+> kaldırılıp kendi self-hosted klonlama/TTS/S2S motorumuza geçilmesi**. İkisi de native motor
+> derlemesi gerektirir — whisper.cpp'deki `cmake` blocker'ıyla AYNI kategori, kullanıcıyla AYRI
+> görüşülmeden koda dökülmemeli.
+
+### Faz 2'ye Taşınanlar (bu oturumda kodlandı — artık burada değil)
+- `VoiceModel.language_mode` (`SingleToSingle`/`MultiToSingle`/`SingleToMulti`) + `source_languages`/
+  `target_languages` şeması — bkz. 2.1.
+- Ham ses örneğinin AES-256-GCM şifreli saklanması (`voice_models::VoiceSampleStore`) — bkz. 2.1.
+- `VoiceModel.mode` (`Dubbing`/`SpeechToSpeech`) + `source` (`UserCloned`/`Preset`) alanları — şema
+  hazır (varsayılan `Dubbing`/`UserCloned`), ama dashboard'da SEÇİLEMEZ: `SpeechToSpeech` gerçek bir
+  S2S motoru gerektirir (bkz. aşağı), `Preset` gerçek bir self-hosted model çıktısı gerektirir (bkz.
+  aşağı) — ikisi de bu bölümdeki motor işine bağlı olduğu için UI'da yalnızca çalışan yol (Dubbing +
+  UserCloned) sunuluyor.
+- Admin'in (yayıncı, hedef dil) başına aktif model ataması (`POST /admin/voice/models/{id}/assign`)
+  — bkz. 2.2.
+- TTS kota/kredi tüketimi (gerçek ses baytından hesaplanan saniye, STT ile paylaşılan `UsageTracker`
+  havuzuna) — bkz. 2.2. Madde 6'nın "kredi sistemi tam admin-konfigüre edilebilir olmalı" isteği,
+  bugün TEK bir cloud sağlayıcı (ElevenLabs, sabit 1:1 oran) olduğu için basit tutuldu; birden fazla
+  sağlayıcı/mod arasında gerçek bir oran karşılaştırması ancak self-hosted motor gelince anlamlı
+  olacak (bkz. aşağıdaki "Kredi/kota" görevi).
+
+### Kalan Kullanıcı Kararları (birebir, henüz kodlanmadı)
+1. **Yayıncı panelden seçebilmeli: "dublaj" (klonlanmış ses ile TTS) mı yoksa "kendi sesi" (orijinal
+   sesin korunduğu S2S) mı kullanılsın.** Şema (`VoiceModel.mode`) hazır; UI ve gerçek S2S sentezi
+   motor gelince eklenecek.
+2. **ElevenLabs'a bağımlılık kaldırılmalı** — kendi self-hosted klonlama+TTS/S2S modelimiz olmalı
+   (örn. XTTS-v2/Coqui, veya gerçek S2S için Seamless/StyleTTS2 ailesi).
+3. **Alternatif olarak "seçili sesler"den de kullanılabilsin** — yani ElevenLabs'in hazır ses
+   kütüphanesi değil, **bizim kendi modelimizle** üretilmiş, önceden hazırlanmış hazır seslerden
+   birini seçme opsiyonu da olmalı (klonlama yapmadan hızlı başlangıç için). Şema (`VoiceModel.source
+   = Preset`) hazır, ama gerçek preset SESLERİ üretecek bir self-hosted model olmadan bu kaynaktan
+   hiçbir model olamaz.
+4. **Self-hosted mod ElevenLabs'e göre daha az kredi/kota tüketmeli** — kendi altyapımızda çalıştığı
+   için birim maliyet düşük, bu avantaj kota mantığına yansıtılmalı.
+
+### Bu, Şu Anki Mimariyi Nasıl Etkiliyor
+- **Yeni bir `TtsProvider`/`S2sProvider` implementasyonu** self-hosted motor için gerekiyor —
+  ElevenLabs'takiyle aynı trait deseni (`gateway::tts`), ama gerçek S2S modelin ses dalgasından
+  ses dalgasına çalışması STT→çeviri→TTS zincirinden **farklı bir pipeline dalı** gerektirir
+  (metin ara katmanı yok — bkz. önceki oturumda konuşulan S2ST/voice-conversion farkı).
+- **Native motor derlemesi gerekir** (whisper.cpp ile aynı blocker ailesi) — bu makinede `cmake`
+  yok, bu yüzden gerçek motor entegrasyonu ERTELENECEK, ama trait/API/admin panel konfigürasyonu
+  şimdiden koda dökülebilir (mock motor ile test edilir, CLAUDE.md deseni).
+- **Admin panelde yeni bir "Kredi/Kota Konfigürasyonu" ekranı** gerekiyor (muhtemelen 2.7'nin
+  kapsamına giriyor — `/admin/routing`'in "canlı maliyet göstergesi" maddesiyle birleştirilebilir):
+  her mod/sağlayıcı için birim-başı kredi tüketimi admin'den girilebilir, restart gerektirmez —
+  bugün tek sağlayıcı olduğu için erken.
+
+### Görevler (henüz faza atanmadı — muhtemelen Faz 3 veya ayrı bir "Faz 2.9")
+- [ ] Self-hosted klonlama+TTS motoru seçimi (XTTS-v2/Coqui gibi) + gerçek S2S motoru araştırması
+      (Seamless/StyleTTS2 ailesi) — native derleme gerektirdiği için cmake kararı kullanıcıyla
+      AYRI görüşülmeli (whisper.cpp sorusuyla aynı ciddiyette)
+- [ ] Gerçek S2S sentez yolu: `gateway::tts`'ten farklı, ses-dalgasından-ses-dalgasına ayrı bir
+      pipeline dalı (STT/çeviri metin ara katmanını atlar) + `VoiceModel.mode=SpeechToSpeech`
+      dashboard'da seçilebilir hâle gelir
+- [ ] "Seçili sesler" (bizim ürettiğimiz hazır ses kütüphanesi) — self-hosted motor çıktısından
+      üretilir, `VoiceModel.source=Preset` UI'da seçilebilir hâle gelir
+- [ ] Kredi/kota: self-hosted mod için ElevenLabs'e göre daha düşük çarpan (`usage_multiplier`
+      deseni) — admin panelden TAM konfigüre edilebilir (her mod/sağlayıcı için ayrı birim-kredi
+      oranı, restart'sız, `config::get` üzerinden); birden fazla sağlayıcı olunca anlamlı
+- [ ] ElevenLabs bağımlılığının admin panelden opsiyonel/kaldırılabilir hale getirilmesi (fallback
+      zinciri: self-hosted → ElevenLabs, tersi değil — maliyet önceliği self-hosted'da)
+
+> Bu bölüm SIRF tasarım/niyet notudur — self-hosted motor/gerçek S2S için hiçbir kod yazılmadı
+> (kasıtlı — cmake/motor seçimi kullanıcıyla ayrı görüşülmeli). `VoiceModel` şeması artık nihai
+> hâlini aldı (2.1/2.2'de kodlandı) — bu bölümün görevleri şemayı DEĞİŞTİRMEZ, sadece `mode=
+> SpeechToSpeech`/`source=Preset` değerlerini gerçek anlamda kullanılabilir hâle getirir.
