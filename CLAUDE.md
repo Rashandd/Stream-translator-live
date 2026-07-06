@@ -6,7 +6,10 @@
 
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
-Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
+Video varsayılan olarak buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider. İstisna: ikili yayında
+(Faz 2, 2.3) yayıncı "buluttan mux" seçerse (dublaj hesabı için video+klonlanmış ses bulutta birleştirilip
+oradan yayınlanır) video da buluta gider — bu tamamen opt-in, varsayılan hâlâ "cihazda mux" (video lokal
+kalır), buluttan mux daha fazla kredi tüketir (bkz. `docs/multistream.md`).
 Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı.
 
 ## Stack
@@ -89,7 +92,8 @@ tauri build          # SDK release build
 - `sdk/src/audio/wasapi.rs` → Windows (aktif)
 - `sdk/src/audio/coreaudio.rs` → macOS (iskelet, devre dışı)
 - `sdk/src/audio/pipewire.rs` → Linux (iskelet, devre dışı)
-- Video lokal kalır, buluta sadece ses gider
+- Video varsayılan olarak lokal kalır, buluta sadece ses gider — istisna: ikili yayında (2.3) yayıncı
+  "buluttan mux" seçerse dublaj hedefi için video da buluta gider (opt-in, daha yüksek kredi tüketimi)
 
 ### Faz 1 Sınırları
 - Ses klonlama YOK (Faz 2)
