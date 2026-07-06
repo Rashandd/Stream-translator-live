@@ -751,6 +751,14 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 
 ### Görevler
 
+#### 2.0 Çeviri — DeepL Dil Matrisi Genişletme
+> 1.8'de DeepL TR→EN/ES/DE/FR ile sınırlı başlatıldı. Faz 2'de DeepL'in desteklediği tüm diller açılır — çeviri tarafında local (HY-MT1.5) hâlâ Faz 3'te kalır, Faz 2'de tek sağlayıcı DeepL'dir ama kapsamı tam.
+- [ ] DeepL'in desteklediği tüm hedef dilleri (100+) `gateway::deepl` dil listesine ekle — hard-coded 4 dil yerine DeepL API'nin `/v2/languages` uç noktasından çekilen veya config'e seed edilen tam liste
+- [ ] Admin panelden hangi hedef dillerin yayıncıya sunulacağı seçilebilir olsun (config-driven, plan bazlı gating `1.6`/`2.6b` ile aynı desen)
+- [ ] Yayıncı dashboard dil seçimi: sabit 4 dilli liste yerine tam DeepL listesinden çoklu seçim UI'ı
+- [ ] Kaynak dil oto-algılama (`source_lang=auto`) opsiyonu — yayıncı konuşma dilini elle seçmek istemezse
+- [ ] Bazı dil çiftleri için DeepL "beta/formal-informal" desteği yoksa UI'da uyarı (kalite beklentisi netleşsin)
+
 #### 2.1 Ses Klonlama — ElevenLabs
 - [ ] ElevenLabs API entegrasyonu
 - [ ] Ses kaydı stüdyo arayüzü
@@ -760,6 +768,18 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 #### 2.2 Gerçek Zamanlı TTS
 - [ ] Metin → klonlanmış ses (2 sn altı)
 - [ ] SDK'da video + klonlanmış ses birleştirme
+
+#### 2.2b TTS Kaynağı — Bulut (ElevenLabs) vs Yayıncı PC'si (Local XTTS-v2, Faz 3'ten taşındı)
+> Kullanıcı kararı: XTTS-v2 yerel ses klonlama, STT'nin 2.6b'de kurduğu bulut/cihaz toggle desenine uyacak şekilde Faz 3'ten Faz 2'ye çekildi. Aynı mimari tekrar kullanılır: SDK'da opsiyonel yerel motor + donanım benchmark + watchdog + fallback, backend'de kaynak alanı + plan gating + kota teşviki, dashboard'da Bulut/Cihazında kartı.
+- [ ] Protokole `tts_source: "cloud" | "local"` alanı ekle (`stream_start`'a, `stt_source` ile aynı desen) — local modda SDK'nın kendi XTTS-v2 motoru metin+dili alıp klonlanmış sesi lokalde üretir, backend'e ses göndermez
+- [ ] SDK'ya gömülü local TTS motoru (XTTS-v2/Coqui, native bind) — model indirme + SHA-256 doğrulama (ses modeli STT'den büyük, ~2GB+)
+- [ ] Donanım kontrolü + benchmark (RTF/latency ölçümü) ve runtime watchdog — STT'deki `stt_watchdog` deseninin TTS'e uyarlanması (yavaşlarsa buluta fallback + histerezis)
+- [ ] Kullanıcının klonlanmış ses modeli local'de AES-256 ile şifreli saklanır, buluta hiç çıkmaz (gizlilik avantajı — pazarlama mesajı: "sesin hiç buluta gitmiyor")
+- [ ] `GET /api/tts/policy` — SDK'nın çektiği sunucu-taraflı yerel TTS politikası (izin, donanım eşikleri, kota çarpanı) — `stt/policy` ile aynı desen
+- [ ] Dashboard "Ses işleme" kartı: Bulut (ElevenLabs) / Cihazında (XTTS-v2, deneysel) seçimi, gereksinim tablosu, [Donanımımı test et] — STT'nin "Altyazı işleme" kartıyla aynı desen
+- [ ] Admin: hangi planda hangi TTS kaynağının açık olduğu (`tts.local.plans` config anahtarı, `stt.local.plans` ile aynı desen)
+- [ ] Yerel TTS fiyat teşviki: kota çarpanı (ElevenLabs karakter/dakika maliyeti yüksek — local seçilirse kota indirimli sayılır, `stt.local.usage_multiplier` deseniyle aynı)
+> Not: SDK/backend zaten senkron istek-cevap mimarisinde; local TTS de "adımı bulut yerine lokalde çalıştır" mantığına uyar, protokolü bozmaz.
 
 #### 2.3 İkili Yayın — SDK Relay'e Klonlanmış Ses Entegrasyonu
 - [ ] İkili yayın: TR ses → hesap 1, EN klonlanmış ses → hesap 2 (Faz 1.6'daki SDK relay üzerinden)
@@ -800,12 +820,23 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 > Yayıncıdan yayıncıya donanım farkı riski nedeniyle Faz 1'den çıkarıldı, Faz 2'ye alındı. Local STT, mevcut senkron istek/cevap mimarisini BOZMAZ — çünkü yerel model de VAD ile bölünmüş bitmiş cümleyi gönderiyor (Deepgram'ın gerçek streaming WS'i gibi sürekli açık bağlantı gerektirmiyor); sadece "STT adımını bazen atla" mantığı eklenir.
 
 #### 2.7 Admin — Hibrit Kontrol Genişletme
-- [ ] STT toggle (Deepgram ↔ Whisper)
-- [ ] TTS toggle (ElevenLabs ↔ Cartesia)
+- [ ] STT toggle (Deepgram ↔ Whisper ↔ SDK local)
+- [ ] TTS toggle (ElevenLabs ↔ Cartesia ↔ SDK local/XTTS-v2)
 - [ ] Canlı maliyet göstergesi
 
+#### 2.8 SDK Dağıtım — Gerçek İndirme Akışı
+> `/dashboard/sdk` şu an statik mockup: indirme butonu hiçbir URL'e gitmiyor, pairing kodu ve stream key sabit placeholder metin (config'ten, canlı API'ye bağlı değil). Faz 2'de yayıncı gerçekten SDK'yı indirip eşleştirebilmeli.
+- [ ] Release CI pipeline: `tauri build` → code sign → imzalı `latest.json` yayınla (bkz. `docs/sdk-distribution.md` "Yapılacaklar")
+- [ ] Gerçek Windows Authenticode (OV/EV) + macOS notarization sertifikaları (config `tauri.conf.json`'da hazır, sertifika yok — 1.3/SDK doğrulama listesinden)
+- [ ] `releases.strovak.com` statik host kurulumu (S3/Cloudflare) — build artefaktları + `latest.json`
+- [ ] `tauri-plugin-updater` runtime init (`run_desktop_shell()` içine wiring)
+- [ ] `/dashboard/sdk` indirme butonunu gerçek release URL'ine bağla (platforma göre: Windows .msi/.exe öncelik, macOS/Linux "yakında" durumu CLAUDE.md'ye göre korunur)
+- [ ] Pairing kodu üretme butonunu gerçek `POST /api/pairing/code`'a bağla (backend endpoint 1.3/1.4'te hazır, frontend hâlâ statik kod gösteriyor)
+- [ ] Stream key alanını gerçek `GET/PUT /api/relay/targets`'a bağla (backend hazır — bkz. Faz 1 "Dashboard/Backend Wiring" listesi — frontend hâlâ config'ten statik değer okuyor)
+- [ ] İndirme sonrası ilk-kurulum akışı: SDK açılışta pairing kodu ister, dashboard'daki kodu girince otomatik eşleşir (kullanıcı testi)
+
 **Faz 2 tamamlandığında:**
-İzleyici kendi dilini seçiyor. Yayıncı kendi sesiyle başka dilde konuşuyor. STT maliyeti $1,032 → $80/ay.
+İzleyici kendi dilini seçiyor. Yayıncı kendi sesiyle başka dilde konuşuyor (bulutta ElevenLabs veya cihazında XTTS-v2). Çeviri DeepL'in tam dil matrisiyle çalışıyor. STT maliyeti $1,032 → $80/ay. Yayıncı SDK'yı dashboard'dan indirip tek pairing koduyla eşleştirebiliyor.
 
 ---
 
