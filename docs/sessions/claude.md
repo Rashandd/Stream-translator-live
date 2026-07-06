@@ -3,42 +3,6 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
-## YENİ KULLANICI İSTEĞİ (2026-07-06, en güncel — bu oturum sadece NOT DÜŞTÜ, kod YAZMADI)
-Kullanıcı, ses klonlama/dublaj konusunda mevcut ElevenLabs-bağımlı tasarımı GENİŞLETME kararı verdi.
-Tam detay + görev listesi roadmap'in EN SONUNA eklendi: bkz.
-`streamdubber_roadmap_final.md` → "Öz Kaynaklı Ses Klonlama + Speech-to-Speech (Faz 3 sonrası /
-araştırma)" bölümü. Özet (sonraki ajan roadmap'teki bölümü OKUMADAN kod yazmaya başlamasın):
-
-1. Yayıncı dashboard'dan **"Dublaj" (klonlanmış ses+TTS) vs "Kendi Sesim" (S2S, metin ara katmanı
-   yok, orijinal tonlama korunur)** arasında seçim yapabilmeli.
-2. Eğitim için ses örneği artık **biz saklayacağız** (şu anki "ham örnek hiç saklanmaz" kararının
-   BİLİNÇLİ tersine çevrilmesi) — yayıncıya panelden birkaç cümle okutulacak, **kendi yerel
-   dilinde**, eğitim için teknik olarak en verimli sayıda cümle/saniye ne ise.
-3. **ElevenLabs bağımlılığı kaldırılmalı** — kendi self-hosted klonlama+TTS/S2S motorumuz olmalı
-   (native derleme gerektirir, whisper.cpp'deki cmake blocker'ıyla AYNI kategori — kullanıcıyla
-   ayrı görüşülmeli).
-4. **"Seçili sesler"** (bizim ürettiğimiz hazır ses kütüphanesi) seçeneği de olmalı — klonlama
-   yapmadan hızlı başlangıç.
-5. Self-hosted mod ElevenLabs'e göre **daha az kredi tüketmeli**.
-6. **Kredi/kota tamamen admin panelden konfigüre edilebilir olmalı** (her mod/sağlayıcı için
-   birim-kredi oranı, restart'sız, hard-coded değil).
-7. **(2026-07-06, ek karar) `language` alanı yerine `language_mode` gelecek** — hem "hedef dil
-   bazlı model" hem "kaynak dilden eğitilip çok dile sentezleyen model" senaryosuyla UYUMLU tek
-   şema. Üç değerli enum: `SingleToSingle` (tek kaynak dili algılar, tek hedef dile çevirir — N
-   hedef dil = N ayrı model), `MultiToSingle` (birden fazla kaynak dilini algılar, tek sabit hedef
-   dile çevirir), `SingleToMulti` (tek kaynak dilinden eğitilir — ElevenLabs/XTTS-v2 gibi çok
-   dilli motor sayesinde AYNI model birden fazla hedef dile sentez yapabilir; **şu anki ElevenLabs
-   entegrasyonu bu moda en yakın**). Şema: `language_mode` + `source_languages: Vec<String>` +
-   `target_languages: Vec<String>` (SingleToMulti'de boş = "hepsinde kullan"). Tam detay roadmap'teki
-   bölümün madde 7'sinde.
-
-**Önemli:** Bu, aşağıdaki "ŞU AN YARIM KALAN: Task 2.2" ile AYNI ŞEMAYA (`VoiceModel`) dokunuyor —
-düz `language: String` alanı yerine artık yukarıdaki madde 7'deki üçlü (`language_mode`/
-`source_languages`/`target_languages`) + `mode`/`source`/şifreli-örnek-referansı ekleniyor.
-Sonraki ajan **ikisini birlikte** tasarlamalı, ayrı ayrı yapılırsa `VoiceModel` şeması iki kez
-migrate edilir. Roadmap'teki yeni bölümdeki "Görevler" listesi + "Bu, Şu Anki Mimariyi Nasıl
-Etkiliyor" alt başlığı doğrudan implementasyon sıralaması olarak kullanılabilir.
-
 ## Neredeyim? (GÜNCEL — 2026-07-06, bu oturumun sonu)
 Kullanıcı isteği zinciri (hepsi aynı gün): **"@CLAUDE.md roadmapte faz 2 görevlerinden devam et"**
 → **"Faz 2 yi tamamla — elinde olmayan bir şey olunca admin paneline benim veri girişimi bekle,
@@ -164,6 +128,36 @@ Sonuç: aşağıdaki HEPSİ TEK OTURUMDA kodlandı, test edildi, regresyon yeşi
   `npm run build` başarılı (35 sayfa).
 - `sdk` crate'i bu oturumda DEĞİŞMEDİ (TTS dispatch tamamen backend tarafında, `tts_source=local`
   hâlâ protokol-seviyesinde taşınıyor, SDK motoru KALAN).
+
+### Kasıtlı Yapılmayanlar (bu oturumda, gerekçesiyle — hiçbiri unutulmadı)
+1. **SDK'da video + klonlanmış ses birleştirme (mux)** — `sdk/src/core/mux.rs` hâlâ sadece bir enum
+   (`OutputPlan`), gerçek kod yok. Gerekçe: OBS'in orijinal ses tag'lerini bu oturumda üretilen
+   `dubbed_audio` ile GERÇEKTEN değiştirmek yeni bir encoder+senkron stratejisi gerektiriyor —
+   whisper.cpp/cmake sorusuyla AYNI ciddiyette bir mimari çatal (AAC pass-through mı, ffmpeg
+   sidecar mı, Faz 3'e mi ertelenir). Kullanıcıyla AYRI görüşülmeden koda dökülmemeli — bu oturumda
+   hiç SORULMADI (kapsam/zaman nedeniyle, kasıtlı erteleme). **Sonraki oturumun İLK işi bu olmalı.**
+2. **Gerçek Speech-to-Speech motoru + ElevenLabs bağımlılığının kaldırılması** — roadmap'in sonunda
+   ayrı bir araştırma bölümünde duruyor (kullanıcının kendi "S2S sona not olarak kalsın" kararı).
+   Gerekçe: native motor derlemesi (bu makinede cmake yok) + STT→çeviri→TTS'ten TAMAMEN farklı bir
+   pipeline dalı (metin ara katmanı olmayan ses-dalgasından-ses-dalgasına akış) gerektiriyor.
+3. **`VoiceModel.mode=SpeechToSpeech` / `source=Preset` dashboard'da seçilemez** — şema hazır (madde
+   2'ye bağlı — bkz. yukarıda), ama UI'da SUNULMADI çünkü seçilse bile hiçbir şey yapmazdı (motor
+   yok, seçenek yanıltıcı olurdu).
+4. **Yerel TTS (`tts_source=local`) kullanım/kota tüketimi** — gerçek local motor (2.2b'nin KALAN
+   maddesi) olmadan backend'e ses/karakter hiç ulaşmıyor, ölçülecek bir "TTS anı" yok. Cloud yol
+   (bu oturumda kodlanan) tam çalışıyor, local yol bilerek dokunulmadı.
+5. **Admin panelde çok-sağlayıcılı kredi/oran konfigürasyon ekranı** — bugün TEK cloud sağlayıcı
+   (ElevenLabs, sabit 1:1 oran) olduğu için karşılaştırılacak ikinci bir oran yok; inşa etmek
+   spekülatif olurdu (CLAUDE.md'nin "hipotetik gelecek için tasarlama" ilkesine aykırı düşerdi).
+6. **whisper.cpp / XTTS-v2 / self-hosted S2S native motor bağlama** — bu makinede `cmake` yok
+   (Arch/CachyOS, kurulu değil); kurulum önerilirse kullanıcıya AYRICA sorulmalı, bu oturumda
+   sorulmadı (önceki oturumdaki "önce diğerini bitir" kararı hâlâ geçerli sayıldı).
+7. **"2 sn altı" TTS gecikme hedefinin canlı ölçümü** — kod yolu gerçek ve 6 yeni testle doğrulandı,
+   ama canlı ElevenLabs key'i/gerçek ağ gecikmesi olmadan uçtan uca SÜRE ölçülemedi — kullanıcı
+   aksiyonu (aynı şekilde DeepL EN/PT bölgesel kod nüansı da önceki oturumdan beri canlı key
+   bekliyor).
+8. **Task 2.3 (İkili Yayın, `RelayTarget.dub_language`)** — 2.2'nin dispatch mekanizması artık hazır
+   olduğu için daha az belirsiz, ama bu oturumda YAPILMADI — sıradaki iştir, henüz kodlanmadı.
 
 ### Sonraki Adım (TAM OLARAK)
 1. **Roadmap'te 2.1/2.2'nin yeni checkbox'larını + trim edilen "Öz Kaynaklı..." bölümünü commit'le**
