@@ -296,6 +296,16 @@ pub fn router(state: AppState) -> Router {
             post(crate::sdk_link::push_command).get(crate::sdk_link::poll_commands),
         )
         .route("/api/sdk/benchmark", post(crate::sdk_link::report_benchmark))
+        // DeepL hedef dil matrisi (Faz 2.0): tam katalog + admin'in açtığı
+        // diller + planın izin verdiği azami sayı + yayıncının kayıtlı
+        // seçimi tek çağrıda; PUT seçimi doğrulayıp kalıcılaştırır.
+        .route(
+            "/api/translate/languages",
+            get(crate::stream_settings::get_languages).put(crate::stream_settings::put_languages),
+        )
+        // Katalogun tamamı (auth gerekmez, gizli veri yok) — admin panelin
+        // "hangi diller açık" listesini oluşturması için.
+        .route("/api/translate/catalog", get(crate::stream_settings::get_catalog))
         // OBS Browser Source altyazı overlay'i (1.9): auth gerektirmez, token capability'dir.
         .route("/overlay/{token}", get(overlay::overlay_ws_handler))
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.

@@ -92,6 +92,13 @@ impl ServiceConfig {
             ("stt.local.retry_minutes", "5"),
             ("translate.provider", "deepl"),
             ("translate.fallback", "google"),
+            // DeepL hedef dil matrisi (Faz 2.0): admin panelden hangi
+            // kodların yayıncıya sunulacağını daraltır (virgülle ayrılmış,
+            // translate_languages::DEEPL_TARGET_LANGUAGES katalogunun alt
+            // kümesi). Varsayılan: tam katalog açık. Aşağıda `with_defaults`
+            // sonunda gerçek değerle doldurulur (katalog çalışma zamanında
+            // üretiliyor, literal değil).
+            ("translate.deepl.enabled_targets", ""),
             ("tts.provider", "disabled"),
             ("stream.max_bitrate", "128000"),
             ("vad.enabled", "true"),
@@ -169,10 +176,16 @@ impl ServiceConfig {
             // admin panelden restart'sız değiştirilir.
             ("cors.allowed_origins", "http://localhost:3000"),
         ];
-        let map = defaults
+        let mut map: HashMap<String, String> = defaults
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
+        // Katalog çalışma zamanında üretiliyor (bkz. yukarısı) — varsayılan
+        // olarak tam DeepL katalogu açık, admin panelden daraltılır.
+        map.insert(
+            "translate.deepl.enabled_targets".to_string(),
+            crate::translate_languages::all_codes_csv(),
+        );
         ServiceConfig {
             values: RwLock::new(map),
         }

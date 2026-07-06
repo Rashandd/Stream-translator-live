@@ -757,6 +757,29 @@
           "enabled": false
         }
       ],
+      "languagePicker": {
+        "title": "Target caption languages",
+        "subtitle": "Pick which languages viewers can choose from. Your plan allows up to {max} at a time.",
+        "unlimitedNote": "Your plan allows unlimited target languages.",
+        "loading": "Loading languages…",
+        "sourceTitle": "Speech language",
+        "autoDetectLabel": "Auto-detect",
+        "autoDetectHint": "We'll detect the language you're speaking automatically.",
+        "manualLabel": "Choose manually",
+        "selectedCountTemplate": "{count} of {max} selected",
+        "noFormalityNote": "No formal/informal tone control for this language.",
+        "saveLabel": "Save languages",
+        "savingLabel": "Saving…",
+        "savedLabel": "Saved",
+        "limitReachedNote": "You've reached your plan's language limit — upgrade to add more.",
+        "errors": {
+          "unauthorized": "Your session has expired — sign in again to change this setting.",
+          "network": "Could not reach the API. Check your connection and try again.",
+          "saveFailed": "Could not save your language selection.",
+          "tooMany": "That's more target languages than your plan allows.",
+          "empty": "Choose at least one target language."
+        }
+      },
       "appearanceTitle": "Caption appearance",
       "overlayUrl": "https://overlay.strovak.com/o/•••••••",
       "builder": {
@@ -1553,6 +1576,16 @@
       ],
       "fallbackRuleLabel": "Auto fallback rule",
       "fallbackRule": "When the primary provider is busy or errors, traffic shifts to the fallback automatically.",
+      "deeplLanguages": {
+        "title": "DeepL target languages",
+        "subtitle": "Choose which languages are offered to broadcasters platform-wide. Each plan still caps how many a broadcaster can pick at once.",
+        "loading": "Loading catalog…",
+        "saveLabel": "Save",
+        "savingLabel": "Saving…",
+        "savedLabel": "Saved",
+        "errorNetwork": "Could not reach the API.",
+        "errorSave": "Could not save the enabled language list."
+      },
       "historyTitle": "Change history",
       "historyEmpty": "No changes recorded yet.",
       "history": [

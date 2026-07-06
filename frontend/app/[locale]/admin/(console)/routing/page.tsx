@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { AdminDeeplLanguagesPanel } from "@/src/components/admin-deepl-languages-panel";
 import { Icon } from "@/src/components/icon";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
 import { StatusPill } from "@/src/components/status-pill";
@@ -80,6 +81,10 @@ export default async function AdminRoutingPage({ params }: Props) {
           <p className="mt-1 text-sm leading-6 text-muted">{routing.fallbackRule}</p>
         </div>
       </div>
+
+      <SectionCard subtitle={routing.deeplLanguages.subtitle} title={routing.deeplLanguages.title}>
+        <AdminDeeplLanguagesPanel labels={routing.deeplLanguages} />
+      </SectionCard>
 
       <SectionCard subtitle={routing.emailSenderNote} title={routing.emailSenderTitle}>
         <div className="grid gap-4 sm:grid-cols-2">

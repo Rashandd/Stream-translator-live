@@ -40,13 +40,16 @@ async fn spawn_server() -> SocketAddr {
     addr
 }
 
-/// Geçerli bir access token üretir.
+/// Geçerli bir access token üretir. Plan "pro" (max_languages=10) — bu
+/// dosyadaki testler çoklu hedef dil (2) gönderiyor; free'nin Faz 2.0'da
+/// eklenen 1-dil sınırına takılmaması için plan gating testleri (ws::tests
+/// içinde, unit seviyesinde) free'yi ayrıca kapsıyor.
 fn valid_token() -> String {
     let jwt = Jwt::new(SECRET);
     let claims = Claims {
         sub: "11111111-1111-1111-1111-111111111111".into(),
         role: "broadcaster".into(),
-        plan: "free".into(),
+        plan: "pro".into(),
         exp: chrono::Utc::now().timestamp() + 3600,
     };
     jwt.issue(&claims).expect("issue token")
@@ -97,7 +100,7 @@ async fn full_stream_flow() {
     let ready = next_json(&mut ws).await;
     assert_eq!(ready["type"], "session_ready");
     assert_eq!(ready["user_id"], "11111111-1111-1111-1111-111111111111");
-    assert_eq!(ready["plan"], "free");
+    assert_eq!(ready["plan"], "pro");
 
     // stream_start → stream_ack
     send_json(

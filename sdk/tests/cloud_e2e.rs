@@ -40,6 +40,9 @@ async fn spawn_backend() -> SocketAddr {
     addr
 }
 
+/// Plan "pro" (max_languages=10) — bu test 2 hedef dil gönderiyor; free'nin
+/// Faz 2.0'da eklenen 1-dil sınırına takılmaması için (plan gating'i
+/// backend::ws::tests zaten unit seviyesinde free ile kapsıyor).
 fn token() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -49,7 +52,7 @@ fn token() -> String {
     jwt.issue(&Claims {
         sub: "u-e2e".into(),
         role: "broadcaster".into(),
-        plan: "free".into(),
+        plan: "pro".into(),
         exp: now + 3600,
     })
     .expect("issue")

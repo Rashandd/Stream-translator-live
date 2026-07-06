@@ -129,6 +129,10 @@ pub enum ErrorCode {
     /// `local_stt_not_allowed` (plan izni yok), `stt_source_not_local`
     /// (cloud session'dan transcript), `transcript_too_long`.
     LocalSttRejected = 4007,
+    /// `target_langs` sayısı planın `max_languages` sınırını aşıyor (Faz 2.0).
+    TooManyTargetLanguages = 4008,
+    /// `target_langs` içinde admin'in kapattığı/katalogda olmayan bir kod var (Faz 2.0).
+    UnsupportedTargetLanguage = 4009,
     InternalError = 5000,
 }
 

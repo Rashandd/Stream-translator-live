@@ -33,6 +33,7 @@ use streamdubber_backend::{
     sdk_link,
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
+    stream_settings,
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
     tls::{self, TlsSettings},
@@ -343,6 +344,24 @@ async fn build_state(
         }
     };
 
+    // Yayıncının hedef dil seçimi (Faz 2.0): STREAM_SETTINGS_FILE verilirse
+    // düz JSON kalıcı (dil kodları secret değil); yoksa bellek içi.
+    let stream_settings_file = std::env::var("STREAM_SETTINGS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let stream_settings = match stream_settings_file {
+        Some(path) => {
+            tracing::info!(%path, "stream language settings store: persistent JSON file");
+            Arc::new(stream_settings::StreamSettingsStore::with_file(path)?)
+        }
+        None => {
+            tracing::warn!(
+                "STREAM_SETTINGS_FILE not set — target language selection resets on restart"
+            );
+            Arc::new(stream_settings::StreamSettingsStore::in_memory())
+        }
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -367,6 +386,7 @@ async fn build_state(
         twofactor: Arc::new(TwoFactorStore::new()),
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
+        stream_settings,
     })
 }
 

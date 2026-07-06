@@ -88,12 +88,18 @@ impl TranslateProvider for DeeplTranslate {
             .clone()
             .unwrap_or_else(|| endpoint_for_key(&api_key).to_string());
 
-        // DeepL dil kodları büyük harf (EN, DE, TR).
-        let params = [
+        // DeepL dil kodları büyük harf (EN, DE, TR). `source_lang=auto`
+        // (Faz 2.0 — yayıncı kaynak dili elle seçmek istemezse) DeepL'in
+        // kendi oto-algılamasını tetiklemek için parametrenin TAMAMEN
+        // GÖNDERİLMEMESİ gerekir — DeepL "AUTO" diye bir kaynak kodu
+        // tanımıyor, `source_lang` alanı yoksa oto-algılar.
+        let mut params = vec![
             ("text", text.to_string()),
-            ("source_lang", source.to_uppercase()),
             ("target_lang", target.to_uppercase()),
         ];
+        if !source.eq_ignore_ascii_case("auto") {
+            params.push(("source_lang", source.to_uppercase()));
+        }
 
         let resp = self
             .client
@@ -163,6 +169,49 @@ mod tests {
             axum::serve(listener, app).await.unwrap();
         });
         format!("http://{addr}/v2/translate")
+    }
+
+    /// `spawn_deepl_mock` gibi ama her isteğin `source_lang` alanını
+    /// gönderip göndermediğini paylaşılan bir listeye kaydeder — auto-detect
+    /// testi bunu bekleyip doğrular.
+    async fn spawn_deepl_mock_recording_source_lang() -> (String, std::sync::Arc<std::sync::Mutex<Vec<bool>>>) {
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<bool>>> = Default::default();
+        let seen_for_route = std::sync::Arc::clone(&seen);
+
+        async fn translate(
+            axum::extract::State(seen): axum::extract::State<std::sync::Arc<std::sync::Mutex<Vec<bool>>>>,
+            Form(form): Form<HashMap<String, String>>,
+        ) -> Json<serde_json::Value> {
+            seen.lock().unwrap().push(form.contains_key("source_lang"));
+            let text = form.get("text").cloned().unwrap_or_default();
+            let target = form.get("target_lang").cloned().unwrap_or_default();
+            Json(serde_json::json!({
+                "translations": [ { "detected_source_language": "TR", "text": format!("{target}:{text}") } ]
+            }))
+        }
+
+        let app = Router::new()
+            .route("/v2/translate", post(translate))
+            .with_state(seen_for_route);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        (format!("http://{addr}/v2/translate"), seen)
+    }
+
+    #[tokio::test]
+    async fn auto_source_lang_omits_the_form_field() {
+        let (endpoint, seen) = spawn_deepl_mock_recording_source_lang().await;
+        let tr = DeeplTranslate::with_endpoint("test-key", endpoint);
+
+        tr.translate("hello", "auto", "tr").await.unwrap();
+        tr.translate("hello", "AUTO", "tr").await.unwrap(); // case-insensitive
+        tr.translate("merhaba", "tr", "en").await.unwrap(); // normal — alan gönderilmeli
+
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen, vec![false, false, true]);
     }
 
     #[tokio::test]

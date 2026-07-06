@@ -233,6 +233,51 @@ fn handle_control(
                     "unsupported_codec",
                 ));
             }
+            // DeepL hedef dil matrisi (Faz 2.0): plan başına azami hedef dil
+            // sayısı (`PlanRegistry.max_languages`, -1 = sınırsız) + admin'in
+            // açtığı katalog alt kümesi (`translate.deepl.enabled_targets`).
+            // Panel zaten `PUT /api/translate/languages`'ta aynı kuralları
+            // uygular — burası SDK doğrudan eski/elle kurulmuş bir
+            // `target_langs` gönderirse diye sunucu tarafı ikinci savunma.
+            let max_languages = state.plans.get(&claims.plan).map(|p| p.max_languages).unwrap_or(1);
+            if max_languages >= 0 && target_langs.len() as i64 > max_languages {
+                state.logger.log(
+                    LogLevel::Warn,
+                    "ws",
+                    &format!(
+                        "stream_start rejected: {} target languages exceeds plan {} limit of {}",
+                        target_langs.len(),
+                        claims.plan,
+                        max_languages
+                    ),
+                    Some(&claims.sub),
+                    Some(&session_id),
+                );
+                return Some(ServerMessage::error(
+                    ErrorCode::TooManyTargetLanguages,
+                    "too_many_target_languages",
+                ));
+            }
+            let enabled_targets_csv = state
+                .service_config
+                .get("translate.deepl.enabled_targets")
+                .unwrap_or_default();
+            if let Some(unsupported) = target_langs
+                .iter()
+                .find(|lang| !plan_allowed(&enabled_targets_csv, lang))
+            {
+                state.logger.log(
+                    LogLevel::Warn,
+                    "ws",
+                    &format!("stream_start rejected: unsupported target language {unsupported}"),
+                    Some(&claims.sub),
+                    Some(&session_id),
+                );
+                return Some(ServerMessage::error(
+                    ErrorCode::UnsupportedTargetLanguage,
+                    "unsupported_target_language",
+                ));
+            }
             // Lokal STT plan gating'i (2.6b): hangi planların stt_source=local
             // bildirebileceği `stt.local.plans` config'inden okunur (admin
             // panelden restart'sız değiştirilir).
@@ -586,6 +631,46 @@ mod tests {
         let reply = control(json, &st, &claims(), &mut session);
         assert!(matches!(reply, Some(ServerMessage::Error { code: 4004, .. })));
         assert!(session.is_none());
+    }
+
+    #[test]
+    fn stream_start_rejects_too_many_target_languages_for_plan() {
+        // free plan: max_languages = 1 (PlanRegistry seed'i).
+        let st = state();
+        let mut session = None;
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en","de"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::Error { code: 4008, .. })));
+        assert!(session.is_none());
+    }
+
+    #[test]
+    fn stream_start_allows_up_to_plan_limit() {
+        let st = state();
+        let mut session = None;
+        // pro plan: max_languages = 10 — aynı claims'e pro veriyoruz.
+        let mut pro_claims = claims();
+        pro_claims.plan = "pro".into();
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en","de","es"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(json, &st, &pro_claims, &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+    }
+
+    #[test]
+    fn stream_start_rejects_unsupported_target_language() {
+        let st = state();
+        // Admin katalogu daraltır: sadece "en" açık.
+        st.service_config.set("translate.deepl.enabled_targets", "en");
+        let mut session = None;
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["xx"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::Error { code: 4009, .. })));
+        assert!(session.is_none());
+
+        // "en" hâlâ açık — kabul edilir.
+        let ok = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(ok, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
     }
 
     #[test]

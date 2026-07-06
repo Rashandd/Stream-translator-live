@@ -20,6 +20,7 @@ use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
 use crate::sdk_link::{SdkCommandQueue, SttSettingsStore};
 use crate::secrets::ManagedSecrets;
+use crate::stream_settings::StreamSettingsStore;
 use crate::usage::UsageTracker;
 use crate::users::{TwoFactorStore, UserStore};
 use crate::waitlist::WaitlistLimiter;
@@ -64,6 +65,8 @@ pub struct AppState {
     pub sdk_commands: Arc<SdkCommandQueue>,
     /// Kullanıcı başına STT modu + benchmark sonucu (`STT_SETTINGS_FILE`).
     pub stt_settings: Arc<SttSettingsStore>,
+    /// Kullanıcı başına hedef dil seçimi (Faz 2.0; `STREAM_SETTINGS_FILE`).
+    pub stream_settings: Arc<StreamSettingsStore>,
 }
 
 impl AppState {
@@ -97,6 +100,7 @@ impl AppState {
             twofactor: Arc::new(TwoFactorStore::new()),
             sdk_commands: Arc::new(SdkCommandQueue::new()),
             stt_settings: Arc::new(SttSettingsStore::in_memory()),
+            stream_settings: Arc::new(StreamSettingsStore::in_memory()),
         }
     }
 }
@@ -236,5 +240,11 @@ impl FromRef<AppState> for Arc<SdkCommandQueue> {
 impl FromRef<AppState> for Arc<SttSettingsStore> {
     fn from_ref(state: &AppState) -> Self {
         state.stt_settings.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<StreamSettingsStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.stream_settings.clone()
     }
 }
