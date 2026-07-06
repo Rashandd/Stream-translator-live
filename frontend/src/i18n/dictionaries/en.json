@@ -1085,6 +1085,16 @@
         "popular": false
       }
     ],
+    "onDevice": {
+      "badge": "Experimental",
+      "title": "Stretch your hours with on-device processing",
+      "summary": "Streamers with a capable NVIDIA GPU can run speech-to-text on their own machine. Minutes processed on your device count at a reduced rate against your quota, so the same plan lasts longer — and your voice never leaves your PC.",
+      "points": [
+        "Available on every plan — enable it from the Languages & captions page in your dashboard",
+        "Requires an NVIDIA GPU (RTX 3060 or better recommended) and a passed hardware test",
+        "If your hardware falls behind mid-stream we switch to cloud automatically without interrupting your broadcast; those minutes count at the normal rate"
+      ]
+    },
     "note": "Prices and limits shown here reflect the current plan catalog and may be updated — your dashboard always shows your live plan."
   },
   "security": {

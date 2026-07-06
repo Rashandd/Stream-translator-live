@@ -83,6 +83,16 @@ describe("subtitle processing card config (2.6b — docs/local-stt-plan.md §1)"
     expect(panelSource).toContain('userFetch("/api/sdk/commands"');
   });
 
+  it("pricing page explains on-device mode honestly (plan §1/§5.6)", () => {
+    const onDevice = en.pricing.onDevice;
+    expect(onDevice.title).toBeTruthy();
+    expect(onDevice.badge).toBe("Experimental");
+    expect(onDevice.points.length).toBeGreaterThanOrEqual(3);
+    // Gereksinim + fallback tarifesi fiyat sayfasında da açık söylenir.
+    expect(onDevice.points.some((p) => p.includes("NVIDIA"))).toBe(true);
+    expect(onDevice.points.some((p) => p.toLowerCase().includes("normal rate"))).toBe(true);
+  });
+
   it("contains no emoji anywhere in the processing copy", () => {
     const scan = (value: unknown): void => {
       if (typeof value === "string") {

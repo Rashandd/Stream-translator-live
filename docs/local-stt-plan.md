@@ -137,5 +137,12 @@ Tüm eşikler sunucu-taraflı: SDK sürümü yayınlamadan politika değiştiril
 6. **Fiyatlandırma sayfası + docs:** "Cihazında modu" anlatımı, SSS ("donanımım yetmezse ne
    olur?"), gereksinim tablosu.
 
+> **Durum (2026-07-05):** 1–4 ve 6 TAMAMLANDI (kota çarpanı, policy endpoint'i,
+> komut kanalı + ayar senkronu, dashboard kartı, pricing "on-device" bölümü) +
+> SDK çekirdeği hazır (LocalSttEngine trait + benchmark koşucusu + watchdog +
+> stt_control istemcisi, gerçek backend'e karşı e2e'li). 5'te kalan yalnız
+> donanım ayağı: whisper.cpp native bind, model indirme+SHA-256, GPU/VRAM
+> yoklama, tray döngüsü wiring'i ve Windows+RTX canlı smoke.
+
 Doğrulama: 1-2 mock/birim + e2e; 3 frontend sözleşme testleri; 4 gerçek Windows + RTX cihazında
 canlı smoke (user) — TR kalite karşılaştırması (aynı ses: Deepgram vs turbo) dahil.
