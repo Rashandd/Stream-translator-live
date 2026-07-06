@@ -3,7 +3,36 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
-## Neredeyim? (GÜNCEL — 2026-07-06, bu oturumun sonu)
+## Neredeyim? (GÜNCEL — 2026-07-06, doğrulama oturumu sonu)
+
+### Bu oturum — SADECE doğrulama + git senkronu, KOD YAZMADI
+Önceki (uygulama) oturumu bittikten sonra kullanıcı **"@CLAUDE.md @docs/sessions/claude.md şuanki
+durumu analiz et"** dedi. Bu oturumda yapılanlar:
+1. Aşağıdaki "BU OTURUMDA TAMAMLANAN"/"Regresyon durumu" bölümlerindeki HER iddia dosya okunarak +
+   testler YENİDEN çalıştırılarak doğrulandı: `sdk/src/core/mux.rs` hâlâ sadece `OutputPlan` enum'u
+   (gerçek kod yok), `backend/src/relay/mod.rs::RelayTarget`'ta `dub_language` alanı hâlâ yok,
+   `VoiceSampleStore`/`DubbedAudioTrack`/`synthesize_dubs`/`tts_audio_seconds` gerçekten var ve
+   `state.rs`/`main.rs`/`ws/protocol.rs`'e wire edilmiş. **Hiçbir iddia stale çıkmadı.**
+2. `cargo test --workspace` (backend 301 unit + sdk 106 unit + tüm e2e suite'ler — `voice_models_api.rs`
+   8/8, `ws_integration.rs` 7/7 dahil) ve `cargo clippy --workspace --all-targets` YENİDEN çalıştırıldı
+   → ikisi de yeşil/0 uyarı. Frontend `tsc --noEmit` / `npm run lint` / `npm run test` (121/121) /
+   `npm run build` (35 sayfa) YENİDEN çalıştırıldı → hepsi yeşil.
+3. Kullanıcı **"main'i fast-forward et"** dedi → ana checkout'ta (`/home/adem/Projects/GitHub/
+   Stream-translator-live`, `main` orada checked-out) `git merge --ff-only worktree-task-2.2-realtime-tts`
+   çalıştırıldı (önce `git status` ile temiz olduğu doğrulandı). **`main` (`4cb01cb`) bu worktree
+   branch'ine (`73ef3c7`) fast-forward edildi — artık ikisi AYNI commit'te, divergence yok.**
+   `origin/main`'e push YAPILMADI (kullanıcı istemedi) — origin'e göre şu an 3 commit ileride.
+4. Auto-memory'de 2 gün önceki bir not ("dashboard/SDK tamamen mockup, backend'e bağlı değil")
+   `sdk-pairing-panel.tsx`/`sdk-stream-key-panel.tsx`/`voice-clone-studio.tsx` içinde gerçek
+   `fetch`/`onClick`/`useState` bulunarak stale çıktı ve "superseded" olarak güncellendi (bu repo'nun
+   dosyası değil, global `~/.claude/.../memory/` — sadece bilgi için not düşülüyor).
+5. Aşağıdaki "Sonraki Adım #1" o sırada "commit henüz atılmadı" diyordu — bu artık YANLIŞ/stale
+   (o commit, yani `73ef3c7`, zaten atılmıştı). Aşağıda düzeltildi, DONE olarak işaretlendi.
+
+**Bu oturumda kod/task ilerlemesi YOK.** Sıradaki gerçek iş hâlâ değişmedi: "Sonraki Adım #2" —
+mux/audio-splice kullanıcı kararı (aşağıya bkz., **hâlâ sorulmadı**).
+
+### Önceki (uygulama) oturumunun anlatısı — hâlâ geçerli, kronolojik olarak ÖNCEKİ oturuma ait
 Kullanıcı isteği zinciri (hepsi aynı gün): **"@CLAUDE.md roadmapte faz 2 görevlerinden devam et"**
 → **"Faz 2 yi tamamla — elinde olmayan bir şey olunca admin paneline benim veri girişimi bekle,
 windows veya linux gerçek testler için beni bekle, admin panelde olmalı ama her şey"** → (task 2.2
@@ -160,9 +189,10 @@ Sonuç: aşağıdaki HEPSİ TEK OTURUMDA kodlandı, test edildi, regresyon yeşi
    olduğu için daha az belirsiz, ama bu oturumda YAPILMADI — sıradaki iştir, henüz kodlanmadı.
 
 ### Sonraki Adım (TAM OLARAK)
-1. **Roadmap'te 2.1/2.2'nin yeni checkbox'larını + trim edilen "Öz Kaynaklı..." bölümünü commit'le**
-   (bu oturumun son işi — commit henüz atılmadı, bu notla birlikte atılacak).
-2. **[CHECKPOINT] Task 2.2'nin TEK kalan maddesi: SDK'da video + klonlanmış ses birleştirme (mux)**
+1. ~~Roadmap'te 2.1/2.2'nin yeni checkbox'larını + trim edilen "Öz Kaynaklı..." bölümünü commit'le~~
+   — **YAPILDI** (`73ef3c7`). Doğrulama oturumunda `main`'e de fast-forward edildi — iki branch
+   şu an aynı commit'te, bu adımda bekleyen bir şey YOK.
+2. **[CHECKPOINT — SIRADAKİ GERÇEK İŞ] Task 2.2'nin TEK kalan maddesi: SDK'da video + klonlanmış ses birleştirme (mux)**
    — `sdk/src/core/mux.rs` şu an SADECE bir enum (`OutputPlan`, gerçek kod YOK). RTMP relay
    (`sdk/src/core/rtmp/relay.rs`) audio/video tag'lerini OPAK byte-blob olarak fan-out ediyor,
    codec'e dokunmuyor. OBS'in orijinal ses tag'lerini bu oturumda üretilen `dubbed_audio` ile GERÇEKTEN
