@@ -39,3 +39,7 @@ path = "../tests/cloud_e2e.rs"
 [[test]]
 name = "relay_wiring"
 path = "../tests/relay_wiring.rs"
+
+[[test]]
+name = "stt_control_wiring"
+path = "../tests/stt_control_wiring.rs"
