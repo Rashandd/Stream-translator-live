@@ -1,0 +1,141 @@
+name: SDK Release
+
+# Builds the StreamDubber desktop SDK for Windows/macOS/Linux, signs what it
+# can, and publishes installers + the updater manifest to a GitHub Release.
+#
+# Trigger: push a `sdk-v*` tag (e.g. `sdk-v0.1.0`), or run manually against
+# an existing tag to retry a failed build.
+#
+# Signing secrets are all optional — none exist yet (see
+# docs/sdk-distribution.md "Durum"). Missing secrets mean an unsigned build,
+# not a failed one, except the Windows certificate-thumbprint step below,
+# which is a best-effort mechanism not yet verified against a real
+# certificate — flagged inline where it matters.
+on:
+  push:
+    tags:
+      - "sdk-v*"
+  workflow_dispatch: {}
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+          - platform: macos-latest
+          - platform: windows-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri Linux build dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: npm ci (sdk/)
+        working-directory: sdk
+        run: npm ci
+
+      # Windows Authenticode signing: import the PFX into the runner's cert
+      # store and read back its thumbprint, then pass it to `tauri build`
+      # via --config (Tauri's config-merge flag). This mechanism has not
+      # been exercised against a real certificate — WINDOWS_CERTIFICATE
+      # doesn't exist yet — so treat it as best-effort until ops populates
+      # the secret and a real release run confirms it end to end.
+      - name: Import Windows code-signing certificate
+        if: matrix.platform == 'windows-latest' && secrets.WINDOWS_CERTIFICATE != ''
+        id: windows_cert
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $certPath = Join-Path $env:RUNNER_TEMP "streamdubber-sdk.pfx"
+          [IO.File]::WriteAllBytes($certPath, $bytes)
+          $securePassword = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+          Remove-Item $certPath
+          # Built here (not via the GH Actions format() expression below) so
+          # the JSON's literal braces don't need format()-placeholder escaping.
+          $configJson = '{"bundle":{"windows":{"certificateThumbprint":"' + $cert.Thumbprint + '"}}}'
+          "config_args=--config $configJson" >> $env:GITHUB_OUTPUT
+
+      - name: Build + publish (tauri-action)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing (all 3 platforms) — see docs/sdk-distribution.md.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing + notarization — tauri-action no-ops these when unset.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: sdk/src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "StreamDubber SDK ${{ github.ref_name }}"
+          releaseBody: "See docs/sdk-distribution.md for install/signing status."
+          releaseDraft: true
+          args: ${{ steps.windows_cert.outputs.config_args || '' }}
+
+      # /dashboard/sdk links to a fixed filename per platform (see
+      # frontend/src/lib/sdk-releases.ts) so it never has to change when the
+      # version bumps. Re-upload each platform's installer under that name.
+      - name: Duplicate installer under a version-independent name
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            ubuntu-latest)
+              src=$(find sdk/src-tauri/target/release/bundle -iname '*.AppImage' | head -n1)
+              dest="StreamDubber-SDK-Linux-x86_64.AppImage"
+              ;;
+            macos-latest)
+              src=$(find sdk/src-tauri/target/release/bundle -iname '*.dmg' | head -n1)
+              dest="StreamDubber-SDK-macOS.dmg"
+              ;;
+            windows-latest)
+              src=$(find sdk/src-tauri/target/release/bundle -iname '*.exe' | head -n1)
+              dest="StreamDubber-SDK-Setup-x64.exe"
+              ;;
+          esac
+          if [ -z "$src" ]; then
+            echo "no installer found under sdk/src-tauri/target/release/bundle for ${{ matrix.platform }}" >&2
+            exit 1
+          fi
+          cp "$src" "$dest"
+          echo "STABLE_ASSET=$dest" >> "$GITHUB_ENV"
+
+      - name: Upload stable-named asset to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ${{ env.STABLE_ASSET }}
