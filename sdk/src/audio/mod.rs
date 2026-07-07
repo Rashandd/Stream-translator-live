@@ -4,10 +4,8 @@
 
 use crate::core::capture::{CaptureConfig, CaptureError, CaptureSource};
 
-#[cfg(target_os = "macos")]
-pub mod coreaudio;
-#[cfg(target_os = "linux")]
-pub mod pipewire;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub mod cpal_capture;
 #[cfg(target_os = "windows")]
 pub mod wasapi;
 
@@ -31,7 +29,10 @@ pub enum AudioBackend {
 pub fn platform_backend() -> AudioAdapterInfo {
     AudioAdapterInfo {
         backend: selected_backend(),
-        enabled: matches!(selected_backend(), AudioBackend::Wasapi),
+        enabled: matches!(
+            selected_backend(),
+            AudioBackend::Wasapi | AudioBackend::CoreAudio | AudioBackend::PipeWire
+        ),
     }
 }
 
@@ -57,22 +58,19 @@ fn selected_backend() -> AudioBackend {
 
 /// Opens a platform capture source for the current build target.
 ///
-/// Windows (WASAPI) is the primary target; macOS/Linux adapters are disabled
-/// skeletons in Phase 1 and return [`CaptureError::NotImplemented`]. The actual
-/// device binding is the only platform-specific part — everything downstream
-/// (VAD, framing, cloud transport) is platform-independent core.
+/// Windows uses a hand-rolled WASAPI binding (`wasapi.rs`); macOS and Linux
+/// share a cpal-backed implementation (`cpal_capture.rs`) — see that module
+/// for why. The actual device binding is the only platform-specific part —
+/// everything downstream (VAD, framing, cloud transport) is
+/// platform-independent core.
 pub fn open_capture(config: CaptureConfig) -> Result<Box<dyn CaptureSource>, CaptureError> {
     #[cfg(target_os = "windows")]
     {
         wasapi::open(config)
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        coreaudio::open(config)
-    }
-    #[cfg(target_os = "linux")]
-    {
-        pipewire::open(config)
+        cpal_capture::open(config)
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
@@ -96,5 +94,16 @@ mod tests {
                 | AudioBackend::PipeWire
                 | AudioBackend::Unsupported
         ));
+    }
+
+    #[test]
+    fn platform_backend_is_enabled_on_all_three_desktop_targets() {
+        let info = platform_backend();
+        if matches!(
+            info.backend,
+            AudioBackend::Wasapi | AudioBackend::CoreAudio | AudioBackend::PipeWire
+        ) {
+            assert!(info.enabled, "{:?} should be enabled now", info.backend);
+        }
     }
 }

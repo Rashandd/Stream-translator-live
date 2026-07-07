@@ -36,6 +36,13 @@ tauri = { version = "2", features = [] }
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.23"
 
+# macOS/Linux cihaz I/O (1.3) — cpal, CoreAudio/ALSA/PulseAudio/JACK'ı tek
+# API arkasında kapsayan olgun bir crate; macOS kodu bu repoda hiç derleme
+# kontrolünden geçemediği için (darwin target/SDK yok) hand-rolled FFI'den
+# daha güvenli — bkz. docs/audio-pipeline.md.
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+cpal = "0.15"
+
 [dev-dependencies]
 streamdubber-backend = { path = "../../backend" }
 axum.workspace = true
