@@ -242,6 +242,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/2fa", post(crate::users::twofa_verify))
         .route("/api/auth/reset/request", post(crate::users::reset_request))
         .route("/api/auth/reset/confirm", post(crate::users::reset_confirm))
+        // Google/Twitch ile login (auth yok — kapasite kod/state'te).
+        .route(
+            "/api/auth/oauth/{provider}/start",
+            get(crate::auth::oauth_login::start),
+        )
+        .route(
+            "/api/auth/oauth/{provider}/callback",
+            get(crate::auth::oauth_login::callback),
+        )
         .route("/admin/ping", get(admin_ping))
         .route("/config", get(get_config))
         .route("/admin/config", put(put_config))

@@ -627,7 +627,8 @@ pub async fn callback(
 /// sadece boşluk/`&`/`=`/`#` gibi URL'i bozan karakterleri kaçırır. Hata
 /// mesajları operatöre gösterilecek kısa İngilizce metinlerdir, kullanıcı
 /// girdisi taşımaz (secret asla bu yola girmez — bkz. `OAuthError` varyantları).
-fn urlencoding_light(input: &str) -> String {
+/// `pub(crate)` — `auth::oauth_login`'in kendi callback redirect'i de reuse ediyor.
+pub(crate) fn urlencoding_light(input: &str) -> String {
     input
         .chars()
         .map(|c| match c {

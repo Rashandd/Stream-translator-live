@@ -37,6 +37,20 @@ pub mod names {
     pub const YOUTUBE_CLIENT_ID: &str = "YOUTUBE_CLIENT_ID";
     pub const YOUTUBE_CLIENT_SECRET: &str = "YOUTUBE_CLIENT_SECRET";
 
+    // Login ile giriş (auth::oauth_login) — YouTube captions bağlantısından
+    // (yukarıdaki YOUTUBE_CLIENT_ID) BİLİNÇLİ olarak ayrı bir Google OAuth
+    // client'ı: login minimal openid/email scope'u ister, captions ise
+    // youtube.force-ssl (kanal yönetimi) — aynı client'ı paylaşmak login
+    // consent ekranını gereksiz yere genişletir ve iki farklı amaçlı token'ı
+    // karıştırır.
+    pub const GOOGLE_LOGIN_CLIENT_ID: &str = "GOOGLE_LOGIN_CLIENT_ID";
+    pub const GOOGLE_LOGIN_CLIENT_SECRET: &str = "GOOGLE_LOGIN_CLIENT_SECRET";
+
+    // Twitch ile giriş (auth::oauth_login) — TWITCH_EXT_SECRET'tan (Twitch
+    // Extension EBS shared secret, alakasız) ayrı: bu bir OAuth client id/secret.
+    pub const TWITCH_CLIENT_ID: &str = "TWITCH_CLIENT_ID";
+    pub const TWITCH_CLIENT_SECRET: &str = "TWITCH_CLIENT_SECRET";
+
     // Stripe (Faz 1.11). Secret key sunucu-taraflı API çağrıları için;
     // webhook secret imza doğrulaması için. Koda asla gömülmez.
     pub const STRIPE_SECRET_KEY: &str = "STRIPE_SECRET_KEY";
@@ -68,6 +82,10 @@ pub mod names {
         STREAMLABS_CLIENT_SECRET,
         YOUTUBE_CLIENT_ID,
         YOUTUBE_CLIENT_SECRET,
+        GOOGLE_LOGIN_CLIENT_ID,
+        GOOGLE_LOGIN_CLIENT_SECRET,
+        TWITCH_CLIENT_ID,
+        TWITCH_CLIENT_SECRET,
         STRIPE_SECRET_KEY,
         STRIPE_WEBHOOK_SECRET,
         TWITCH_EXT_SECRET,

@@ -9,6 +9,7 @@ use streamdubber_backend::{
     app,
     auth::bootstrap::BootstrapAdmin,
     auth::jwt::Jwt,
+    auth::oauth_login::LoginProviders,
     billing::Billing,
     bindings::{self, ChannelBindingStore},
     ext_twitch::ExtTwitch,
@@ -266,6 +267,10 @@ async fn build_state(
     };
     let integrations = Arc::new(Integrations::from_secrets(Arc::clone(&store), token_vault));
 
+    // Google/Twitch ile login (auth::oauth_login) — bağlantı bağlama
+    // (yukarıdaki Integrations) ile ayrı, kendi client id/secret'ları var.
+    let oauth_login = Arc::new(LoginProviders::from_secrets(Arc::clone(&store)));
+
     // Stripe (1.11): secret'lar çağrı anında çözülür; yoksa checkout/webhook
     // "yapılandırılmamış" (503) döner.
     let billing = Arc::new(Billing::from_secrets(Arc::clone(&store)));
@@ -437,6 +442,7 @@ async fn build_state(
         ext_twitch: Arc::new(ExtTwitch::from_secrets(&secrets)),
         service_config,
         integrations,
+        oauth_login,
         billing,
         plans: Arc::new(PlanRegistry::with_defaults()),
         usage: Arc::new(usage),

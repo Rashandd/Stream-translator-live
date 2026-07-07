@@ -6,6 +6,7 @@ use axum::extract::FromRef;
 
 use crate::auth::bootstrap::BootstrapAdmin;
 use crate::auth::jwt::Jwt;
+use crate::auth::oauth_login::LoginProviders;
 use crate::billing::Billing;
 use crate::bindings::ChannelBindingStore;
 use crate::config::ServiceConfig;
@@ -33,6 +34,9 @@ pub struct AppState {
     pub gateway: Arc<Gateway>,
     pub service_config: Arc<ServiceConfig>,
     pub integrations: Arc<Integrations>,
+    /// Google/Twitch ile login (auth::oauth_login) — bağlantı *bağlama*
+    /// (`integrations`, üstte) ile karıştırılmaz, ayrı bir registry.
+    pub oauth_login: Arc<LoginProviders>,
     pub billing: Arc<Billing>,
     pub overlay: Arc<OverlayHub>,
     pub plans: Arc<PlanRegistry>,
@@ -90,6 +94,7 @@ impl AppState {
             overlay: Arc::new(OverlayHub::new(Arc::clone(&service_config))),
             service_config,
             integrations: Arc::new(Integrations::empty()),
+            oauth_login: Arc::new(LoginProviders::empty()),
             billing: Arc::new(Billing::empty()),
             plans: Arc::new(PlanRegistry::with_defaults()),
             usage: Arc::new(UsageTracker::new()),

@@ -46,14 +46,22 @@ const MAX_CODE_ATTEMPTS: u8 = 5;
 const MIN_PASSWORD_LEN: usize = 8;
 
 /// Tek bir yayıncı kaydı. Şifre argon2id PHC dizesi olarak tutulur.
+///
+/// `password_hash` OAuth-only hesaplarda (Google/Twitch login,
+/// `oauth_provider`+`oauth_external_id` doluysa) `None`'dur — hesabın şifresi
+/// yok, sadece sağlayıcı kimliğiyle giriş yapılır.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserRecord {
     pub id: String,
     pub email: String,
-    pub password_hash: String,
+    pub password_hash: Option<String>,
     pub plan: String,
     pub email_verified: bool,
     pub created_at_ms: i64,
+    #[serde(default)]
+    pub oauth_provider: Option<String>,
+    #[serde(default)]
+    pub oauth_external_id: Option<String>,
 }
 
 /// Kullanıcı deposu hataları.
@@ -61,6 +69,8 @@ pub struct UserRecord {
 pub enum UserError {
     #[error("email already registered")]
     EmailTaken,
+    #[error("this provider account is already linked to a different user")]
+    OAuthIdentityTaken,
     #[error("invalid email address")]
     InvalidEmail,
     #[error("password must be at least {MIN_PASSWORD_LEN} characters")]
@@ -122,10 +132,12 @@ impl UserStore {
         let record = UserRecord {
             id: uuid::Uuid::new_v4().to_string(),
             email: email.to_string(),
-            password_hash: hash_password(password)?,
+            password_hash: Some(hash_password(password)?),
             plan: plan.to_string(),
             email_verified: false,
             created_at_ms: chrono::Utc::now().timestamp_millis(),
+            oauth_provider: None,
+            oauth_external_id: None,
         };
         {
             let mut map = self
@@ -142,8 +154,74 @@ impl UserStore {
         Ok(record)
     }
 
-    /// E-posta + şifre doğrulaması. Kullanıcı yokken de argon2 koşulur —
-    /// zamanlamadan hesap varlığı sızmaz.
+    /// OAuth (Google/Twitch) ile giriş yapan, şifresi olmayan yeni bir hesap
+    /// oluşturur. Çağıran taraf (`oauth_login`) bu hesabı açmadan önce ne bu
+    /// (provider, external_id) kimliğinin ne de e-postanın kayıtlı
+    /// olmadığını kontrol etmiş olmalı — burada aynı yazma kilidi altında
+    /// tekrar doğrulanır (signup() ile aynı desen), böylece aynı anda gelen
+    /// iki istek aynı yeni kimlik için iki hesap açamaz.
+    pub fn create_oauth_user(
+        &self,
+        provider: &str,
+        external_id: &str,
+        email: &str,
+        plan: &str,
+    ) -> Result<UserRecord, UserError> {
+        let email = email.trim();
+        if !email_looks_valid(email) {
+            return Err(UserError::InvalidEmail);
+        }
+        let record = UserRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            email: email.to_string(),
+            password_hash: None,
+            plan: plan.to_string(),
+            // Login akışının kendisi provider hesabına erişimi kanıtlıyor;
+            // e-posta çakışması ayrı bir kontrol (bkz. oauth_login modülü).
+            email_verified: true,
+            created_at_ms: chrono::Utc::now().timestamp_millis(),
+            oauth_provider: Some(provider.to_string()),
+            oauth_external_id: Some(external_id.to_string()),
+        };
+        {
+            let mut map = self
+                .entries
+                .write()
+                .map_err(|_| UserError::Internal("user lock poisoned".into()))?;
+            if map.contains_key(&email.to_lowercase()) {
+                return Err(UserError::EmailTaken);
+            }
+            let identity_taken = map.values().any(|r| {
+                r.oauth_provider.as_deref() == Some(provider)
+                    && r.oauth_external_id.as_deref() == Some(external_id)
+            });
+            if identity_taken {
+                return Err(UserError::OAuthIdentityTaken);
+            }
+            map.insert(email.to_lowercase(), record.clone());
+        }
+        self.save()?;
+        self.persist_db(record.clone());
+        Ok(record)
+    }
+
+    /// Sağlayıcı kimliğiyle (ör. Google `sub`, Twitch kullanıcı ID'si) kayıt
+    /// arar. Küçük kullanıcı sayısında (Faz 1) doğrusal tarama yeterli —
+    /// e-posta anahtarlı map'e ikinci bir index eklemeye değmez.
+    pub fn find_by_oauth(&self, provider: &str, external_id: &str) -> Option<UserRecord> {
+        self.entries.read().ok().and_then(|m| {
+            m.values()
+                .find(|r| {
+                    r.oauth_provider.as_deref() == Some(provider)
+                        && r.oauth_external_id.as_deref() == Some(external_id)
+                })
+                .cloned()
+        })
+    }
+
+    /// E-posta + şifre doğrulaması. Kullanıcı yokken de, ya da hesabın
+    /// şifresi yokken (OAuth-only) de argon2 koşulur — zamanlamadan hesap
+    /// varlığı/türü sızmaz.
     pub fn verify_login(&self, email: &str, password: &str) -> Option<UserRecord> {
         let record = self
             .entries
@@ -151,8 +229,13 @@ impl UserStore {
             .ok()
             .and_then(|m| m.get(&email.trim().to_lowercase()).cloned());
         match record {
-            Some(record) if verify_password(&record.password_hash, password) => Some(record),
-            Some(_) => None,
+            Some(record) if record.password_hash.as_deref().is_some_and(|hash| verify_password(hash, password)) => {
+                Some(record)
+            }
+            Some(_) => {
+                let _ = verify_password(dummy_hash(), password);
+                None
+            }
             None => {
                 let _ = verify_password(dummy_hash(), password);
                 None
@@ -184,7 +267,7 @@ impl UserStore {
             return Err(UserError::WeakPassword);
         }
         let hash = hash_password(new_password)?;
-        let updated = self.update(email, |r| r.password_hash = hash.clone())?;
+        let updated = self.update(email, |r| r.password_hash = Some(hash.clone()))?;
         match updated {
             Some(record) => {
                 self.persist_db(record);
@@ -263,12 +346,14 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     .await?;
 
     sqlx::query(
-        "INSERT INTO users (id, email, password_hash, plan_id, role, email_verified)
-         VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4), 'broadcaster', $5)
+        "INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id)
+         VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4), 'broadcaster', $5, $6, $7)
          ON CONFLICT (email) DO UPDATE SET
              password_hash = EXCLUDED.password_hash,
              plan_id = EXCLUDED.plan_id,
              email_verified = EXCLUDED.email_verified,
+             oauth_provider = EXCLUDED.oauth_provider,
+             oauth_external_id = EXCLUDED.oauth_external_id,
              updated_at = NOW()",
     )
     .bind(&record.id)
@@ -276,6 +361,8 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     .bind(&record.password_hash)
     .bind(&record.plan)
     .bind(record.email_verified)
+    .bind(&record.oauth_provider)
+    .bind(&record.oauth_external_id)
     .execute(pool)
     .await?;
     Ok(())
@@ -666,7 +753,9 @@ pub async fn login(
     }
 }
 
-fn issue_user_token(
+/// E-posta/şifre ve OAuth login akışlarının ikisi de aynı JWT şeklini üretir
+/// — `oauth_login` bunu doğrudan reuse eder (bkz. `crate::auth::oauth_login`).
+pub(crate) fn issue_user_token(
     app: &AppState,
     user: &UserRecord,
 ) -> Result<LoginResponse, (StatusCode, String)> {
@@ -848,6 +937,57 @@ mod tests {
     }
 
     #[test]
+    fn create_oauth_user_has_no_password_and_is_pre_verified() {
+        let store = UserStore::in_memory();
+        let user = store
+            .create_oauth_user("google", "g-123", "streamer@example.com", "free")
+            .unwrap();
+        assert!(user.password_hash.is_none());
+        assert!(user.email_verified);
+        assert_eq!(user.oauth_provider.as_deref(), Some("google"));
+        assert_eq!(user.oauth_external_id.as_deref(), Some("g-123"));
+
+        // No password to check against — any password attempt fails, same
+        // as an unknown account (verified by the timing-equalizer test below).
+        assert!(store.verify_login("streamer@example.com", "anything").is_none());
+    }
+
+    #[test]
+    fn find_by_oauth_locates_the_linked_account() {
+        let store = UserStore::in_memory();
+        store
+            .create_oauth_user("twitch", "t-456", "streamer@example.com", "free")
+            .unwrap();
+
+        let found = store.find_by_oauth("twitch", "t-456").expect("found");
+        assert_eq!(found.email, "streamer@example.com");
+        assert!(store.find_by_oauth("twitch", "wrong-id").is_none());
+        assert!(store.find_by_oauth("google", "t-456").is_none());
+    }
+
+    #[test]
+    fn create_oauth_user_rejects_email_already_taken_by_a_password_account() {
+        let store = UserStore::in_memory();
+        store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        assert!(matches!(
+            store.create_oauth_user("google", "g-123", "streamer@example.com", "free"),
+            Err(UserError::EmailTaken)
+        ));
+    }
+
+    #[test]
+    fn create_oauth_user_rejects_identity_already_linked_to_another_email() {
+        let store = UserStore::in_memory();
+        store
+            .create_oauth_user("google", "g-123", "first@example.com", "free")
+            .unwrap();
+        assert!(matches!(
+            store.create_oauth_user("google", "g-123", "second@example.com", "free"),
+            Err(UserError::OAuthIdentityTaken)
+        ));
+    }
+
+    #[test]
     fn signup_validates_email_and_password() {
         let store = UserStore::in_memory();
         assert!(matches!(
@@ -868,8 +1008,9 @@ mod tests {
     fn password_hash_is_argon2_not_plaintext() {
         let store = UserStore::in_memory();
         let user = store.signup("a@b.co", "super-secret-pass", "free").unwrap();
-        assert!(user.password_hash.starts_with("$argon2"));
-        assert!(!user.password_hash.contains("super-secret-pass"));
+        let hash = user.password_hash.expect("password-based signup has a hash");
+        assert!(hash.starts_with("$argon2"));
+        assert!(!hash.contains("super-secret-pass"));
     }
 
     #[test]
