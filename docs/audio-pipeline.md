@@ -10,6 +10,23 @@ Mikrofon → VAD (lokal) → gürültü temizleme (lokal)
 ```
 Ses akışı TLS 1.3 ile taşınır. Üstüne AES yok (double encryption = gereksiz CPU).
 
+## Yerel Ses Yakalama (SDK)
+"Mikrofon" adımı platforma göre iki farklı implementasyon:
+- **Windows** — `sdk/src/audio/wasapi.rs`: hand-rolled WASAPI (shared-mode + event-driven,
+  `AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM` ile motor 16kHz mono s16le'ye çeviriyor).
+- **macOS + Linux** — `sdk/src/audio/cpal_capture.rs`: [cpal](https://github.com/RustAudio/cpal)
+  crate'i (CoreAudio/ALSA arkasında). cpal resample/downmix yapmıyor — cihazın
+  native config'ini (hız/kanal/format) açıp kendi doğrusal enterpolasyon
+  resampler'ı + kanal-ortalama downmix'iyle 16kHz mono i16'ya çeviriyor.
+  Hand-rolled FFI yerine cpal tercih edildi çünkü macOS kodu bu repoda hiç
+  derleme kontrolünden geçemiyor (darwin target/SDK yok) — olgun bir crate'e
+  yaslanmak, hiç çalıştırılamayan/test edilemeyen bir platform için daha güvenli.
+  Linux tarafı gerçek donanımda (mikrofon) uçtan uca doğrulandı.
+
+Referans: [meetily](https://github.com/Zackriya-Solutions/meetily) — Tauri +
+Rust ile aynı sınıf bir cross-platform ses yakalama + yerel STT (whisper.cpp)
+mimarisi; ileride whisper.cpp bağlanacağı zaman (2.6b, local-STT) da bakılabilir.
+
 ## Bant Genişliği
 - Ses buluta: ~50-128 Kbps / yayıncı
 - Video hiç buluta çıkmaz (Mod A/A')

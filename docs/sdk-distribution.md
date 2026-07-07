@@ -6,6 +6,15 @@ otomatik güncelleme kurulumunu açıklar. Konfigürasyon `sdk/src-tauri/tauri.c
 > Not: İmzalama sertifikaları ve özel anahtarlar **koda/commit'e girmez** — CI
 > secret'ı veya Vault'tan gelir (bkz. `docs/security.md`).
 
+## Referans proje
+
+[meetily](https://github.com/Zackriya-Solutions/meetily) — Tauri + Rust ile
+yazılmış, cross-platform mikrofon+sistem sesi yakalayan açık kaynak bir masaüstü
+uygulaması (whisper.cpp ile yerel STT). Tauri masaüstü kabuğu + Rust çekirdek
+ayrımı ve çoklu-platform ses yakalama mimarisi bu SDK'nınkiyle aynı sınıf —
+ileride whisper.cpp bağlanacağı zaman (roadmap 2.6b, local-STT) da referans
+olabilir. Bkz. `docs/audio-pipeline.md` "Yerel Ses Yakalama" bölümü.
+
 ## Code Signing
 
 ### Windows (SmartScreen)
@@ -35,10 +44,11 @@ otomatik güncelleme kurulumunu açıklar. Konfigürasyon `sdk/src-tauri/tauri.c
 4. SDK açılışta endpoint'i sorar, imzayı public key ile doğrular, indirir, uygular.
 
 ### Yapılacaklar (runtime wiring)
-- `tauri-plugin-updater` bağımlılığı + `run_desktop_shell()` içinde updater init (SDK runtime tasksıyla).
-- Release CI pipeline: build → sign → `latest.json` yayınla.
-- `releases.strovak.com` statik host (S3/Cloudflare) kurulumu (infra).
+- `tauri-plugin-updater` bağımlılığı + `run_desktop_shell()` içinde updater init (SDK runtime tasksıyla) — CI pipeline'ı imzalıyor ama SDK henüz kendi güncelleme kontrolünü yapmıyor.
+- `releases.strovak.com` statik host (S3/Cloudflare) kurulumu (infra) — şimdilik indirme linkleri GitHub Releases'e gidiyor (`NEXT_PUBLIC_SDK_RELEASES_BASE`, bkz. `frontend/src/lib/sdk-releases.ts`); özel domain ops task'ı.
 
 ## Durum (Faz 1.3)
-- ✅ `tauri.conf.json` updater + bundle signing iskelet konfigürasyonu (placeholder anahtarlarla)
-- ⏳ Gerçek sertifikalar, anahtar üretimi, release CI pipeline ve updater runtime init — SDK runtime/CI tasklarında
+- ✅ `sdk/ui` — gerçek Tauri penceresi (pairing formu + durum ekranı), `tauri build` artık gerçekten çalışıyor (önceden `frontendDist` boştu, hiç derlenmemişti).
+- ✅ `.github/workflows/sdk-release.yml` — Windows/macOS/Linux matrix, `tauri-action` ile build→sign→GitHub Release. Updater imzalama (`TAURI_SIGNING_PRIVATE_KEY`) ve macOS notarization (`APPLE_*`) secret'ları boşken sessizce imzasız derler.
+- ⚠️ Windows Authenticode: workflow PFX'i runner'a import edip thumbprint'i `tauri build --config` ile geçiriyor — gerçek bir sertifikayla hiç denenmedi (best-effort, `WINDOWS_CERTIFICATE` secret'ı yok). Ops bir sertifika sağladığında ilk gerçek release'te doğrulanmalı.
+- ⏳ Gerçek sertifikalar (Windows/macOS), anahtar üretimi, `releases.strovak.com` custom domain — deploy zamanı ops işi.

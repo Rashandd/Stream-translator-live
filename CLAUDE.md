@@ -15,7 +15,7 @@ Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel S
 ## Stack
 - Backend: Rust + Axum + Tokio (WebSocket ses pipeline)
 - Frontend: Next.js 15 + Tailwind + shadcn/ui
-- SDK: Tauri 2 + Rust (Windows önce, Mac/Linux adaptör iskeleti hazır)
+- SDK: Tauri 2 + Rust (Windows/macOS/Linux ses yakalaması aktif — Windows hand-rolled WASAPI, Mac/Linux cpal)
 - DB: PostgreSQL + Redis
 - Şifreleme: TLS 1.3 (transit) + AES-256 (at-rest: DB, ses modelleri, stream key'ler)
 - Key yönetimi: HashiCorp Vault
@@ -42,7 +42,7 @@ tauri build          # SDK release build
 /frontend      → Next.js (yayıncı + admin dashboard)
 /sdk           → Tauri/Rust (yayıncı agent)
 /sdk/src/core  → platform-bağımsız çekirdek (ses, VAD, RTMP, şifreleme)
-/sdk/src/audio → platform adaptörleri (wasapi/coreaudio/pipewire)
+/sdk/src/audio → platform adaptörleri (wasapi/cpal)
 /infra         → Docker, Vault config, deploy rehberi (Vercel + VPS)
 ```
 
@@ -89,9 +89,8 @@ tauri build          # SDK release build
 
 ### SDK Mimarisi
 - `sdk/src/core/` → platform-bağımsız (VAD, RTMP relay, şifreleme, WebSocket)
-- `sdk/src/audio/wasapi.rs` → Windows (aktif)
-- `sdk/src/audio/coreaudio.rs` → macOS (iskelet, devre dışı)
-- `sdk/src/audio/pipewire.rs` → Linux (iskelet, devre dışı)
+- `sdk/src/audio/wasapi.rs` → Windows (aktif, hand-rolled WASAPI)
+- `sdk/src/audio/cpal_capture.rs` → macOS + Linux (aktif, cpal — bkz. `docs/audio-pipeline.md`)
 - Video varsayılan olarak lokal kalır, buluta sadece ses gider — istisna: ikili yayında (2.3) yayıncı
   "buluttan mux" seçerse dublaj hedefi için video da buluta gider (opt-in, daha yüksek kredi tüketimi)
 
