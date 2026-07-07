@@ -1014,7 +1014,8 @@
       "title": "Desktop app",
       "subtitle": "Install the desktop app once, then manage everything from this panel. Video stays on your machine — only audio goes to the cloud.",
       "downloadTitle": "Download the desktop app",
-      "downloadNote": "Windows is available now. macOS and Linux follow.",
+      "downloadNote": "Available for Windows, macOS, and Linux.",
+      "downloadUnconfigured": "Download coming soon",
       "platforms": [
         {
           "name": "Windows",
@@ -1024,15 +1025,15 @@
         },
         {
           "name": "macOS",
-          "status": "coming_soon",
+          "status": "enabled",
           "icon": "MonitorCog",
-          "action": "Coming soon"
+          "action": "Download"
         },
         {
           "name": "Linux",
-          "status": "coming_soon",
+          "status": "enabled",
           "icon": "MonitorCog",
-          "action": "Coming soon"
+          "action": "Download"
         }
       ],
       "pairingTitle": "Pair the desktop app",

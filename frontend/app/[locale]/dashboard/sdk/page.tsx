@@ -7,6 +7,7 @@ import { SdkStreamKeyPanel } from "@/src/components/sdk-stream-key-panel";
 import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
+import { sdkDownloadUrl } from "@/src/lib/sdk-releases";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -39,20 +40,30 @@ export default async function SdkPage({ params }: Props) {
           <ul className="space-y-2">
             {sdk.platforms.map((platform) => {
               const available = platform.status === "enabled";
+              const href = available ? sdkDownloadUrl(platform.name) : null;
               return (
                 <li className="flex items-center justify-between rounded-lg border border-hairline bg-canvas px-4 py-3" key={platform.name}>
                   <span className="flex items-center gap-3 text-sm font-semibold text-ink">
                     <Icon className="h-5 w-5 text-muted" name={platform.icon} />
                     {platform.name}
                   </span>
-                  {available ? (
-                    <button
+                  {href ? (
+                    <a
                       className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text"
-                      type="button"
+                      download
+                      href={href}
                     >
                       <Icon className="h-4 w-4" name="Download" />
                       {platform.action}
-                    </button>
+                    </a>
+                  ) : available ? (
+                    <span
+                      className="inline-flex h-9 items-center gap-1.5 rounded-full border border-hairline px-4 text-sm font-semibold text-muted"
+                      title={sdk.downloadUnconfigured}
+                    >
+                      <Icon className="h-4 w-4" name="Download" />
+                      {sdk.downloadUnconfigured}
+                    </span>
                   ) : (
                     <StatusPill label={platform.status} text={config.statusLabels[platform.status as keyof typeof config.statusLabels]} />
                   )}

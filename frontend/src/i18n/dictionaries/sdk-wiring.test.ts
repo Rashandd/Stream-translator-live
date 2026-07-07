@@ -15,6 +15,10 @@ const copyRowSource = readFileSync(
   fileURLToPath(new URL("../../components/copy-row.tsx", import.meta.url)),
   "utf8",
 );
+const sdkPageSource = readFileSync(
+  fileURLToPath(new URL("../../../app/[locale]/dashboard/sdk/page.tsx", import.meta.url)),
+  "utf8",
+);
 
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
@@ -34,6 +38,17 @@ describe("/dashboard/sdk pairing + stream key wiring (Faz 2.8)", () => {
 
   it("copy button actually writes to the clipboard now (was decorative)", () => {
     expect(copyRowSource).toContain("navigator.clipboard.writeText");
+  });
+
+  it("download buttons link to a real installer URL now (was decorative for every platform)", () => {
+    expect(sdkPageSource).toContain("sdkDownloadUrl(platform.name)");
+    expect(sdkPageSource).toContain("href={href}");
+  });
+
+  it("all three platforms are enabled (macOS/Linux are no longer coming_soon)", () => {
+    for (const platform of sdk.platforms) {
+      expect(platform.status).toBe("enabled");
+    }
   });
 
   it("has non-placeholder copy for both cards", () => {
