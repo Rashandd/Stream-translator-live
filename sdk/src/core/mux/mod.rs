@@ -1,14 +1,20 @@
-//! Local video + audio output planning (Mod A/A', Phase 1).
+//! Local video + audio output planning, and (Phase 2, task 2.3) the real
+//! "cihazda mux" engine: for relay targets with a `dub_language`, the
+//! original audio is replaced with cloud-synthesized dubbed audio before
+//! publishing to the real platform (YouTube/Twitch/Kick) — video is never
+//! altered or re-encoded (`-c:v copy`). See `docs/multistream.md` for the
+//! device-vs-cloud mux decision; only device mux is implemented here.
 //!
-//! IMPORTANT: in Phase 1 the SDK does NOT mux *cloned* audio into the outgoing
-//! stream. Video stays local and is published by the broadcaster's own OBS,
-//! the SDK's own embedded RTMP relay, or (optionally) Streamlabs. The SDK only:
-//!   - sends audio to the cloud (subtitles come back),
-//!   - feeds subtitles to OBS via a browser/text source overlay.
-//!
-//! Real local muxing of *cloned audio* into the outgoing stream is Phase 2.
-//! This module captures the Phase-1 output *decision* so downstream code is
-//! explicit about where each track goes.
+//! Submodules: [`flv`] serializes relay `RtmpMessage`s into an FLV byte
+//! stream (ffmpeg's stdin input). More land alongside it as the engine is
+//! built out: an audio scheduler (bursty dubbed audio → continuous PCM,
+//! ffmpeg's second input over a local TCP socket) and an ffmpeg child
+//! process wrapper. `rtmp::relay` wires these together into `run_dub_target`,
+//! the dub-target counterpart of `run_target`.
+
+pub mod audio_scheduler;
+pub mod ffmpeg_process;
+pub mod flv;
 
 /// Where the audio track comes from for the outgoing stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

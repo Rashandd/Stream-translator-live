@@ -16,6 +16,8 @@ struct BackendRelayTarget {
     platform: String,
     rtmp_url: String,
     stream_key: String,
+    #[serde(default)]
+    dub_language: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -46,6 +48,7 @@ pub async fn fetch_relay_targets(
         .enumerate()
         .map(|(i, t)| {
             RelayTarget::parse(format!("target-{i}"), t.platform.clone(), &t.rtmp_url, &t.stream_key)
+                .map(|target| target.with_dub_language(t.dub_language.clone()))
                 .map_err(RelaySyncError::from)
         })
         .collect()
@@ -92,6 +95,24 @@ mod tests {
         assert_eq!(targets[0].stream_key, "yt-key");
         assert_eq!(targets[0].port, 1935);
         assert_eq!(targets[1].host, "live.twitch.tv");
+        // dub_language yoksa None (geriye dönük uyumlu).
+        assert_eq!(targets[0].dub_language, None);
+        assert_eq!(targets[1].dub_language, None);
+    }
+
+    #[tokio::test]
+    async fn carries_dub_language_through_to_the_relay_target() {
+        let base = spawn_mock(
+            serde_json::json!([
+                {"platform": "kick", "rtmp_url": "rtmp://ingest.kick.example/app", "stream_key": "kick-key", "dub_language": "en"},
+            ]),
+            axum::http::StatusCode::OK,
+        )
+        .await;
+
+        let http = reqwest::Client::new();
+        let targets = fetch_relay_targets(&http, &base, "device-token").await.expect("fetch");
+        assert_eq!(targets[0].dub_language.as_deref(), Some("en"));
     }
 
     #[tokio::test]

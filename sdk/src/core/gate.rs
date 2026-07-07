@@ -83,8 +83,9 @@ impl<S: CaptureSource> CapturePipeline<S> {
     }
 }
 
-/// Encodes i16 samples as little-endian PCM bytes.
-fn pcm_to_le_bytes(samples: &[i16]) -> Vec<u8> {
+/// Encodes i16 samples as little-endian PCM bytes. `pub(crate)` — also used
+/// by `rtmp::relay`'s dub-target audio scheduler tick.
+pub(crate) fn pcm_to_le_bytes(samples: &[i16]) -> Vec<u8> {
     let mut out = Vec::with_capacity(samples.len() * 2);
     for &s in samples {
         out.extend_from_slice(&s.to_le_bytes());

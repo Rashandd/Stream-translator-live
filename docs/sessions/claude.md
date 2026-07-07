@@ -3,7 +3,91 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
-## Neredeyim? (GÜNCEL — 2026-07-07, SDK ses wiring oturumu sonu)
+## Neredeyim? (GÜNCEL — 2026-07-07, cihazda mux oturumu sonu)
+
+### Bu oturum (devam) — Task 2.3'ün kendisi: cihazda mux GERÇEKTEN kodlandı
+Önceki oturum (aşağıda "SDK ses wiring oturumu" başlığı altında) Task 2.3'ün ön koşulunu bitirmişti.
+Kullanıcı devamında **"2.3 ün kendisini nası yapcaz peki"** dedi — meetily adlı referans bir proje
+klonlanıp incelendi (aynı problem sınıfını, yani kesikli TTS'i sürekli akışa çevirmeyi, ÇÖZMEDİĞİ
+görüldü — kullanılabilir tek fikir reaktif silence-fill oldu), sonra plan-mode'da detaylı bir
+implementasyon planı yazıldı ve onaylandı. **Tüm plan kodlandı, test edildi, çalışıyor:**
+
+1. **Ön-adım:** `gateway::elevenlabs::OUTPUT_FORMAT` `mp3_44100_128` → `pcm_24000` (SDK'da mp3 decode
+   bağımlılığı hiç eklenmedi — her yerde zaten PCM s16le var). `pipeline::ASSUMED_TTS_BITRATE_BPS`
+   384_000'e güncellendi (hâlâ kesin hesap, format sabit CBR PCM). Bir test (`cloud_tts_charges_
+   usage_pool_shared_with_stt`) yeni bitrate'te round'lanan saniyenin 0 çıkmaması için metin
+   uzunluğu 20_000→60_000 karaktere çıkarıldı (UsageTracker saniyeyi en yakın tama yuvarlıyor).
+2. **`RelayTarget.dub_language: Option<String>`** backend (`relay/mod.rs`) + SDK (`rtmp/target.rs`
+   — `with_dub_language()` chainable setter, `parse()` imzası değişmedi) + `relay_sync.rs` (backend'den
+   çekip taşır) — mux'ın yönlendirme anahtarı.
+3. **`sdk/src/core/mux/`** (mux.rs dizine dönüştü, eski `OutputPlan` enum'u korundu):
+   - `flv.rs` — `RtmpMessage`→FLV byte serileştirme (video+script tag'leri, audio ATLANIR — ses
+     ayrı bir input'tan geliyor). RTMP media payload'ı zaten FLV tag body'siyle birebir aynı format.
+   - `audio_scheduler.rs` — `DubAudioScheduler`: kesikli dublaj sesini sürekli PCM'e çevirir
+     (`push_dub_audio`/`next_chunk(n)` — kuyruk tükenirse sessizlik). Kullanıcı kararı: uzun
+     gecikmede sessizlik SÜRER, orijinal mikrofona düşülmez (mic PCM'i mux koduna hiç taşınmıyor).
+   - `ffmpeg_process.rs` — ffmpeg child process lifecycle (`gpu_probe.rs`'nin best-effort
+     external-binary deseni: `ffmpeg_available()`, spawn/stdin/wait, `kill_on_drop` — manuel `Drop`
+     gerekmedi, tokio zaten hallediyor).
+4. **`rtmp/relay.rs`**: `run_dub_target`/`run_dub_session` eklendi — `dub_language`'i olan hedefler
+   `run_target` yerine buraya yönlendirilir. Yerel bir `TcpListener` açılır, ffmpeg
+   `-f flv -i pipe:0 -f s16le -ar 24000 -ac 1 -i tcp://127.0.0.1:<port> -map 0:v -map 1:a -c:v copy
+   -c:a aac -f flv <tc_url>/<stream_key>` komutuyla spawn edilir (RTMP çıkışı ffmpeg'in KENDİ
+   muxer'ı üzerinden gider — bizim `rtmp` modülümüz yalnız "publish kabul et"/"publish et" biliyor,
+   "bir client'a stream servis et" rolü hiç yok, bu yüzden ffmpeg'e yerel bir RTMP ayna sunucusu
+   YAPMADIK, video+metadata'yı FLV olarak stdin'e, sesi TCP'ye veriyoruz — ekstra fd Windows'ta
+   taşınabilir değil). `RelayEngine.dub_audio_sinks()` (dil→`mpsc::Sender<Vec<i16>>` haritası) dışa
+   açıldı.
+5. **KRİTİK bulgu, elle debug edildi:** ffmpeg girişleri SIRAYLA açıp analiz ediyor — stdin (canlı,
+   hiç EOF vermeyen) girişi sınırsız analiz edilmeye çalışılırsa ikinci girişi (TCP) HİÇ açmıyor
+   (gerçek OBS akışıyla üretimde SONSUZA dek kilitlenir). Elle terminal'de doğrulandı: EOF'suz 5sn
+   tutulan bir FIFO'da ffmpeg TCP'ye ancak FIFO kapandıktan SONRA bağlandı. Çözüm: `-probesize 32k
+   -analyzeduration 500000` (stdin girişine) — bu LOAD-BEARING bir ayar, ince ayar değil.
+6. **`cloud_session.rs`**: `run_cloud_session` yeni bir `dub_audio_sinks: HashMap<String,
+   mpsc::Sender<Vec<i16>>>` parametresi aldı; `Subtitle.dubbed_audio` geldikçe her track base64→PCM
+   `i16`'ya çevrilip (`decode_dub_audio`) dile göre ilgili sink'e yönlendirilir (`route_dub_audio` —
+   sink yoksa/decode hatası varsa sessizce düşer, session'ı düşürmez). SDK'nın `ServerMessage::
+   Subtitle`'ına (`cloud.rs`) `dubbed_audio` alanı + `DubbedAudioTrack` tipi eklendi (backend'de
+   vardı, SDK'da eksikti — serde `#[serde(default)]` sayesinde önceden sessizce yok sayılıyordu).
+7. **`lib.rs::run_desktop_shell`**: `engine.dub_audio_sinks()` alınıp cloud session'a geçiriliyor —
+   iki alt-sistem (relay + cloud session) artık gerçekten birbirine bağlı.
+8. **Testler:** `flv.rs`/`audio_scheduler.rs` saf birim testleri (network/process YOK) +
+   `ffmpeg_process.rs`'in GERÇEK ffmpeg'e karşı smoke testi + `rtmp/relay.rs`'te tam bir e2e test
+   (`dub_target_mux_republishes_video_with_pushed_dub_audio` — sahte OBS'ten GERÇEK ffmpeg'le
+   üretilmiş H.264 video + pushlanan dublaj sesi, GERÇEK ffmpeg mux'tan geçip sahte-ama-gerçek bir
+   RTMP hedefine hem video hem AAC-encoded ses tag'i olarak ulaştığı doğrulandı — fixture'ın kendisi
+   de yine gerçek ffmpeg'le `testsrc`'ten üretildi). `cloud_session_wiring.rs`'e 2 yeni e2e (dub
+   audio doğru dile yönlendiriliyor + sink yoksa sessizce düşüyor, session çökmüyor). `fake_target`/
+   `fake_obs` test yardımcıları ffmpeg'in gerçek RTMP komut sırasını (releaseStream/FCPublish gibi
+   ekstra AMF0 komutları da gönderiyor) tolere edecek şekilde genelleştirildi
+   (`accept_and_negotiate_publish`, döngü tabanlı, bilmediği komutları atlıyor).
+9. **Regresyon:** `cargo test --workspace` → backend 303 unit + sdk 125 unit + tüm e2e suite'ler
+   (yeni testler dahil) yeşil, `cargo clippy --workspace --all-targets` temiz. Root `Cargo.toml`'a
+   tokio `"process"` feature'ı eklendi (`tokio::process::Command` için — hem backend hem SDK'yı
+   etkiler ama zararsız/katkısız). SDK Cargo.toml'a `base64` eklendi (backend'de zaten vardı, SDK'da
+   yoktu).
+10. **Roadmap:** 2.2'nin "SDK'da video + klonlanmış ses birleştirme" ve 2.3'ün "İkili yayın" satırları
+    `[x]`'e çevrildi, "2.3'ten önce" bulgu notu "ÇÖZÜLDÜ" olarak güncellendi.
+
+**Kasıtlı kapsam dışı (bu oturumda da):** buluttan mux (backend'e video-ingest + `core::rtmp`'in
+paylaşılan crate'e çıkarılması gerektiriyor — ayrı görev), uzun gecikmede orijinal mikrofona düşme
+(kullanıcı kararıyla elendi), ducking/crossfade, dashboard'da mux/ffmpeg durum göstergesi
+(`TargetStatus` bugün hiçbir yerde backend'e/dashboard'a sürülmüyor — mux'tan bağımsız, önceden var
+olan bir eksiklik), OBS bağlantı kopma/yeniden bağlanma döngüsü (`accept_and_relay` bugün tek
+seferlik, değiştirilmedi), İkili yayın bant genişliği uyarı metni güncellemesi (≥25 Mbps — henüz
+dokunulmadı), `RelayTarget.dub_language`'in dashboard'da GERÇEKTEN seçilebilir olması (backend/SDK
+şeması hazır ama UI'da yok — ayrı, küçük bir iş).
+
+### Sonraki Adım (TAM OLARAK)
+1. **`RelayTarget.dub_language` dashboard UI'ı** — şema hazır, backend/SDK çalışıyor, ama yayıncı
+   panelden bir hedefe "bu hesap dublaj hesabı, şu dili alsın" diye işaretleyemiyor henüz
+   (`sdk-stream-key-panel.tsx` bugün tek bir sabit "obs" hedefi yönetiyor, çoklu hedef editörü yok).
+2. İkili yayın bant genişliği uyarısı (≥25 Mbps).
+3. Buluttan mux (backend RTMP-ingest + `core::rtmp` paylaşımı) — ayrı, büyük bir görev.
+4. Diğer her şey değişmedi: whisper.cpp/XTTS native motor (cmake yok), self-hosted S2S/ElevenLabs
+   bağımsızlığı, Task 2.7 (admin routing gerçek toggle), 2.6/2.5/2.4 kalanı.
+
+### Önceki (SDK ses wiring) oturumu — aşağıda, kronolojik olarak ÖNCEKİ
 
 ### Bu oturum — Task 2.3'e girişim, mimari bulgu, kapsam değişti, sonunda gerçek bir ön koşul kodlandı
 Kullanıcı **"2.3 ü yap"** dedi (İkili Yayın — TR ses → hesap 1, EN klonlanmış ses → hesap 2). İki bulgu

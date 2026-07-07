@@ -17,6 +17,8 @@ mod relay;
 mod session;
 mod target;
 
+pub use chunk::RtmpMessage;
+pub use message::{MSG_TYPE_AMF0_DATA, MSG_TYPE_AUDIO, MSG_TYPE_VIDEO};
 pub use relay::{RelayEngine, TargetState, TargetStatus};
 pub use session::RtmpError;
 pub use target::{RelayTarget, TargetError};

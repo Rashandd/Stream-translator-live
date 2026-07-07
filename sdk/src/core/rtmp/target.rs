@@ -12,6 +12,12 @@ pub struct RelayTarget {
     pub app: String,
     pub tc_url: String,
     pub stream_key: String,
+    /// Doluysa bu hedef bir dublaj hedefidir (bkz. `core::mux`) — relay
+    /// motoru bu hedefi doğrudan RTMP-out yerine `run_dub_target`'a
+    /// yönlendirir. `parse()` bunu her zaman `None` bırakır; backend'den
+    /// gelen değeri taşımak isteyen çağıran `with_dub_language` kullanır
+    /// (bkz. `relay_sync.rs`).
+    pub dub_language: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -64,7 +70,14 @@ impl RelayTarget {
             app: app.to_string(),
             tc_url: format!("rtmp://{authority}/{app}"),
             stream_key: stream_key.to_string(),
+            dub_language: None,
         })
+    }
+
+    /// Sets the dub-target language (chainable — see the field doc).
+    pub fn with_dub_language(mut self, dub_language: Option<String>) -> Self {
+        self.dub_language = dub_language;
+        self
     }
 }
 
@@ -110,6 +123,15 @@ mod tests {
             RelayTarget::parse("t", "l", "rtmp://host/", "k").unwrap_err(),
             TargetError::MissingApp
         );
+    }
+
+    #[test]
+    fn parse_defaults_dub_language_to_none_and_with_dub_language_sets_it() {
+        let t = RelayTarget::parse("t1", "Twitch", "rtmp://live.twitch.tv/app", "sk-1").expect("parse");
+        assert_eq!(t.dub_language, None);
+
+        let dub = t.with_dub_language(Some("en".to_string()));
+        assert_eq!(dub.dub_language.as_deref(), Some("en"));
     }
 
     #[test]

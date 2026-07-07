@@ -71,6 +71,17 @@ pub struct SubtitleSource {
     pub is_final: bool,
 }
 
+/// A cloud-synthesized dub track for one target language (Phase 2.2/2.3 —
+/// mirrors `backend::ws::protocol::DubbedAudioTrack`). `audio_base64` is raw
+/// PCM s16le at `gateway::elevenlabs`'s `pcm_24000` (no decoder needed —
+/// `cloud_session` base64-decodes straight into `i16` samples for the mux
+/// audio scheduler).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct DubbedAudioTrack {
+    pub lang: String,
+    pub audio_base64: String,
+}
+
 /// backend → SDK messages.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -90,6 +101,8 @@ pub enum ServerMessage {
         sequence: u64,
         source: SubtitleSource,
         translations: Vec<Translation>,
+        #[serde(default)]
+        dubbed_audio: Vec<DubbedAudioTrack>,
         ts_start_ms: i64,
         ts_end_ms: i64,
     },

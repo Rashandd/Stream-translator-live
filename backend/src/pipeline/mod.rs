@@ -23,13 +23,13 @@ use crate::ws::protocol::{
 };
 
 /// ElevenLabs `synthesize` çağrısına açıkça verdiğimiz sabit çıktı formatının
-/// (bkz. `gateway::elevenlabs` — `mp3_44100_128`) bit hızı. TTS kota tüketimi
-/// (Faz 2.2) gerçek ses süresini bu sabitten hesaplar (`bytes*8/bitrate`) —
-/// tahmini bir karakter/saniye oranı değil, sağlayıcıya EXPLICIT istenen
-/// formattan türetilen kesin değer. Farklı bir cloud sağlayıcı eklenirse bu
-/// sabit sağlayıcı başına bir değere taşınmalı (şimdilik tek cloud sağlayıcı
-/// ElevenLabs olduğu için global sabit yeterli).
-const ASSUMED_TTS_BITRATE_BPS: f64 = 128_000.0;
+/// (bkz. `gateway::elevenlabs` — `pcm_24000`: 24000 Hz × 16 bit × 1 kanal) bit
+/// hızı. TTS kota tüketimi (Faz 2.2) gerçek ses süresini bu sabitten hesaplar
+/// (`bytes*8/bitrate`) — tahmini bir karakter/saniye oranı değil, sağlayıcıya
+/// EXPLICIT istenen formattan türetilen kesin değer. Farklı bir cloud
+/// sağlayıcı eklenirse bu sabit sağlayıcı başına bir değere taşınmalı
+/// (şimdilik tek cloud sağlayıcı ElevenLabs olduğu için global sabit yeterli).
+const ASSUMED_TTS_BITRATE_BPS: f64 = 384_000.0;
 
 /// Ham ses baytından saniye hesaplar (`bytes*8/bitrate`).
 fn tts_audio_seconds(audio_len_bytes: usize) -> f64 {
@@ -590,11 +590,12 @@ mod tests {
 
     #[test]
     fn tts_audio_seconds_uses_explicit_bitrate() {
-        // 128_000 bps / 8 = 16_000 bayt/sn — bitrate açıkça istendiği için
-        // (gateway::elevenlabs `mp3_44100_128`) tahmini değil, kesin hesap.
-        assert_eq!(tts_audio_seconds(16_000), 1.0);
-        assert_eq!(tts_audio_seconds(32_000), 2.0);
-        assert_eq!(tts_audio_seconds(8_000), 0.5);
+        // 384_000 bps / 8 = 48_000 bayt/sn — bitrate açıkça istendiği için
+        // (gateway::elevenlabs `pcm_24000`: 24000 Hz × 16 bit × 1 kanal)
+        // tahmini değil, kesin hesap.
+        assert_eq!(tts_audio_seconds(48_000), 1.0);
+        assert_eq!(tts_audio_seconds(96_000), 2.0);
+        assert_eq!(tts_audio_seconds(24_000), 0.5);
     }
 
     fn gateway_with_tts(tts: Arc<dyn TtsProvider>) -> Arc<Gateway> {
@@ -795,9 +796,10 @@ mod tests {
             TtsSource::Cloud,
             voice_models,
         );
-        // (11 + 9 + 20_000) bayt ≈ 20_020 → 20_020*8/128_000 ≈ 1.25 sn (0.5
-        // yuvarlama eşiğinden rahatça uzak).
-        let long_text = "a".repeat(20_000);
+        // (11 + 60_000) bayt = 60_011 → 60_011*8/384_000 ≈ 1.25 sn — used_seconds
+        // en yakın tam saniyeye yuvarlanıyor (`UsageTracker::record_for_period`),
+        // bu yüzden 0.5 sn eşiğinden rahatça uzak durmak gerekiyor.
+        let long_text = "a".repeat(60_000);
         session
             .process_transcript(&long_text, true, 1.0)
             .await

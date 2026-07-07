@@ -16,11 +16,14 @@ use crate::secrets::{names, SecretRef, SecretStore};
 const DEFAULT_BASE_URL: &str = "https://api.elevenlabs.io";
 const DEFAULT_MODEL_ID: &str = "eleven_multilingual_v2";
 /// Çıktı formatı AÇIKÇA istenir (ElevenLabs'in "şu an ne varsayılıyorsa"
-/// davranışına güvenmemek için) — `pipeline::StreamSession` bu sabit
-/// bitrate'ten (128 kbps) gerçek ses süresini hesaplayıp TTS kotasını buna
-/// göre düşer (bkz. `pipeline::ASSUMED_TTS_BITRATE_BPS`). İkisi birlikte
-/// değişmeli.
-const OUTPUT_FORMAT: &str = "mp3_44100_128";
+/// davranışına güvenmemek için). PCM seçildi (mp3 değil) — SDK'nın cihazda
+/// mux yolu (`sdk/src/core/mux`) `audio_base64`'ü doğrudan PCM örnekleri
+/// olarak kullanır, mp3 decode bağımlılığı hiç eklenmez (capture/VAD/
+/// cloud_session zaten her yerde PCM s16le). `pipeline::StreamSession` bu
+/// sabit bit hızından (24000 Hz × 16 bit × 1 kanal) gerçek ses süresini
+/// hesaplayıp TTS kotasını buna göre düşer (bkz.
+/// `pipeline::ASSUMED_TTS_BITRATE_BPS`). İkisi birlikte değişmeli.
+const OUTPUT_FORMAT: &str = "pcm_24000";
 
 /// ElevenLabs REST client'ı.
 pub struct ElevenLabsTts {
@@ -215,7 +218,7 @@ mod tests {
         let audio = tts.synthesize("voice-1", "merhaba").await.unwrap();
         // output_format açıkça isteniyor — pipeline'ın bitrate-tabanlı süre
         // hesabı (ASSUMED_TTS_BITRATE_BPS) bu sabit formata bağlı.
-        assert_eq!(audio, b"audio-bytes:merhaba:mp3_44100_128");
+        assert_eq!(audio, b"audio-bytes:merhaba:pcm_24000");
     }
 
     #[tokio::test]

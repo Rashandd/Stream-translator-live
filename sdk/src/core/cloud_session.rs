@@ -7,13 +7,16 @@
 //! nothing drove them together — `run_desktop_shell` only started the RTMP
 //! relay. See `docs/sessions/claude.md` for the gap this closes.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
+use base64::engine::general_purpose::STANDARD as B64;
+use base64::Engine;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use super::capture::CaptureSource;
-use super::cloud::{CloudClient, CloudError, ServerMessage};
+use super::cloud::{CloudClient, CloudError, DubbedAudioTrack, ServerMessage};
 use super::gate::CapturePipeline;
 use super::preprocess::Preprocessor;
 use super::stream::{StreamConfig, StreamConfigError};
@@ -99,9 +102,45 @@ pub struct CloudSessionOutcome {
     pub subtitles_received: u64,
 }
 
+/// Decodes a base64 dub-audio payload (`gateway::elevenlabs`'s `pcm_24000` —
+/// raw PCM s16le, no container/codec to decode) into `i16` samples. Returns
+/// `None` on malformed base64 rather than panicking — a corrupt dub track
+/// should drop silently (silence keeps playing at the target), not take the
+/// whole session down.
+fn decode_dub_audio(audio_base64: &str) -> Option<Vec<i16>> {
+    let bytes = B64.decode(audio_base64).ok()?;
+    Some(
+        bytes
+            .chunks_exact(2)
+            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .collect(),
+    )
+}
+
+/// Routes one dubbed-audio track to the matching dub target's mux scheduler
+/// (see `rtmp::relay::run_dub_target` / `RelayEngine::dub_audio_sinks`) —
+/// best-effort: no sink registered for this language, malformed base64, or a
+/// closed sink all just drop the track (silence continues at that target)
+/// rather than erroring the whole cloud session.
+async fn route_dub_audio(sinks: &HashMap<String, mpsc::Sender<Vec<i16>>>, track: &DubbedAudioTrack) {
+    let Some(sink) = sinks.get(&track.lang) else {
+        return;
+    };
+    let Some(samples) = decode_dub_audio(&track.audio_base64) else {
+        tracing::warn!(lang = %track.lang, "cloud session: dub audio base64 decode failed, dropping");
+        return;
+    };
+    if sink.send(samples).await.is_err() {
+        tracing::warn!(lang = %track.lang, "cloud session: dub audio sink closed, dropping");
+    }
+}
+
 /// Runs one cloud audio session end-to-end: fetch languages, connect,
 /// authenticate, `stream_start`, then pump mic audio in and read subtitles
-/// back until the capture source ends or the connection closes.
+/// back until the capture source ends or the connection closes. Dub audio
+/// carried on `Subtitle` messages is routed to `dub_audio_sinks` by language
+/// (empty map = no dub targets, today's default — nothing changes for
+/// broadcasters without one configured).
 ///
 /// `capture` is dependency-injected so tests can pass a [`super::capture::MockCapture`]
 /// — production callers pass `audio::open_capture(CaptureConfig::default())`.
@@ -110,6 +149,7 @@ pub async fn run_cloud_session(
     backend_base_url: &str,
     device_token: &str,
     capture: Box<dyn CaptureSource>,
+    dub_audio_sinks: HashMap<String, mpsc::Sender<Vec<i16>>>,
 ) -> Result<CloudSessionOutcome, CloudSessionError> {
     let (source_lang, target_langs) = fetch_stream_settings(http, backend_base_url, device_token).await?;
     if target_langs.is_empty() {
@@ -169,7 +209,12 @@ pub async fn run_cloud_session(
             }
             msg = client.next_message() => {
                 match msg? {
-                    Some(ServerMessage::Subtitle { .. }) => outcome.subtitles_received += 1,
+                    Some(ServerMessage::Subtitle { dubbed_audio, .. }) => {
+                        outcome.subtitles_received += 1;
+                        for track in &dubbed_audio {
+                            route_dub_audio(&dub_audio_sinks, track).await;
+                        }
+                    }
                     Some(ServerMessage::Error { code, message, .. }) => {
                         return Err(CloudSessionError::Backend { code, message });
                     }
@@ -185,7 +230,12 @@ pub async fn run_cloud_session(
     // (it may not have been read yet even though it already arrived).
     loop {
         match tokio::time::timeout(DRAIN_WINDOW, client.next_message()).await {
-            Ok(Ok(Some(ServerMessage::Subtitle { .. }))) => outcome.subtitles_received += 1,
+            Ok(Ok(Some(ServerMessage::Subtitle { dubbed_audio, .. }))) => {
+                outcome.subtitles_received += 1;
+                for track in &dubbed_audio {
+                    route_dub_audio(&dub_audio_sinks, track).await;
+                }
+            }
             Ok(Ok(Some(_))) => {}
             Ok(Ok(None)) | Ok(Err(_)) | Err(_) => break,
         }

@@ -91,6 +91,13 @@ pub async fn run_desktop_shell(
     // Not joined, same fire-and-forget posture as the stt_control loop above:
     // lifecycle sync with OBS connect/disconnect is future work (RelayEngine
     // doesn't expose a "stopped" signal to key off yet).
+    //
+    // `dub_audio_sinks` is how cloud-synthesized dub audio (task 2.3, device
+    // mux) reaches the relay's dub targets: fetched from the engine before
+    // it's moved into `std::future::pending` below, and forwarded into the
+    // cloud session, which routes each `Subtitle.dubbed_audio` track to the
+    // matching language's sink (see `cloud_session::route_dub_audio`).
+    let dub_audio_sinks = engine.dub_audio_sinks();
     {
         let http = http.clone();
         let backend_base_url = cfg.backend_base_url.clone();
@@ -98,7 +105,15 @@ pub async fn run_desktop_shell(
         tokio::spawn(async move {
             match audio::open_capture(CaptureConfig::default()) {
                 Ok(capture) => {
-                    match run_cloud_session(&http, &backend_base_url, &device_token, capture).await {
+                    match run_cloud_session(
+                        &http,
+                        &backend_base_url,
+                        &device_token,
+                        capture,
+                        dub_audio_sinks,
+                    )
+                    .await
+                    {
                         Ok(outcome) => {
                             tracing::info!(subtitles = outcome.subtitles_received, "cloud session ended")
                         }

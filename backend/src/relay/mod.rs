@@ -30,6 +30,12 @@ pub struct RelayTarget {
     pub platform: String,
     pub rtmp_url: String,
     pub stream_key: String,
+    /// Doluysa bu hedef bir dublaj hedefidir — SDK bu hedefe orijinal ses
+    /// yerine bu dildeki klonlanmış sesi mux'lar (cihazda mux, bkz.
+    /// `sdk/src/core/mux`). Boşsa (varsayılan) hedef değişmeden orijinal
+    /// sesle yayınlanır — eski kayıtlar `#[serde(default)]` ile `None` okur.
+    #[serde(default)]
+    pub dub_language: Option<String>,
 }
 
 /// Hedef depolama hataları.
@@ -197,6 +203,7 @@ mod tests {
             platform: platform.into(),
             rtmp_url: format!("rtmp://ingest.{platform}.example/live"),
             stream_key: key.into(),
+            dub_language: None,
         }
     }
 
@@ -217,6 +224,26 @@ mod tests {
         let u1 = store.get("u1");
         assert_eq!(u1.len(), 1);
         assert_eq!(u1[0].stream_key, "new-key");
+    }
+
+    #[test]
+    fn dub_language_roundtrips_and_defaults_to_none() {
+        let store = RelayTargetStore::in_memory();
+        let mut dub_target = target("kick", "kick-key");
+        dub_target.dub_language = Some("en".into());
+        store.set("u1", vec![target("youtube", "yt-key"), dub_target]).unwrap();
+
+        let targets = store.get("u1");
+        assert_eq!(targets[0].dub_language, None);
+        assert_eq!(targets[1].dub_language.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn dub_language_missing_in_json_defaults_to_none() {
+        // Eski kayıt/istemci — dub_language alanı hiç yok.
+        let json = r#"{"platform":"youtube","rtmp_url":"rtmp://ingest.youtube.example/live","stream_key":"k"}"#;
+        let parsed: RelayTarget = serde_json::from_str(json).expect("parse");
+        assert_eq!(parsed.dub_language, None);
     }
 
     #[test]

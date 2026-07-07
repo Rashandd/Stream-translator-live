@@ -9,7 +9,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 axum = { version = "0.8", features = ["ws", "multipart"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs", "io-util", "process"] }
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
