@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OAuthButtons } from "@/src/components/oauth-buttons";
 import { SignupForm } from "@/src/components/signup-form";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -61,6 +62,8 @@ export default async function SignupPage({ params }: Props) {
             }}
             verifyHref={localizePath(locale, "/login/verify")}
           />
+
+          <OAuthButtons labels={config.auth.social} />
 
           <p className="mt-4 text-xs leading-5 text-muted">{signup.termsNote}</p>
         </div>

@@ -1276,6 +1276,16 @@
     "note": "Questions about a security review or a data processing agreement? Reach us and we'll walk you through the pipeline in detail."
   },
   "auth": {
+    "social": {
+      "dividerLabel": "or",
+      "google": "Continue with Google",
+      "twitch": "Continue with Twitch"
+    },
+    "oauthComplete": {
+      "title": "Signing you in",
+      "subtitle": "Just a moment.",
+      "backLabel": "Back to sign in"
+    },
     "login": {
       "title": "Sign in",
       "subtitle": "Access your broadcaster dashboard.",
