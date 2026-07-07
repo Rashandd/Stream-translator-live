@@ -46,21 +46,48 @@ pub enum DesktopShellError {
     Relay(#[from] RelayServiceError),
 }
 
+/// Live status the desktop shell reports back to the Tauri UI layer (or any
+/// other caller). `mic_capture_ok` stays `None` until a capture attempt has
+/// actually happened — OBS has to connect and publish before the mic-capture
+/// task spawns (see the tail of [`run_desktop_shell`]).
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
+pub struct ShellStatus {
+    pub targets_synced: usize,
+    pub relay_listening: bool,
+    pub mic_capture_ok: Option<bool>,
+}
+
+/// Applies `f` to a copy of the current status and publishes it, if a
+/// watcher is attached. No-op when `status` is `None`, so callers that don't
+/// care about live status (tests, the pre-GUI headless binary) pay nothing.
+fn update_status(
+    status: &Option<tokio::sync::watch::Sender<ShellStatus>>,
+    f: impl FnOnce(&mut ShellStatus),
+) {
+    if let Some(tx) = status {
+        let mut next = tx.borrow().clone();
+        f(&mut next);
+        let _ = tx.send(next);
+    }
+}
+
 /// Entry point used by the Tauri desktop shell.
 ///
 /// Wires the pieces the roadmap calls "SDK desktop relay wiring": pull the
 /// broadcaster's relay targets from the backend, open the localhost RTMP
 /// listener OBS publishes into, and hand the accepted connection to the
-/// relay engine. No real Tauri window/commands are attached yet — this
-/// milestone keeps the shell headless and testable; the GUI layer is a
-/// separate follow-up (see roadmap V11 notes).
+/// relay engine. `status` is an optional live-status sink (the Tauri layer
+/// wires one in to drive the pairing/status UI); it stays `None` in tests
+/// and the plain headless path.
 pub async fn run_desktop_shell(
     cfg: DesktopShellConfig,
     stt_control: Option<SttControlHandle>,
+    status: Option<tokio::sync::watch::Sender<ShellStatus>>,
 ) -> Result<(), DesktopShellError> {
     let http = reqwest::Client::new();
     let targets = fetch_relay_targets(&http, &cfg.backend_base_url, &cfg.device_token).await?;
     tracing::info!(targets = targets.len(), addr = %cfg.listen_addr, "relay targets synced");
+    update_status(&status, |s| s.targets_synced = targets.len());
 
     match stt_control {
         Some(handle) => {
@@ -81,6 +108,7 @@ pub async fn run_desktop_shell(
         .await
         .map_err(RelayServiceError::from)?;
     tracing::info!(addr = %cfg.listen_addr, "waiting for OBS to publish");
+    update_status(&status, |s| s.relay_listening = true);
 
     let engine = accept_and_relay(&listener, targets).await?;
     tracing::info!("relay engine started");
@@ -102,9 +130,11 @@ pub async fn run_desktop_shell(
         let http = http.clone();
         let backend_base_url = cfg.backend_base_url.clone();
         let device_token = cfg.device_token.clone();
+        let status = status.clone();
         tokio::spawn(async move {
             match audio::open_capture(CaptureConfig::default()) {
                 Ok(capture) => {
+                    update_status(&status, |s| s.mic_capture_ok = Some(true));
                     match run_cloud_session(
                         &http,
                         &backend_base_url,
@@ -121,6 +151,7 @@ pub async fn run_desktop_shell(
                     }
                 }
                 Err(err) => {
+                    update_status(&status, |s| s.mic_capture_ok = Some(false));
                     tracing::warn!(%err, "microphone capture unavailable — subtitles/dubbing disabled")
                 }
             }

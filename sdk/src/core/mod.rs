@@ -7,6 +7,7 @@ pub mod cloud_session;
 pub mod gate;
 pub mod gpu_probe;
 pub mod local_stt;
+pub mod local_store;
 pub mod local_tts;
 pub mod model_fetch;
 pub mod mux;

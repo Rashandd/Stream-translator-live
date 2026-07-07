@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamDubber SDK</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand">
+        <h1>StreamDubber SDK</h1>
+        <p class="muted">Video stays on this machine — only audio goes to the cloud.</p>
+      </header>
+
+      <section id="pairing-view" hidden>
+        <form id="pair-form">
+          <label>
+            Backend URL
+            <input id="backend-url" type="url" required value="https://api.strovak.com" />
+          </label>
+          <label>
+            Pairing code
+            <input
+              id="pair-code"
+              inputmode="numeric"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              placeholder="123456"
+              required
+            />
+          </label>
+          <label>
+            Device name
+            <input id="device-name" type="text" placeholder="Desktop" />
+          </label>
+          <button id="pair-submit" type="submit">Pair</button>
+          <p id="pair-error" class="error" hidden></p>
+          <p class="muted small">
+            Get a pairing code from your dashboard at <code>/dashboard/sdk</code>. It expires in 10
+            minutes.
+          </p>
+        </form>
+      </section>
+
+      <section id="status-view" hidden>
+        <dl class="status-grid">
+          <dt>Account</dt>
+          <dd id="status-backend">—</dd>
+          <dt>Relay</dt>
+          <dd id="status-relay">—</dd>
+          <dt>Microphone</dt>
+          <dd id="status-mic">—</dd>
+          <dt>Targets synced</dt>
+          <dd id="status-targets">—</dd>
+        </dl>
+        <button id="unpair-btn" type="button" class="secondary">Unpair this device</button>
+        <p class="muted small">
+          Unpairing clears the stored session. Fully stopping the relay takes effect after you
+          restart the app.
+        </p>
+      </section>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

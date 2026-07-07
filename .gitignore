@@ -51,9 +51,9 @@ coverage/
 
 # --- Tauri / desktop app ---
 .tauri/
-src-tauri/target/
-src-tauri/gen/
-src-tauri/build/
+**/src-tauri/target/
+**/src-tauri/gen/
+**/src-tauri/build/
 
 # --- Docker / local infra ---
 docker-compose.override.yml

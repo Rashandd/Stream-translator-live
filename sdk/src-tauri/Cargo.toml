@@ -12,6 +12,9 @@ path = "../src/lib.rs"
 name = "streamdubber-sdk"
 path = "src/main.rs"
 
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
@@ -25,6 +28,9 @@ reqwest.workspace = true
 sha2.workspace = true
 hex.workspace = true
 base64.workspace = true
+aes-gcm.workspace = true
+getrandom.workspace = true
+tauri = { version = "2", features = [] }
 
 # Windows WASAPI cihaz I/O (1.3) — yalnız Windows build'ine girer.
 [target.'cfg(target_os = "windows")'.dependencies]
