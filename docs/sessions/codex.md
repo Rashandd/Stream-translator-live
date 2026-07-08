@@ -4,24 +4,24 @@
 Codex
 
 ## Neredeyim?
-Faz 1.6 dashboard/admin distribution wiring turu tamamlandi: yayinici `/dashboard/distribution` SDK relay'i default/recommended gosteriyor, Streamlabs opsiyonel OAuth yolu GET `/api/integrations` + authorize URL ile bagli, yayinici "Test connection" POST `/api/integrations/{provider}/test` endpoint'ine gidiyor. Admin Production Setup'ta `integration.<provider>.plans` plan toggle UI'i eklendi.
+Legal dokuman akisi admin panelden duzenlenebilir hale getirildi. Login ve footer legal linkleri `/en/legal/{slug}` sayfalarina gidiyor; public legal sayfa once backend `/config` icindeki `legal.<slug>.html` custom HTML'ini okuyor, bos ise built-in fallback metnini gosteriyor. Admin Console'a `/admin/legal` sayfasi eklendi; operator Terms/Privacy/KVKK/Cookies/DPA/Electronic communications dokumanlarini textarea ile direkt HTML olarak kaydedebilir ve preview edebilir.
+2026-07-08: Local dev backend ve frontend yeniden baslatildi. Backend `127.0.0.1:8080`, frontend `localhost:3000` uzerinde calisiyor; health/home/admin-legal smoke istekleri 200 dondu.
 
 ## Degistirdigim Alanlar
-- `backend/src/app.rs`
-- `backend/src/config.rs`
-- `backend/src/integrations/mod.rs`
-- `backend/tests/integrations_api.rs`
-- `frontend/app/[locale]/dashboard/distribution/page.tsx`
-- `frontend/app/[locale]/admin/(console)/production-setup/page.tsx`
-- `frontend/src/components/distribution-method-panel.tsx`
-- `frontend/src/components/admin-production-setup-panel.tsx`
-- `frontend/src/components/icon.tsx`
-- `frontend/src/lib/distribution.ts`
-- `frontend/src/lib/distribution.test.ts`
+- `frontend/app/[locale]/layout.tsx`
+- `frontend/app/globals.css`
+- `frontend/app/[locale]/login/page.tsx`
+- `frontend/app/[locale]/legal/[slug]/page.tsx`
+- `frontend/app/[locale]/admin/(console)/legal/page.tsx`
+- `frontend/src/components/admin-legal-panel.tsx`
+- `frontend/src/components/admin-legal-panel.test.ts`
+- `frontend/src/components/site-footer.tsx`
 - `frontend/src/i18n/dictionaries/en.json`
-- `frontend/src/i18n/dictionaries/marketing.test.ts`
-- `frontend/src/i18n/dictionaries/production-setup.test.ts`
-- `streamdubber_roadmap_final.md`
+- `frontend/src/i18n/dictionaries/auth-flows.test.ts`
+- `frontend/src/i18n/dictionaries/legal-pages.test.ts`
+- `frontend/src/i18n/dictionaries/public-pages.test.ts`
+- `backend/src/config.rs`
+- `backend/tests/config_api.rs`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
@@ -51,12 +51,20 @@ Faz 1.6 dashboard/admin distribution wiring turu tamamlandi: yayinici `/dashboar
 - Admin Production Setup'a OAuth provider plan toggle'lari eklendi. Plan checkbox'lari `/api/plans` listesinden geliyor, kayit `PUT /admin/config` ile `integration.<provider>.plans` anahtarina yaziliyor; restart gerekmiyor.
 - Upload bant genisligi uyarisi yayinici distribution panelinde 25 Mbps+ upstream olarak gorunuyor. Bu sadece lokal multi-platform relay icin operasyonel uyari; bulut routing Faz 3/premium olarak aktiflestirilmedi.
 - Regression: `npm run test` 15 dosya / 80 test, `npm run lint`, `./node_modules/.bin/tsc --noEmit`, `cargo test` (223 backend + API + 70 SDK + e2e), `cargo clippy` hepsi gecti.
+- 2026-07-07 local dev fix: Next dev server route'larda `SyntaxError: Unexpected non-whitespace character after JSON` veriyordu; `.next/prerender-manifest.json` dosyasi paralel route compile/prefetch sirasinda bozuluyordu. `frontend/app/[locale]/layout.tsx` pass-through layout eklendi ve `dynamic = "force-dynamic"` ile dev/prerender manifest yarisi devre disi birakildi. Paralel smoke: `/en`, `/en/solutions`, `/en/dashboard/distribution`, `/en/dashboard/captions` hepsi 200; `.next` JSON validation `bad 0`.
+- 2026-07-07 auth/legal copy: login card altindaki eski email-code helper metni kaldirildi. `auth.login.legalNote` eklendi; Terms/Privacy/KVKK/Cookies/DPA/Electronic communications linkleri localize edilerek render ediliyor. `legal.pages` sozlugu ve tek dynamic legal route eklendi. Legal metinler urun placeholder'i; production oncesi hukuk/ops review gerekir.
+- Regression: hedefli TDD testi once kirmizi (`legalNote`/`legal.pages` yok, eski metin mevcut), sonra yesil. Final frontend: `npm run test` 21 dosya / 125 test, `npm run lint`, `./node_modules/.bin/tsc --noEmit` temiz. Smoke: `/en/login`, `/en/legal/kvkk`, `/en/legal/terms` 200; login HTML'de eski metin `old_absent`.
+- 2026-07-07 admin legal HTML: Backend `ServiceConfig` seed'ine `legal.terms.html`, `legal.privacy.html`, `legal.kvkk.html`, `legal.cookies.html`, `legal.dpa.html`, `legal.communications.html` eklendi. `/admin/legal` client paneli `/config` ile mevcut degerleri okur, `/admin/config` ile kaydeder. Public legal route `cache: "no-store"` ile `/config` okur ve custom HTML varsa `dangerouslySetInnerHTML` ile render eder; bos degerlerde fallback section metinleri kalir. Footer'a Legal link kolonu eklendi.
+- Regression: backend TDD once kirmizi (`legal.terms.html` seed yok), sonra yesil. Final: `cargo test --test config_api` 6/6, `cargo clippy`, `npm run test` 22 dosya / 128 test, `npm run lint`, `tsc --noEmit` temiz. Live smoke: local admin login -> `/admin/config` ile `legal.terms.html` kaydet -> `/en/legal/terms` custom HTML gosterdi (`custom:true`); sonra smoke verisi temizlenip key tekrar bosaltildi.
+- 2026-07-08 local dev restart: `bash scripts/session-start.sh` temiz gecti (backend testleri ve frontend 24 dosya / 139 test). Backend `ADMIN_EMAIL=admin@strovak.local` ve `ADMIN_PASSWORD=local-admin-only-change-me` ile baslatildi. Smoke: `/health` 200, `/en` 200, `/en/admin/legal` 200.
 
 ## Sonraki Adim
-Sonraki somut is: distribution method secimini sadece local UI state olmaktan cikarip kullanici/account ayarina persist edecek backend sozlesmesini tasarla (orn. `user_settings.distribution.mode`) ve SDK relay hedef senkronuyla bagla. Ayrica gercek Streamlabs hesabiyla OAuth connect + `/socket/token` smoke user/ops tarafindan calistirilmali.
+Sonraki somut is: production icin legal HTML metinlerini admin panelden sirket/veri sorumlusu/iletisim/subprocessor bilgileriyle doldur ve `ServiceConfig` kaliciligini DB-backed hale getir; mevcut local dev'de legal config degerleri restart'ta sifirlanir. Ardindan distribution method secimini kullanici/account ayarina persist edecek backend sozlesmesini tasarla.
 
 ## Blokerlar / Dikkat
-- Bu tur sonunda sandbox kaynakli backend false-negative kalmadi; tam `cargo test` temiz gecti. Baslangicta `scripts/session-start.sh` eski run'dan `Operation not permitted` gostermisti, fakat final regresyonda tekrar etmedi.
+- 2026-07-08 baslangic regression `scripts/session-start.sh` ile temiz: backend testleri gecti, frontend `npm run test` 24 dosya / 139 test gecti.
+- Backend local dev su an `ADMIN_EMAIL=admin@strovak.local` ve `ADMIN_PASSWORD=local-admin-only-change-me` ile calisiyor; bu sadece local smoke icin duz sifre env'i. Production'da `ADMIN_PASSWORD_HASH` kullanilmali.
+- Roadmap'te bu UI/legal copy icin birebir acik task yoktu; KVKK/GDPR hesap silme ve silme talepleri tasklari backend/veri yasam dongusu oldugu icin isaretlenmedi.
 - `docs/SESSION.md` ana koordinasyon dosyasi hala "blueprint" diyor; guncel gercekle uyumsuz. Kullanici acikca isterse kisa koordinasyon ozeti olarak yenilenmeli.
 - Streamlabs icin kod seviyesinde canli API cagrisi hazir ve mock testli; gercek Streamlabs app/client + gercek hesap smoke henuz ops adimi.
 - Otomatik commit yok; kullanici incelemeden commit atilmadi.

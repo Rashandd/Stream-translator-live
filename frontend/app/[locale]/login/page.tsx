@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Icon } from "@/src/components/icon";
 import { LoginForm } from "@/src/components/login-form";
+import { OAuthButtons } from "@/src/components/oauth-buttons";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -66,9 +66,21 @@ export default async function LoginPage({ params }: Props) {
             verifyHref={localizePath(locale, "/login/verify")}
           />
 
-          <p className="mt-4 flex items-center gap-2 text-sm leading-6 text-muted">
-            <Icon className="h-4 w-4 shrink-0 text-blue" name="ShieldCheck" />
-            {login.twofaNote}
+          <OAuthButtons labels={config.auth.social} />
+
+          <p className="mt-4 text-xs leading-5 text-muted">
+            {login.legalNote.intro}{" "}
+            {login.legalNote.links.map((link, index) => (
+              <span key={link.href}>
+                <Link
+                  className="font-semibold text-blue hover:text-ink"
+                  href={localizePath(locale, link.href)}
+                >
+                  {link.label}
+                </Link>
+                {index < login.legalNote.links.length - 1 ? ", " : "."}
+              </span>
+            ))}
           </p>
         </div>
 

@@ -54,6 +54,17 @@
           { "label": "Sign in", "href": "/login" },
           { "label": "Create account", "href": "/signup" }
         ]
+      },
+      {
+        "title": "Legal",
+        "items": [
+          { "label": "Terms", "href": "/legal/terms" },
+          { "label": "Privacy", "href": "/legal/privacy" },
+          { "label": "KVKK", "href": "/legal/kvkk" },
+          { "label": "Cookies", "href": "/legal/cookies" },
+          { "label": "DPA", "href": "/legal/dpa" },
+          { "label": "Electronic communications", "href": "/legal/communications" }
+        ]
       }
     ],
     "copyright": "Strovak. All rights reserved."
@@ -1275,6 +1286,154 @@
     ],
     "note": "Questions about a security review or a data processing agreement? Reach us and we'll walk you through the pipeline in detail."
   },
+  "legal": {
+    "eyebrow": "Legal",
+    "title": "Legal center",
+    "summary": "Core terms, privacy, KVKK and digital compliance notices for StreamDubber accounts and services.",
+    "updatedLabel": "Last updated",
+    "effectiveDate": "July 7, 2026",
+    "backLabel": "Back to home",
+    "pages": [
+      {
+        "slug": "terms",
+        "title": "Terms of Service",
+        "summary": "The rules for using StreamDubber, including account access, acceptable use, subscriptions and service limits.",
+        "sections": [
+          {
+            "title": "Using StreamDubber",
+            "body": "You may use StreamDubber to capture audio, generate live captions, translate speech and route supported streaming outputs according to your plan. You are responsible for the content you stream and for keeping your account credentials secure."
+          },
+          {
+            "title": "Accounts and plans",
+            "body": "Plan limits, billing periods, feature access and fair-use rules are shown in the dashboard and may change when your subscription changes. Paid features must be used only with a valid payment method or active entitlement."
+          },
+          {
+            "title": "Acceptable use",
+            "body": "Do not use the service to violate platform rules, impersonate others, distribute illegal content, bypass usage limits or process audio without the rights and consents required for your stream, event or organization."
+          },
+          {
+            "title": "Service changes",
+            "body": "Real-time services depend on third-party providers, network conditions and platform APIs. We may update providers, limits, routes and safety controls to keep the service reliable and compliant."
+          }
+        ]
+      },
+      {
+        "slug": "privacy",
+        "title": "Privacy Policy",
+        "summary": "How StreamDubber handles account data, operational logs and the audio-only cloud pipeline used for live translation.",
+        "sections": [
+          {
+            "title": "What we process",
+            "body": "We process account information, authentication events, plan and usage records, integration status, support messages and the audio data needed to provide live captions and translations. Video remains local and is not uploaded by the Phase 1 pipeline."
+          },
+          {
+            "title": "Why we process it",
+            "body": "Data is used to provide the service, secure accounts, enforce plan limits, diagnose incidents, improve reliability, process payments and meet legal obligations. Provider API keys and stream keys are treated as secrets."
+          },
+          {
+            "title": "Retention and deletion",
+            "body": "Operational records are kept only as long as needed for service, security, billing or legal reasons. Account deletion requests should remove account data and related records according to the retention policy that applies to the deployed environment."
+          },
+          {
+            "title": "Your rights",
+            "body": "Depending on your location, you may request access, correction, deletion, objection, restriction or portability for personal data. KVKK and GDPR-style requests should be routed to the account owner or data contact listed for the production deployment."
+          }
+        ]
+      },
+      {
+        "slug": "kvkk",
+        "title": "KVKK Disclosure Notice",
+        "summary": "A KVKK-focused notice for users in Turkey, covering data controller duties, processing purposes and data subject rights.",
+        "sections": [
+          {
+            "title": "Data controller and scope",
+            "body": "This notice explains how personal data may be processed for StreamDubber accounts, dashboard access, live audio translation, billing, security logging and support. The production operator must publish the legal data controller identity and contact details."
+          },
+          {
+            "title": "Processing purposes",
+            "body": "Personal data may be processed to create accounts, verify users, provide live caption and translation services, manage subscriptions, protect infrastructure, respond to support requests and comply with applicable law."
+          },
+          {
+            "title": "Transfers and recipients",
+            "body": "Data may be shared with hosting, payment, email, analytics, speech-to-text, translation, text-to-speech and streaming integration providers only as needed to deliver the service. Cross-border transfers must follow the production operator's KVKK compliance basis."
+          },
+          {
+            "title": "KVKK rights",
+            "body": "Users may request information about processing, correction, deletion, anonymization, transfer recipients, objection to adverse results and compensation for unlawful processing where applicable under KVKK Article 11."
+          }
+        ]
+      },
+      {
+        "slug": "cookies",
+        "title": "Cookie Policy",
+        "summary": "The cookie and local storage notice for authentication, preferences, security and service diagnostics in the web dashboard.",
+        "sections": [
+          {
+            "title": "Essential storage",
+            "body": "The dashboard may use cookies, local storage or similar technologies to keep users signed in, remember language and interface preferences, protect sessions and route authenticated API requests."
+          },
+          {
+            "title": "Analytics and diagnostics",
+            "body": "If analytics or diagnostics are enabled, they should be configured to measure reliability, page health and product usage without collecting unnecessary personal data. Optional analytics should follow the consent mode chosen for the deployment."
+          },
+          {
+            "title": "Third-party tools",
+            "body": "Payment, support, email, streaming platform and infrastructure tools may set their own cookies or identifiers when their services are used. Their notices should be linked from the production privacy center when enabled."
+          },
+          {
+            "title": "Managing choices",
+            "body": "Browser settings can block or delete cookies, but essential authentication and security storage may be required for the dashboard, admin console and overlay builder to work correctly."
+          }
+        ]
+      },
+      {
+        "slug": "dpa",
+        "title": "Data Processing Addendum",
+        "summary": "The business data processing terms for customers who use StreamDubber with employees, viewers, guests or event attendees.",
+        "sections": [
+          {
+            "title": "Roles",
+            "body": "For customer-controlled streams and events, the customer may act as data controller and StreamDubber may act as data processor for service data processed on the customer's instructions."
+          },
+          {
+            "title": "Processor commitments",
+            "body": "Processor commitments should cover confidentiality, security measures, subprocessors, incident notice, deletion or return of data, audit support and assistance with data subject requests."
+          },
+          {
+            "title": "Subprocessors",
+            "body": "Speech, translation, email, payment, hosting, logging and support providers may be subprocessors when enabled. The production operator should publish the current subprocessor list and notice process."
+          },
+          {
+            "title": "Security measures",
+            "body": "Expected controls include TLS for transit, mTLS for SDK-to-cloud connections, encrypted secret storage, access controls, audit logs, least-privilege operations and deletion workflows for customer data."
+          }
+        ]
+      },
+      {
+        "slug": "communications",
+        "title": "Electronic Communications Consent",
+        "summary": "Consent and notice terms for transactional emails, security codes, product updates and optional commercial electronic messages.",
+        "sections": [
+          {
+            "title": "Transactional messages",
+            "body": "We may send necessary account, security, verification, password reset, billing and service-status messages. These messages are part of operating the service and may be required for account access."
+          },
+          {
+            "title": "Product and commercial messages",
+            "body": "Product announcements, onboarding tips, campaign messages or commercial electronic messages should be sent only where there is a valid consent or other lawful basis for the recipient and region."
+          },
+          {
+            "title": "Unsubscribe and preferences",
+            "body": "Commercial or optional messages should include an unsubscribe or preference mechanism. Essential security and billing messages may continue when required to provide the service."
+          },
+          {
+            "title": "Records",
+            "body": "Consent, unsubscribe and delivery records may be stored to prove compliance, troubleshoot delivery and respect communication preferences across the account lifecycle."
+          }
+        ]
+      }
+    ]
+  },
   "auth": {
     "social": {
       "dividerLabel": "or",
@@ -1295,7 +1454,35 @@
       "passwordPlaceholder": "Your password",
       "submitLabel": "Continue",
       "submittingLabel": "Signing in...",
-      "twofaNote": "We'll email you a 6-digit code to confirm it's you.",
+      "legalNote": {
+        "intro": "By continuing, you accept and acknowledge:",
+        "links": [
+          {
+            "label": "Terms",
+            "href": "/legal/terms"
+          },
+          {
+            "label": "Privacy",
+            "href": "/legal/privacy"
+          },
+          {
+            "label": "KVKK",
+            "href": "/legal/kvkk"
+          },
+          {
+            "label": "Cookies",
+            "href": "/legal/cookies"
+          },
+          {
+            "label": "DPA",
+            "href": "/legal/dpa"
+          },
+          {
+            "label": "Electronic communications",
+            "href": "/legal/communications"
+          }
+        ]
+      },
       "forgotLabel": "Forgot password?",
       "signupPrompt": "New to Strovak?",
       "signupLabel": "Create an account"
@@ -1429,6 +1616,11 @@
               "icon": "Route"
             },
             {
+              "label": "Legal",
+              "href": "/admin/legal",
+              "icon": "ScrollText"
+            },
+            {
               "label": "Voice models",
               "href": "/admin/voice-models",
               "icon": "Mic"
@@ -1530,6 +1722,30 @@
         "plansLabel": "plans",
         "checking": "Checking backend status..."
       }
+    },
+    "legal": {
+      "title": "Legal",
+      "subtitle": "Edit the public legal documents as trusted HTML. Empty fields use the built-in fallback copy.",
+      "editorTitle": "Legal HTML editor",
+      "editorSubtitle": "Changes are saved through runtime config and apply without a frontend rebuild.",
+      "selectLabel": "Document",
+      "htmlLabel": "HTML",
+      "previewTitle": "Preview",
+      "saveLabel": "Save HTML",
+      "savingLabel": "Saving...",
+      "savedLabel": "Saved",
+      "clearLabel": "Clear custom HTML",
+      "loading": "Loading legal config...",
+      "empty": "No legal documents are configured.",
+      "fallbackBadge": "Using fallback copy",
+      "customBadge": "Using custom HTML",
+      "helper": "Paste the full HTML body for this document. Use headings, paragraphs, lists and links; scripts are not needed.",
+      "errors": {
+        "unauthorized": "Admin sign-in is required to edit legal HTML.",
+        "network": "Could not reach the API. Check NEXT_PUBLIC_API_URL and that the backend is running.",
+        "saveFailed": "Could not save legal HTML. Check your admin session and config key."
+      },
+      "signInLabel": "Sign in"
     },
     "users": {
       "title": "Users",

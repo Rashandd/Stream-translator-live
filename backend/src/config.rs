@@ -192,6 +192,15 @@ impl ServiceConfig {
             ("auth.email_2fa", "auto"),
             // Signup'ta atanan plan — admin panelden değiştirilebilir.
             ("auth.default_plan", "free"),
+            // Legal doküman HTML içerikleri. Boşsa frontend statik fallback
+            // metinlerini gösterir; admin panelden doldurulunca public
+            // /legal/{slug} sayfaları bu HTML'i render eder.
+            ("legal.terms.html", ""),
+            ("legal.privacy.html", ""),
+            ("legal.kvkk.html", ""),
+            ("legal.cookies.html", ""),
+            ("legal.dpa.html", ""),
+            ("legal.communications.html", ""),
             // Dashboard/panel CORS izinli origin'leri (virgülle ayrılmış).
             // Frontend Vercel'de, API VPS'te — tarayıcı istekleri cross-origin.
             // İlk deploy CORS_ALLOWED_ORIGINS env'iyle tohumlanır, sonrası

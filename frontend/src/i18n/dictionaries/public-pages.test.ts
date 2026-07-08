@@ -11,6 +11,9 @@ function pageExists(href: string): boolean {
     // Route group'lar ((console) gibi) href'te görünmez — bilinenleri dene.
     new URL(`../../../app/[locale]/admin/(console)/${rel.replace(/^admin\//, "")}`, import.meta.url),
   ];
+  if (href.startsWith("/legal/")) {
+    candidates.push(new URL("../../../app/[locale]/legal/[slug]/page.tsx", import.meta.url));
+  }
   return candidates.some((url) => existsSync(fileURLToPath(url)));
 }
 

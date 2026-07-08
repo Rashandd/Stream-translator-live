@@ -13,6 +13,19 @@ describe("auth flow dictionary contract", () => {
     expect(en.auth.login.forgotLabel).toBeTruthy();
   });
 
+  it("login legal note replaces the old email-code helper copy", () => {
+    expect(JSON.stringify(en.auth.login)).not.toContain("We'll email you a 6-digit code");
+    expect(en.auth.login.legalNote.intro).toContain("By continuing");
+    expect(en.auth.login.legalNote.links.map((link) => link.label)).toEqual([
+      "Terms",
+      "Privacy",
+      "KVKK",
+      "Cookies",
+      "DPA",
+      "Electronic communications",
+    ]);
+  });
+
   it("signup form has its labels and terms note", () => {
     expect(en.auth.signup.submitLabel).toBeTruthy();
     expect(en.auth.signup.submittingLabel).toBeTruthy();

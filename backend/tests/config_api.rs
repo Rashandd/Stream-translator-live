@@ -104,6 +104,27 @@ async fn admin_update_is_visible_to_readers() {
 }
 
 #[tokio::test]
+async fn legal_html_config_is_admin_editable() {
+    let addr = spawn_server().await;
+
+    let (status, body) = http(addr, &get("/config")).await;
+    assert_eq!(status, 200);
+    assert!(body.contains("\"legal.terms.html\":\"\""), "body: {body}");
+
+    let html = "<h1>Terms</h1><p>Updated from admin panel.</p>";
+    let payload = format!(
+        r#"{{"key":"legal.terms.html","value":{}}}"#,
+        serde_json::to_string(html).expect("html json")
+    );
+    let (status, body) = http(addr, &put_config(Some(&token("admin")), &payload)).await;
+    assert_eq!(status, 200, "body: {body}");
+
+    let (status, body) = http(addr, &get("/config")).await;
+    assert_eq!(status, 200);
+    assert!(body.contains("Updated from admin panel."), "body: {body}");
+}
+
+#[tokio::test]
 async fn write_requires_auth() {
     let addr = spawn_server().await;
     let (status, _) = http(addr, &put_config(None, r#"{"key":"stt.provider","value":"x"}"#)).await;

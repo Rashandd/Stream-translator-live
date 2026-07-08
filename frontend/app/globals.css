@@ -45,3 +45,51 @@ textarea {
 ::selection {
   background: rgba(54, 216, 228, 0.35);
 }
+
+.legal-html {
+  color: #273247;
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.legal-html > * + * {
+  margin-top: 1rem;
+}
+
+.legal-html h1,
+.legal-html h2,
+.legal-html h3 {
+  color: #061a3d;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.legal-html h1 {
+  font-size: 2rem;
+}
+
+.legal-html h2 {
+  font-size: 1.5rem;
+}
+
+.legal-html h3 {
+  font-size: 1.2rem;
+}
+
+.legal-html a {
+  color: #2f6bff;
+  font-weight: 650;
+}
+
+.legal-html ul,
+.legal-html ol {
+  padding-left: 1.4rem;
+}
+
+.legal-html ul {
+  list-style: disc;
+}
+
+.legal-html ol {
+  list-style: decimal;
+}

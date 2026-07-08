@@ -14,7 +14,7 @@ export function SiteFooter({ config, locale }: SiteFooterProps) {
   return (
     <footer className="border-t border-hairline bg-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-        <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
             <Link className="flex items-center" href={localizePath(locale, "/")}>
               <Image
