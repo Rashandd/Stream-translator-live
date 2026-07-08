@@ -1,0 +1,41 @@
+name: STT Server Image
+
+# Self-hosted GPU STT servisinin (roadmap 2.6) Docker image'ını GHCR'a
+# build+push eder. `infra/stt-server/bootstrap.sh` bu image'ı sabit bir tag
+# ile `docker pull` eder — image sunucuda değil burada, CI'da build edilir.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "stt-server/**"
+      - ".github/workflows/stt-server-image.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: stt-server-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: stt-server
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-stt-server:latest
+            ghcr.io/${{ github.repository }}-stt-server:${{ github.sha }}
