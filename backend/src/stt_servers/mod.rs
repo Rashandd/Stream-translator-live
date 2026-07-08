@@ -13,13 +13,21 @@
 //! görünmez — `#[serde(skip_serializing)]` + AES-256-GCM (aynı `Cipher`
 //! ilkel, `secrets`/`relay` modülleriyle aynı bağlama-özel anahtar türetimi).
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+pub mod provision;
 
+use std::collections::HashMap;
+use std::path::{Path as FsPath, PathBuf};
+use std::sync::{Arc, RwLock};
+
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::authz::AdminUser;
 use crate::crypto::Cipher;
+use crate::logging::{LogLevel, Logger};
+use provision::Provisioner;
 
 /// Bir sunucu kaydının yaşam döngüsü durumu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -463,7 +471,7 @@ impl<'a> Serialize for FullSttServer<'a> {
     }
 }
 
-fn load_entries(path: &Path, cipher: &Cipher) -> Result<HashMap<String, SttServer>, SttServerError> {
+fn load_entries(path: &FsPath, cipher: &Cipher) -> Result<HashMap<String, SttServer>, SttServerError> {
     let sealed = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(HashMap::new()),
@@ -483,6 +491,153 @@ fn load_entries(path: &Path, cipher: &Cipher) -> Result<HashMap<String, SttServe
 fn in_memory_cipher() -> Cipher {
     let key = crate::crypto::derive_key(b"stt-servers-in-memory", "streamdubber.stt_servers.v1");
     Cipher::new(&key).expect("32 byte key")
+}
+
+// --- Admin HTTP handlers ------------------------------------------------
+//
+// `POST/GET /admin/stt-servers`, `GET/DELETE /admin/stt-servers/{id}`,
+// `POST /admin/stt-servers/{id}/provision` — `put_secret`/`delete_secret`
+// (app.rs) ile aynı desen: `AdminUser` extractor, `Logger` audit kaydı,
+// gizli alanlar (`SttServer`'ın `Serialize`'ı zaten bunları atlar) hiçbir
+// yanıtta dönmez.
+
+fn stt_server_status_code(err: &SttServerError) -> StatusCode {
+    match err {
+        SttServerError::NotFound(_) => StatusCode::NOT_FOUND,
+        SttServerError::Invalid(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        SttServerError::Io(_) | SttServerError::Crypto(_) | SttServerError::Serde(_) => {
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+fn default_ssh_port() -> u16 {
+    22
+}
+
+fn default_ssh_user() -> String {
+    "root".to_string()
+}
+
+/// `POST /admin/stt-servers` gövdesi.
+#[derive(Debug, Deserialize)]
+pub struct CreateServerRequest {
+    pub name: String,
+    pub hostname: String,
+    #[serde(default = "default_ssh_port")]
+    pub ssh_port: u16,
+    #[serde(default = "default_ssh_user")]
+    pub ssh_user: String,
+}
+
+/// Yeni bir self-hosted STT sunucu kaydı ekler: SSH keypair üretir, `Pending`
+/// durumunda döner. Admin, yanıttaki `ssh_public_key`'i sunucusuna ekleyip
+/// ardından `POST .../{id}/provision` ile kurulumu başlatır.
+pub async fn create_server(
+    admin: AdminUser,
+    State(store): State<Arc<SttServerStore>>,
+    State(logger): State<Arc<Logger>>,
+    Json(req): Json<CreateServerRequest>,
+) -> Result<Json<SttServer>, (StatusCode, String)> {
+    let server = store
+        .add(&req.name, &req.hostname, req.ssh_port, &req.ssh_user)
+        .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    logger.log(
+        LogLevel::Info,
+        "stt_servers",
+        &format!("stt server added: {} ({})", server.name, server.hostname),
+        Some(&admin.claims.sub),
+        None,
+    );
+    Ok(Json(server))
+}
+
+/// Tüm self-hosted STT sunucu kayıtlarını listeler (sadece admin).
+pub async fn list_servers(
+    _admin: AdminUser,
+    State(store): State<Arc<SttServerStore>>,
+) -> Json<Vec<SttServer>> {
+    Json(store.list())
+}
+
+/// Tek bir sunucu kaydının güncel durumunu döner (panel polling için).
+pub async fn get_server(
+    _admin: AdminUser,
+    Path(id): Path<String>,
+    State(store): State<Arc<SttServerStore>>,
+) -> Result<Json<SttServer>, (StatusCode, String)> {
+    store
+        .get(&id)
+        .map(Json)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("stt server not found: {id}")))
+}
+
+/// Bir sunucu kaydını siler.
+pub async fn delete_server(
+    admin: AdminUser,
+    Path(id): Path<String>,
+    State(store): State<Arc<SttServerStore>>,
+    State(logger): State<Arc<Logger>>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    store
+        .remove(&id)
+        .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    logger.log(
+        LogLevel::Info,
+        "stt_servers",
+        &format!("stt server removed: {id}"),
+        Some(&admin.claims.sub),
+        None,
+    );
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Kurulumu tetikler: durumu `Provisioning`'e çevirir, `Provisioner`'ı arka
+/// planda çalıştırır (`tokio::spawn`) ve hemen `202 Accepted` döner — panel
+/// `GET /admin/stt-servers/{id}` ile durumu pollar. Gerçek SSH implementasyonu
+/// (`SshProvisioner`) roadmap 2.6 adım 6'da eklenir; o zamana kadar
+/// `AppState.stt_provisioner` bir `FakeProvisioner` olabilir.
+pub async fn provision_server(
+    admin: AdminUser,
+    Path(id): Path<String>,
+    State(store): State<Arc<SttServerStore>>,
+    State(provisioner): State<Arc<dyn Provisioner>>,
+    State(logger): State<Arc<Logger>>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let server = store
+        .get(&id)
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("stt server not found: {id}")))?;
+    store
+        .set_status(&id, SttServerStatus::Provisioning, None)
+        .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    logger.log(
+        LogLevel::Info,
+        "stt_servers",
+        &format!("stt server provisioning started: {} ({})", server.name, server.hostname),
+        Some(&admin.claims.sub),
+        None,
+    );
+
+    tokio::spawn(async move {
+        match provisioner.provision(&server).await {
+            Ok(outcome) => {
+                if let Err(err) = store.mark_ready(
+                    &server.id,
+                    &outcome.endpoint_url,
+                    &outcome.api_token,
+                    outcome.gpu_name,
+                    outcome.vram_mb,
+                ) {
+                    tracing::warn!(server_id = %server.id, %err, "failed to persist provisioning success");
+                }
+            }
+            Err(err) => {
+                let _ = store.set_status(&server.id, SttServerStatus::Error, Some(err.to_string()));
+            }
+        }
+    });
+
+    Ok(StatusCode::ACCEPTED)
 }
 
 #[cfg(test)]

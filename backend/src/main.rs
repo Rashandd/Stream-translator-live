@@ -37,6 +37,8 @@ use streamdubber_backend::{
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     stream_settings,
+    stt_servers::provision::{FakeProvisioner, ProvisionError},
+    stt_servers::SttServerStore,
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
     tls::{self, TlsSettings},
@@ -448,6 +450,29 @@ async fn build_state(
         }
     };
 
+    // Self-hosted GPU STT sunucuları (roadmap 2.6): STT_SERVERS_FILE
+    // verilirse SSH private key/API token AES-256 şifreli kalıcı.
+    let stt_servers_file = std::env::var("STT_SERVERS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let stt_servers = match stt_servers_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.stt_servers.v1").await?;
+            tracing::info!(%path, "stt server store: encrypted persistent file");
+            Arc::new(SttServerStore::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("STT_SERVERS_FILE not set — stt server records are lost on restart");
+            Arc::new(SttServerStore::in_memory())
+        }
+    };
+    // Gerçek SshProvisioner roadmap 2.6 adım 6'da eklenir; o zamana kadar
+    // provisioning her zaman açık bir hatayla başarısız olur (sessizce
+    // "hazır" gibi davranmaz).
+    let stt_provisioner = Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(
+        "SshProvisioner henüz bağlanmadı (roadmap 2.6 adım 6)".into(),
+    ))));
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -474,6 +499,8 @@ async fn build_state(
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
         stream_settings,
+        stt_servers,
+        stt_provisioner,
         voice_models,
         tts_settings,
         voice_samples,
