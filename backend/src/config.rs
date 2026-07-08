@@ -201,6 +201,13 @@ impl ServiceConfig {
             ("legal.cookies.html", ""),
             ("legal.dpa.html", ""),
             ("legal.communications.html", ""),
+            // Tüzel kişilik bilgileri (Faz 1 — Litvanya şahıs kaydı henüz
+            // tamamlanmadı). Boşken public /legal/{slug} sayfaları "kayıt
+            // tamamlanınca yayınlanacak" notunu gösterir; admin panelden
+            // dolduruldukça sayfalarda gerçek bilgi görünür — restart yok.
+            ("company.legal_name", ""),
+            ("company.registration_number", ""),
+            ("company.registered_address", ""),
             // Dashboard/panel CORS izinli origin'leri (virgülle ayrılmış).
             // Frontend Vercel'de, API VPS'te — tarayıcı istekleri cross-origin.
             // İlk deploy CORS_ALLOWED_ORIGINS env'iyle tohumlanır, sonrası

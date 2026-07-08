@@ -131,6 +131,31 @@ async fn legal_html_config_is_admin_editable() {
     assert!(body.contains("Updated from admin panel."), "body: {body}");
 }
 
+#[tokio::test]
+async fn company_details_are_admin_editable_and_default_empty() {
+    let addr = spawn_server().await;
+
+    let (status, body) = http(addr, &get("/config")).await;
+    assert_eq!(status, 200);
+    assert!(body.contains("\"company.legal_name\":\"\""), "body: {body}");
+    assert!(body.contains("\"company.registration_number\":\"\""), "body: {body}");
+    assert!(body.contains("\"company.registered_address\":\"\""), "body: {body}");
+
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"company.legal_name","value":"Strovak"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+
+    let (status, body) = http(addr, &get("/config")).await;
+    assert_eq!(status, 200);
+    assert!(body.contains("\"company.legal_name\":\"Strovak\""), "body: {body}");
+}
+
 /// Gerçek Postgres ile: admin yazımı `service_config` tablosuna da işlenir ve
 /// süreç yeniden başlasa (taze `ServiceConfig` + DB'den yükleme) değer kalıcı
 /// kalır. Çalıştırmak için:
