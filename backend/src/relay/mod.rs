@@ -26,7 +26,9 @@ const MAX_TARGETS: usize = 8;
 /// Bir RTMP dağıtım hedefi.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RelayTarget {
-    /// 'youtube' | 'twitch' | 'kick' | serbest etiket.
+    /// 'twitch' | 'kick' | serbest etiket. 'youtube' KABUL EDİLMEZ — YouTube
+    /// zaten OBS'ten doğrudan yayın alır; altyazı/multi-audio için relay
+    /// değil `/api/integrations/youtube` OAuth akışı kullanılır (bkz. `set`).
     pub platform: String,
     pub rtmp_url: String,
     pub stream_key: String,
@@ -99,6 +101,14 @@ impl RelayTargetStore {
             }
             if target.platform.trim().is_empty() {
                 return Err(RelayError::Invalid("platform must not be empty".into()));
+            }
+            if target.platform.trim().eq_ignore_ascii_case("youtube") {
+                return Err(RelayError::Invalid(
+                    "youtube is not a relay target — YouTube already receives your stream \
+                     directly from OBS; connect it from Platforms (OAuth) for native captions \
+                     and multi-audio instead of routing video through the relay"
+                        .into(),
+                ));
             }
         }
         {
@@ -210,17 +220,17 @@ mod tests {
     #[test]
     fn set_and_get_roundtrip_per_user() {
         let store = RelayTargetStore::in_memory();
-        store.set("u1", vec![target("youtube", "yt-key"), target("twitch", "tw-key")]).unwrap();
+        store.set("u1", vec![target("twitch", "tw-key"), target("kick", "kick-key")]).unwrap();
         store.set("u2", vec![target("kick", "kick-key")]).unwrap();
 
         let u1 = store.get("u1");
         assert_eq!(u1.len(), 2);
-        assert_eq!(u1[0].stream_key, "yt-key");
+        assert_eq!(u1[0].stream_key, "tw-key");
         assert_eq!(store.get("u2").len(), 1);
         assert!(store.get("u3").is_empty());
 
         // set tam liste değiştirir.
-        store.set("u1", vec![target("youtube", "new-key")]).unwrap();
+        store.set("u1", vec![target("twitch", "new-key")]).unwrap();
         let u1 = store.get("u1");
         assert_eq!(u1.len(), 1);
         assert_eq!(u1[0].stream_key, "new-key");
@@ -250,20 +260,31 @@ mod tests {
     fn validation_rejects_bad_targets() {
         let store = RelayTargetStore::in_memory();
         // http URL reddedilir.
-        let mut bad = target("youtube", "k");
+        let mut bad = target("twitch", "k");
         bad.rtmp_url = "http://not-rtmp.example".into();
         assert!(matches!(store.set("u1", vec![bad]), Err(RelayError::Invalid(_))));
         // Boş stream key reddedilir.
-        let mut empty = target("youtube", "");
+        let mut empty = target("twitch", "");
         empty.stream_key = "  ".into();
         assert!(matches!(store.set("u1", vec![empty]), Err(RelayError::Invalid(_))));
         // Hedef sınırı.
         let many = (0..9).map(|i| target("t", &format!("k{i}"))).collect();
         assert!(matches!(store.set("u1", many), Err(RelayError::Invalid(_))));
         // rtmps kabul edilir.
-        let mut ok = target("youtube", "k");
+        let mut ok = target("twitch", "k");
         ok.rtmp_url = "rtmps://ingest.example/live".into();
         assert!(store.set("u1", vec![ok]).is_ok());
+    }
+
+    #[test]
+    fn validation_rejects_youtube_as_relay_target() {
+        let store = RelayTargetStore::in_memory();
+        // YouTube zaten OBS'ten doğrudan yayın alır — relay hedefi olamaz.
+        let err = store.set("u1", vec![target("youtube", "k")]).unwrap_err();
+        assert!(matches!(err, RelayError::Invalid(_)));
+        // Case-insensitive.
+        let err = store.set("u1", vec![target("YouTube", "k")]).unwrap_err();
+        assert!(matches!(err, RelayError::Invalid(_)));
     }
 
     #[test]
@@ -274,7 +295,7 @@ mod tests {
 
         {
             let store = RelayTargetStore::with_file(&path, &key).unwrap();
-            store.set("u1", vec![target("youtube", "super-secret-stream-key")]).unwrap();
+            store.set("u1", vec![target("twitch", "super-secret-stream-key")]).unwrap();
         }
 
         // Diskte düz metin stream key / URL yok.

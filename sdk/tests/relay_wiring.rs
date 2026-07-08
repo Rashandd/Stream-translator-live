@@ -59,13 +59,15 @@ async fn fetch_relay_targets_matches_what_was_put_on_the_backend() {
     let token = device_token();
     let http = reqwest::Client::new();
 
-    // Panel tarafı: hedefleri backend'e yazar.
+    // Panel tarafı: hedefleri backend'e yazar. (youtube burada YASAK — bkz.
+    // backend/src/relay/mod.rs: YouTube native OAuth akışını kullanır, relay
+    // hedefi olamaz — bu yüzden test twitch kullanıyor.)
     let put_resp = http
         .put(format!("{base_url}/api/relay/targets"))
         .bearer_auth(&token)
         .json(&serde_json::json!({
             "targets": [
-                {"platform": "youtube", "rtmp_url": "rtmp://a.rtmp.youtube.com/live2", "stream_key": "yt-secret-key"},
+                {"platform": "twitch", "rtmp_url": "rtmp://a.rtmp.twitch.tv/live2", "stream_key": "tw-secret-key"},
             ]
         }))
         .send()
@@ -76,10 +78,10 @@ async fn fetch_relay_targets_matches_what_was_put_on_the_backend() {
     // SDK tarafı: aynı cihaz token'ıyla hedefleri çeker.
     let targets = fetch_relay_targets(&http, &base_url, &token).await.expect("fetch");
     assert_eq!(targets.len(), 1);
-    assert_eq!(targets[0].label, "youtube");
-    assert_eq!(targets[0].host, "a.rtmp.youtube.com");
+    assert_eq!(targets[0].label, "twitch");
+    assert_eq!(targets[0].host, "a.rtmp.twitch.tv");
     assert_eq!(targets[0].app, "live2");
-    assert_eq!(targets[0].stream_key, "yt-secret-key");
+    assert_eq!(targets[0].stream_key, "tw-secret-key");
 }
 
 #[tokio::test]

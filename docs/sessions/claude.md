@@ -3,7 +3,80 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
-## Neredeyim? (GÜNCEL — 2026-07-07, cihazda mux oturumu sonu)
+## Neredeyim? (GÜNCEL — 2026-07-08, background job, bu oturumun sonu)
+Kullanıcı geri bildirimi: yayıncı/admin panelindeki izleyici istatistikleri
+"alakasız ve uğraştırıcı", MVP için gereksiz karmaşıklık; ayrıca YouTube'un
+"otomatik desteği" (native CC/multi-audio) olduğunu ve OBS'ten YouTube'a SDK
+relay üzerinden video göndermemesi gerektiğini fark etmiş ama tam olarak nasıl
+çalıştığını bilmiyordu. İki AskUserQuestion ile netleştirildi, ikisi de
+"Önerilen" seçenekle onaylandı:
+
+1. Overview + ayrı Analytics sayfasındaki sahte izleyici/dil dağılımı
+   istatistikleri (EN 680/TR 412/ES 148, hiç gerçek veriye bağlanmamıştı)
+   Faz 1'den TAMAMEN kaldırıldı.
+2. Backend `PUT /api/relay/targets` artık `platform=="youtube"` (case-insensitive)
+   hedefini 422 ile reddediyor — YouTube zaten OBS'ten doğrudan yayın alıyor,
+   relay üzerinden bir de ona göndermek gereksiz/yanlış; YouTube'un
+   altyazı/multi-audio'su `backend/src/integrations/youtube.rs` OAuth
+   akışından geliyor.
+
+Her ikisi de kodlandı, TEST EDİLDİ (workspace `cargo test` 288+ yeşil,
+`cargo clippy --workspace --all-targets -D warnings` temiz, frontend
+`tsc/lint/vitest(119)/build` temiz) ve **worktree'de commit'lendi**
+(`c321f3e`, branch `worktree-logical-twirling-harp`,
+`.claude/worktrees/logical-twirling-harp`). **PUSH EDİLEMEDİ** — bu
+background job sandbox'ında GitHub için kimlik bilgisi yok (`origin` HTTPS,
+`gh` CLI kurulu değil, uygun SSH anahtarı yok). Kullanıcıya bildirildi,
+worktree bilerek dokunulmadan bırakıldı.
+
+## Değiştirdiğim Alanlar (bu oturum, 2026-07-08)
+- `frontend/app/[locale]/dashboard/page.tsx` — languageBreakdown bloğu
+  kaldırıldı, quickStart tek sütuna indirildi
+- `frontend/app/[locale]/dashboard/analytics/page.tsx` — SİLİNDİ (route +
+  nav girdisi de kaldırıldı)
+- `frontend/src/i18n/dictionaries/en.json` — `dashboard.overview.
+  languageBreakdown`, `dashboard.analytics`, nav'daki "Analytics" girdisi
+  kaldırıldı
+- `backend/src/relay/mod.rs` — `set()` içine youtube reddi + yeni test
+  (`validation_rejects_youtube_as_relay_target`) + mevcut testlerdeki
+  "youtube" platform verisi twitch/kick'e çevrildi
+- `backend/tests/pairing_api.rs` — yeni e2e test
+  (`relay_targets_reject_youtube`) + mevcut testlerdeki youtube kullanımı
+  değiştirildi
+- `sdk/tests/relay_wiring.rs` — test verisi youtube→twitch (backend artık
+  youtube'u reddettiği için gerekli)
+- `streamdubber_roadmap_final.md` — Ana Sayfa'dan "İzleyici dil dağılımı"
+  maddesi çıkarıldı + V9 altına youtube-relay-reddi kararı not edildi
+
+## Son Kararlar (bu oturum)
+- Viewer/dil istatistikleri Faz 1 kapsamı DIŞI — basit tekil "Live viewers"
+  metrik kartı kaldı, dil kırılımı/Analytics sayfası tamamen gitti.
+- YouTube relay hedefi olarak YASAK (backend validasyonu), sadece
+  Twitch/Kick/serbest RTMP etiketleri relay'e girebilir. Bu, mevcut frontend
+  `sdk-stream-key-panel.tsx`'i ETKİLEMEDİ (o zaten tek sabit "obs" hedefi
+  kullanıyor, per-platform seçim henüz frontend'de yok).
+
+## Sonraki Adım (TAM OLARAK)
+1. **[TAMAMLANDI]** Bu worktree branch'i main'e lokal merge edildi (bkz. bu
+   girdinin üstündeki merge commit) — kullanıcı ayrıca push etmek isterse
+   kendi kimlik bilgileriyle yapabilir, engel değil artık.
+2. Bu iş, aşağıdaki (kronolojik olarak önceki) oturum notlarındaki Task 2.2/2.3
+   çalışmalarıyla TAMAMEN BAĞIMSIZ — birbirini etkilemedi, ayrı dosyalarda.
+
+## Blokerlar / Dikkat (bu oturum)
+- Worktree'deki commit main'e **lokal olarak merge edildi** (GitHub'a push
+  edilmedi — bu sandbox'ta hâlâ kimlik bilgisi yok). Kullanıcı isterse kendi
+  makinesinden `git push` ile uzağa gönderebilir.
+- Merge sırasında bu dosyada (`docs/sessions/claude.md`) tek çakışma çıktı —
+  bu girdinin en/eski hâli ile main'in 2026-07-07 "cihazda mux" oturum notu
+  aynı başlığı (`## Neredeyim?`) farklı şekilde güncellemişti; ikisi de
+  korunarak elle çözüldü (aşağıda "önceki oturum" olarak devam ediyor).
+  `en.json`, `streamdubber_roadmap_final.md`, `backend/src/relay/mod.rs`
+  çakışmasız otomatik birleşti.
+
+---
+
+## Neredeyim? (2026-07-07, cihazda mux oturumu sonu — önceki oturum)
 
 ### Bu oturum (devam) — Task 2.3'ün kendisi: cihazda mux GERÇEKTEN kodlandı
 Önceki oturum (aşağıda "SDK ses wiring oturumu" başlığı altında) Task 2.3'ün ön koşulunu bitirmişti.

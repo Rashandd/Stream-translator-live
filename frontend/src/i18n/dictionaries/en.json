@@ -370,11 +370,6 @@
               "icon": "Download"
             },
             {
-              "label": "Analytics",
-              "href": "/dashboard/analytics",
-              "icon": "BarChart3"
-            },
-            {
               "label": "Billing",
               "href": "/dashboard/billing",
               "icon": "CreditCard"
@@ -414,7 +409,7 @@
     },
     "overview": {
       "title": "Overview",
-      "subtitle": "Your live stream state, audience languages, and quick start.",
+      "subtitle": "Your live stream state and quick start.",
       "metrics": [
         {
           "label": "Stream state",
@@ -441,28 +436,6 @@
           "icon": "CreditCard"
         }
       ],
-      "languageBreakdown": {
-        "title": "Audience languages",
-        "subtitle": "Live viewer distribution by caption language",
-        "empty": "No live viewers yet — start a stream to see language distribution.",
-        "items": [
-          {
-            "language": "English",
-            "code": "EN",
-            "viewers": 0
-          },
-          {
-            "language": "Turkish",
-            "code": "TR",
-            "viewers": 0
-          },
-          {
-            "language": "Spanish",
-            "code": "ES",
-            "viewers": 0
-          }
-        ]
-      },
       "quickStart": {
         "title": "Quick start",
         "streamKeyLabel": "Stream key",
@@ -934,73 +907,6 @@
           "startNote": "Starts the cloud broadcast: video ingest, captions, translation, and distribution to your selected platforms."
         }
       }
-    },
-    "analytics": {
-      "title": "Analytics",
-      "subtitle": "Audience languages, platform comparison, and total broadcast time.",
-      "metrics": [
-        {
-          "label": "Total broadcast time",
-          "value": "0h",
-          "hint": "all streams",
-          "icon": "Gauge"
-        },
-        {
-          "label": "Peak viewers",
-          "value": "0",
-          "hint": "best single stream",
-          "icon": "Wifi"
-        },
-        {
-          "label": "Languages served",
-          "value": "0",
-          "hint": "distinct caption languages",
-          "icon": "Languages"
-        },
-        {
-          "label": "Streams",
-          "value": "0",
-          "hint": "lifetime",
-          "icon": "Radio"
-        }
-      ],
-      "sampleNote": "Sample from your most recent stream. Live numbers replace this once the backend is connected.",
-      "languageTitle": "Viewers by language",
-      "languageSubtitle": "Per stream",
-      "languages": [
-        {
-          "language": "English",
-          "code": "EN",
-          "viewers": 680
-        },
-        {
-          "language": "Turkish",
-          "code": "TR",
-          "viewers": 412
-        },
-        {
-          "language": "Spanish",
-          "code": "ES",
-          "viewers": 148
-        }
-      ],
-      "platformTitle": "Viewers by platform",
-      "platformSubtitle": "Per stream",
-      "platforms": [
-        {
-          "name": "YouTube",
-          "viewers": 540
-        },
-        {
-          "name": "Twitch (EN)",
-          "viewers": 410
-        },
-        {
-          "name": "Twitch (TR)",
-          "viewers": 290
-        }
-      ],
-      "emailNote": "A weekly summary is emailed to you when reports are enabled in your account."
     },
     "billing": {
       "title": "Subscription & billing",
