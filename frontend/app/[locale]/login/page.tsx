@@ -53,9 +53,7 @@ export default async function LoginPage({ params }: Props) {
             forgotHref={localizePath(locale, "/login/reset")}
             labels={{
               emailLabel: login.emailLabel,
-              emailPlaceholder: login.emailPlaceholder,
               passwordLabel: login.passwordLabel,
-              passwordPlaceholder: login.passwordPlaceholder,
               forgotLabel: login.forgotLabel,
               submitLabel: login.submitLabel,
               submittingLabel: login.submittingLabel,
@@ -67,21 +65,6 @@ export default async function LoginPage({ params }: Props) {
           />
 
           <OAuthButtons labels={config.auth.social} />
-
-          <p className="mt-4 text-xs leading-5 text-muted">
-            {login.legalNote.intro}{" "}
-            {login.legalNote.links.map((link, index) => (
-              <span key={link.href}>
-                <Link
-                  className="font-semibold text-blue hover:text-ink"
-                  href={localizePath(locale, link.href)}
-                >
-                  {link.label}
-                </Link>
-                {index < login.legalNote.links.length - 1 ? ", " : "."}
-              </span>
-            ))}
-          </p>
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

@@ -564,6 +564,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 pub struct SignupRequest {
     pub email: String,
     pub password: String,
+    #[serde(default)]
+    pub legal_terms_accepted: bool,
+    #[serde(default)]
+    pub marketing_consent: bool,
 }
 
 /// Basit onay yanıtı.
@@ -578,6 +582,14 @@ pub async fn signup(
     State(app): State<AppState>,
     Json(req): Json<SignupRequest>,
 ) -> Result<(StatusCode, Json<OkResponse>), (StatusCode, String)> {
+    if !req.legal_terms_accepted {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "required legal terms must be accepted".to_string(),
+        ));
+    }
+    let _marketing_consent = req.marketing_consent;
+
     let plan = app
         .service_config
         .get("auth.default_plan")

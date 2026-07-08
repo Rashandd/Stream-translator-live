@@ -6,22 +6,34 @@ Codex
 ## Neredeyim?
 Legal dokuman akisi admin panelden duzenlenebilir hale getirildi. Login ve footer legal linkleri `/en/legal/{slug}` sayfalarina gidiyor; public legal sayfa once backend `/config` icindeki `legal.<slug>.html` custom HTML'ini okuyor, bos ise built-in fallback metnini gosteriyor. Admin Console'a `/admin/legal` sayfasi eklendi; operator Terms/Privacy/KVKK/Cookies/DPA/Electronic communications dokumanlarini textarea ile direkt HTML olarak kaydedebilir ve preview edebilir.
 2026-07-08: Local dev backend ve frontend yeniden baslatildi. Backend `127.0.0.1:8080`, frontend `localhost:3000` uzerinde calisiyor; health/home/admin-legal smoke istekleri 200 dondu.
+2026-07-08: Kullanici notu uzerine `kyutai-labs/pocket-tts`, TTS icin ucuz self-hosted/CPU alternatifi adayi olarak `docs/audio-pipeline.md` icine eklendi.
+2026-07-08: Signup/login legal consent ayrimi eklendi. Login'de legal/By continuing metni yok. Signup'ta zorunlu Terms/Privacy/KVKK/Cookies/DPA metinleri submit altinda otomatik gosteriliyor; ticari/electronic communications onayi ise sadece opsiyonel checkbox. Signup API `legal_terms_accepted=true` olmadan 422 donuyor, `marketing_consent` opsiyonel payload alani olarak tasiniyor. YouTube/Twitch/Kick marka ikonlari auth/distribution/platform kartlarinda gosteriliyor (Kick login endpoint'i yok; platform kartlarinda logo var).
 
 ## Degistirdigim Alanlar
 - `frontend/app/[locale]/layout.tsx`
 - `frontend/app/globals.css`
 - `frontend/app/[locale]/login/page.tsx`
+- `frontend/app/[locale]/signup/page.tsx`
+- `frontend/app/[locale]/dashboard/distribution/page.tsx`
+- `frontend/app/[locale]/dashboard/platforms/page.tsx`
+- `frontend/src/components/brand-mark.tsx`
 - `frontend/app/[locale]/legal/[slug]/page.tsx`
 - `frontend/app/[locale]/admin/(console)/legal/page.tsx`
+- `frontend/src/components/signup-form.tsx`
 - `frontend/src/components/admin-legal-panel.tsx`
 - `frontend/src/components/admin-legal-panel.test.ts`
 - `frontend/src/components/site-footer.tsx`
 - `frontend/src/i18n/dictionaries/en.json`
 - `frontend/src/i18n/dictionaries/auth-flows.test.ts`
+- `frontend/src/i18n/dictionaries/oauth-login.test.ts`
+- `frontend/src/i18n/dictionaries/marketing.test.ts`
 - `frontend/src/i18n/dictionaries/legal-pages.test.ts`
 - `frontend/src/i18n/dictionaries/public-pages.test.ts`
+- `backend/src/users/mod.rs`
 - `backend/src/config.rs`
 - `backend/tests/config_api.rs`
+- `backend/tests/users_api.rs`
+- `docs/audio-pipeline.md`
 - `docs/sessions/codex.md`
 
 ## Son Kararlar
@@ -57,9 +69,13 @@ Legal dokuman akisi admin panelden duzenlenebilir hale getirildi. Login ve foote
 - 2026-07-07 admin legal HTML: Backend `ServiceConfig` seed'ine `legal.terms.html`, `legal.privacy.html`, `legal.kvkk.html`, `legal.cookies.html`, `legal.dpa.html`, `legal.communications.html` eklendi. `/admin/legal` client paneli `/config` ile mevcut degerleri okur, `/admin/config` ile kaydeder. Public legal route `cache: "no-store"` ile `/config` okur ve custom HTML varsa `dangerouslySetInnerHTML` ile render eder; bos degerlerde fallback section metinleri kalir. Footer'a Legal link kolonu eklendi.
 - Regression: backend TDD once kirmizi (`legal.terms.html` seed yok), sonra yesil. Final: `cargo test --test config_api` 6/6, `cargo clippy`, `npm run test` 22 dosya / 128 test, `npm run lint`, `tsc --noEmit` temiz. Live smoke: local admin login -> `/admin/config` ile `legal.terms.html` kaydet -> `/en/legal/terms` custom HTML gosterdi (`custom:true`); sonra smoke verisi temizlenip key tekrar bosaltildi.
 - 2026-07-08 local dev restart: `bash scripts/session-start.sh` temiz gecti (backend testleri ve frontend 24 dosya / 139 test). Backend `ADMIN_EMAIL=admin@strovak.local` ve `ADMIN_PASSWORD=local-admin-only-change-me` ile baslatildi. Smoke: `/health` 200, `/en` 200, `/en/admin/legal` 200.
+- 2026-07-08 TTS arastirma notu: [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts) CPU'da calisan, 100M parametreli, streaming destekli, yaklasik 200ms ilk ses parcasi iddiasina sahip bir TTS motoru. Faz 3 self-hosted TTS arastirmasinda XTTS-v2/StyleTTS2 yanina ucuz alternatif adayi olarak degerlendirilmeli; Python API/CLI ve voice cloning destegi var, EN/FR/DE/PT/IT/ES dil kapsami not edildi.
+- 2026-07-08 consent ayrimi: Login'de legal note/`By continuing` yok. Signup formunda zorunlu legal kabul checkbox degil, submit altinda otomatik gorunen "By creating an account..." metni; ticari/electronic communications checkbox'i opsiyonel. Frontend `/api/auth/signup` payload'inda `legal_terms_accepted: true` ve kullanici tercihine gore `marketing_consent` gonderiyor; backend legal alan false/eksikse 422 donduruyor. `marketing_consent` su an ayri bir preference tablosuna kalici yazilmiyor; ileride email/CRM sistemi eklendiginde migration gerekir.
+- 2026-07-08 marka ikonlari: `BrandMark` bileşeni eklendi; auth butonunda Google OAuth YouTube etiketi/ikonu ile gorunuyor, Twitch ikonu eklendi. Dashboard distribution/platform cards YouTube/Twitch/Kick icin marka ikonlarini `brandForPlatform` ile gosteriyor, bilinmeyen platformlar eski `Icon` fallback'ine dusuyor. Kick login OAuth hala yok (backend notu: OAuth 2.1/PKCE ayri is), bu yuzden sign-in'de kirik Kick butonu eklenmedi.
+- 2026-07-08 marketing kapsam karari: Kullanici marketing/newsletter kampanyalarini simdilik planlamiyor. Roadmap'teki haftalik email raporu transactional/urun raporu olarak kalacak; ticari elektronik ileti altyapisi (marketing_consent kaliciligi, unsubscribe/preference center, suppression list, audit) ancak marketing kampanyasi planlanirsa ayri gelecek is.
 
 ## Sonraki Adim
-Sonraki somut is: production icin legal HTML metinlerini admin panelden sirket/veri sorumlusu/iletisim/subprocessor bilgileriyle doldur ve `ServiceConfig` kaliciligini DB-backed hale getir; mevcut local dev'de legal config degerleri restart'ta sifirlanir. Ardindan distribution method secimini kullanici/account ayarina persist edecek backend sozlesmesini tasarla.
+Sonraki somut is: production icin legal HTML metinlerini admin panelden sirket/veri sorumlusu/iletisim/subprocessor bilgileriyle doldur ve `ServiceConfig` kaliciligini DB-backed hale getir; mevcut local dev'de legal config degerleri restart'ta sifirlanir. Ardindan distribution method secimini kullanici/account ayarina persist edecek backend sozlesmesini ekle. Faz 3 TTS arastirmasinda Pocket TTS icin lisans, TR dil destegi, realtime kalite ve Rust/SDK entegrasyon yolu ayrica incelenmeli.
 
 ## Blokerlar / Dikkat
 - 2026-07-08 baslangic regression `scripts/session-start.sh` ile temiz: backend testleri gecti, frontend `npm run test` 24 dosya / 139 test gecti.

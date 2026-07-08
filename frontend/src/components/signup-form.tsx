@@ -1,19 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { API_URL } from "@/src/lib/api";
 import { login } from "@/src/lib/auth-client";
 
+type ConsentLink = {
+  label: string;
+  href: string;
+};
+
+type ConsentLabels = {
+  label: string;
+  links: ConsentLink[];
+};
+
 type Labels = {
   emailLabel: string;
-  emailPlaceholder: string;
   passwordLabel: string;
-  passwordPlaceholder: string;
   submitLabel: string;
   submittingLabel: string;
   errorTaken: string;
   errorInvalidFields: string;
   errorNetwork: string;
+  requiredConsent: ConsentLabels;
+  optionalConsent: ConsentLabels;
 };
 
 type Props = {
@@ -27,6 +38,7 @@ type Props = {
 export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +50,12 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          legal_terms_accepted: true,
+          marketing_consent: marketingConsent,
+        }),
       });
       if (!response.ok) {
         setError(response.status === 409 ? labels.errorTaken : labels.errorInvalidFields);
@@ -75,7 +92,6 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
           id="email"
           name="email"
           onChange={(event) => setEmail(event.target.value)}
-          placeholder={labels.emailPlaceholder}
           required
           type="email"
           value={email}
@@ -89,12 +105,30 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
           id="password"
           minLength={8}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder={labels.passwordPlaceholder}
           required
           type="password"
           value={password}
         />
       </div>
+      <label className="flex gap-3 rounded-lg border border-border bg-white p-3 text-xs leading-5 text-muted">
+        <input
+          checked={marketingConsent}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-blue"
+          onChange={(event) => setMarketingConsent(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          {labels.optionalConsent.label}{" "}
+          {labels.optionalConsent.links.map((link, index) => (
+            <span key={link.href}>
+              <Link className="font-semibold text-blue hover:text-ink" href={link.href}>
+                {link.label}
+              </Link>
+              {index < labels.optionalConsent.links.length - 1 ? ", " : "."}
+            </span>
+          ))}
+        </span>
+      </label>
       {error ? (
         <p className="rounded-lg border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-ink" role="alert">
           {error}
@@ -107,6 +141,17 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
       >
         {pending ? labels.submittingLabel : labels.submitLabel}
       </button>
+      <p className="text-xs leading-5 text-muted">
+        {labels.requiredConsent.label}{" "}
+        {labels.requiredConsent.links.map((link, index) => (
+          <span key={link.href}>
+            <Link className="font-semibold text-blue hover:text-ink" href={link.href}>
+              {link.label}
+            </Link>
+            {index < labels.requiredConsent.links.length - 1 ? ", " : "."}
+          </span>
+        ))}
+      </p>
     </form>
   );
 }

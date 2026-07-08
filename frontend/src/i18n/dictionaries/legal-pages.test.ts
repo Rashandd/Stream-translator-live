@@ -3,7 +3,10 @@ import en from "@/src/i18n/dictionaries/en.json";
 
 describe("legal pages dictionary contract", () => {
   it("ships every legal document linked from auth", () => {
-    const linkedSlugs = en.auth.login.legalNote.links.map((link) => link.href.split("/").pop());
+    const linkedSlugs = [
+      ...en.auth.signup.requiredConsent.links,
+      ...en.auth.signup.optionalConsent.links,
+    ].map((link) => link.href.split("/").pop());
     const pageSlugs = en.legal.pages.map((page) => page.slug);
 
     expect(pageSlugs).toEqual(linkedSlugs);

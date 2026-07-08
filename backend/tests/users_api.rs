@@ -175,7 +175,27 @@ async fn signup_then_login_without_smtp_issues_broadcaster_token() {
         server.addr,
         &post_json(
             "/api/auth/signup",
-            r#"{"email":"caster@example.com","password":"strong-pass-1"}"#,
+            r#"{"email":"caster@example.com","password":"strong-pass-1","legal_terms_accepted":true,"marketing_consent":false}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 201);
+
+    let (status, _) = http(
+        server.addr,
+        &post_json(
+            "/api/auth/signup",
+            r#"{"email":"no-legal@example.com","password":"strong-pass-1","marketing_consent":true}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _) = http(
+        server.addr,
+        &post_json(
+            "/api/auth/signup",
+            r#"{"email":"marketing-ok@example.com","password":"strong-pass-1","legal_terms_accepted":true,"marketing_consent":true}"#,
         ),
     )
     .await;
@@ -186,7 +206,7 @@ async fn signup_then_login_without_smtp_issues_broadcaster_token() {
         server.addr,
         &post_json(
             "/api/auth/signup",
-            r#"{"email":"CASTER@example.com","password":"another-pass-1"}"#,
+            r#"{"email":"CASTER@example.com","password":"another-pass-1","legal_terms_accepted":true}"#,
         ),
     )
     .await;
@@ -241,7 +261,7 @@ async fn wrong_password_is_401_and_secrets_never_logged() {
         server.addr,
         &post_json(
             "/api/auth/signup",
-            r#"{"email":"leak@example.com","password":"super-secret-pw-1"}"#,
+            r#"{"email":"leak@example.com","password":"super-secret-pw-1","legal_terms_accepted":true}"#,
         ),
     )
     .await;
@@ -307,7 +327,7 @@ async fn smtp_configured_login_requires_mailed_code() {
         server.addr,
         &post_json(
             "/api/auth/signup",
-            r#"{"email":"twofa@example.com","password":"strong-pass-1"}"#,
+            r#"{"email":"twofa@example.com","password":"strong-pass-1","legal_terms_accepted":true}"#,
         ),
     )
     .await;
@@ -378,7 +398,7 @@ async fn password_reset_flow_rotates_password() {
         server.addr,
         &post_json(
             "/api/auth/signup",
-            r#"{"email":"reset@example.com","password":"old-password-1"}"#,
+            r#"{"email":"reset@example.com","password":"old-password-1","legal_terms_accepted":true}"#,
         ),
     )
     .await;

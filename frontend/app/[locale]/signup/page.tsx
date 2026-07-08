@@ -28,6 +28,11 @@ export default async function SignupPage({ params }: Props) {
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
   const { signup } = config.auth;
+  const localizeLinks = (links: { label: string; href: string }[]) =>
+    links.map((link) => ({
+      ...link,
+      href: localizePath(locale, link.href),
+    }));
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
@@ -45,27 +50,30 @@ export default async function SignupPage({ params }: Props) {
 
         <div className="rounded-2xl border border-border bg-white p-6 sm:p-8">
           <h1 className="text-2xl font-semibold text-ink">{signup.title}</h1>
-          <p className="mt-2 text-sm leading-6 text-muted">{signup.subtitle}</p>
 
           <SignupForm
             dashboardHref={localizePath(locale, "/dashboard")}
             labels={{
               emailLabel: signup.emailLabel,
-              emailPlaceholder: signup.emailPlaceholder,
               passwordLabel: signup.passwordLabel,
-              passwordPlaceholder: signup.passwordPlaceholder,
               submitLabel: signup.submitLabel,
               submittingLabel: signup.submittingLabel,
               errorTaken: config.auth.errors.emailTaken,
               errorInvalidFields: config.auth.errors.invalidFields,
               errorNetwork: config.auth.errors.network,
+              requiredConsent: {
+                ...signup.requiredConsent,
+                links: localizeLinks(signup.requiredConsent.links),
+              },
+              optionalConsent: {
+                ...signup.optionalConsent,
+                links: localizeLinks(signup.optionalConsent.links),
+              },
             }}
             verifyHref={localizePath(locale, "/login/verify")}
           />
 
           <OAuthButtons labels={config.auth.social} />
-
-          <p className="mt-4 text-xs leading-5 text-muted">{signup.termsNote}</p>
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

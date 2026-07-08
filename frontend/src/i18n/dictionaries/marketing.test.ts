@@ -16,6 +16,14 @@ const solutionsPageSource = readFileSync(
   fileURLToPath(new URL("../../../app/[locale]/solutions/page.tsx", import.meta.url)),
   "utf8",
 );
+const distributionPageSource = readFileSync(
+  fileURLToPath(new URL("../../../app/[locale]/dashboard/distribution/page.tsx", import.meta.url)),
+  "utf8",
+);
+const platformsPageSource = readFileSync(
+  fileURLToPath(new URL("../../../app/[locale]/dashboard/platforms/page.tsx", import.meta.url)),
+  "utf8",
+);
 const iconMapBody = iconSource.match(/const icons[^{]*\{([\s\S]*?)\}/)?.[1] ?? "";
 const registeredIcons = new Set(
   iconMapBody
@@ -79,6 +87,13 @@ describe("dashboard distribution dictionary", () => {
       expect(row.captions).toBeTruthy();
       expect(row.dubbing).toBeTruthy();
     }
+  });
+
+  it("renders platform brand marks for YouTube, Twitch, and Kick cards", () => {
+    expect(distributionPageSource).toContain("brandForPlatform(row.platform)");
+    expect(platformsPageSource).toContain("brandForPlatform(account.provider)");
+    expect(distributionPageSource).toContain("<BrandMark");
+    expect(platformsPageSource).toContain("<BrandMark");
   });
 
   it("delivers Kick captions through a browser extension", () => {

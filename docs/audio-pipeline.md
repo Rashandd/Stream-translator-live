@@ -61,8 +61,16 @@ mimarisi; ileride whisper.cpp bağlanacağı zaman (2.6b, local-STT) da bakılab
 | ElevenLabs | API | ~800ms | ~$600 | Faz 2 başlangıç |
 | Cartesia | API | ~200ms | ~$240 | Hız alternatifi |
 | PlayHT | API | ~500ms | ~$200 | Ucuz API |
+| Pocket TTS (Kyutai) | Local CPU / Python | ~200ms ilk chunk | CPU infra sabit | Ucuz self-hosted TTS alternatifi; Faz 3 araştırma |
 | XTTS-v2 (Coqui) | Local GPU | ~600ms | ~$80 sabit | Faz 3 |
 | StyleTTS2 | Local GPU | ~400ms | ~$80 sabit | Faz 3 araştırma |
+
+Not: [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts)
+CPU'da çalışacak kadar küçük bir TTS motoru olarak değerlendirilmeli. Repo
+100M parametre, audio streaming, yaklaşık 200ms ilk ses parçası, CPU'da
+real-time'dan hızlı çalışma, Python API/CLI, voice cloning ve EN/FR/DE/PT/IT/ES
+dil desteği iddia ediyor. Faz 2'de API sağlayıcı maliyeti yükselirse, Faz 3
+self-hosted TTS hattı için XTTS-v2/StyleTTS2 yanında ucuz seçenek adayı.
 
 ## Admin Toggle Sırası
 Tüm sağlayıcılar admin panelden anlık değiştirilebilir (restart yok).

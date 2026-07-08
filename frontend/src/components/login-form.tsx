@@ -6,9 +6,7 @@ import { login } from "@/src/lib/auth-client";
 
 type Labels = {
   emailLabel: string;
-  emailPlaceholder: string;
   passwordLabel: string;
-  passwordPlaceholder: string;
   forgotLabel: string;
   submitLabel: string;
   submittingLabel: string;
@@ -72,7 +70,6 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
           id="email"
           name="email"
           onChange={(event) => setEmail(event.target.value)}
-          placeholder={labels.emailPlaceholder}
           required
           type="email"
           value={email}
@@ -90,7 +87,6 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
           className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
           id="password"
           onChange={(event) => setPassword(event.target.value)}
-          placeholder={labels.passwordPlaceholder}
           required
           type="password"
           value={password}

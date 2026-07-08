@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import en from "@/src/i18n/dictionaries/en.json";
+
+const loginFormSource = readFileSync(
+  new URL("../../components/login-form.tsx", import.meta.url),
+  "utf8",
+);
+const signupFormSource = readFileSync(
+  new URL("../../components/signup-form.tsx", import.meta.url),
+  "utf8",
+);
 
 /**
  * Yayıncı auth akışı (1.4) sözlük sözleşmesi — login/signup/verify/reset
@@ -11,25 +21,48 @@ describe("auth flow dictionary contract", () => {
     expect(en.auth.login.submitLabel).toBeTruthy();
     expect(en.auth.login.submittingLabel).toBeTruthy();
     expect(en.auth.login.forgotLabel).toBeTruthy();
+    expect("emailPlaceholder" in en.auth.login).toBe(false);
+    expect("passwordPlaceholder" in en.auth.login).toBe(false);
   });
 
   it("login legal note replaces the old email-code helper copy", () => {
     expect(JSON.stringify(en.auth.login)).not.toContain("We'll email you a 6-digit code");
-    expect(en.auth.login.legalNote.intro).toContain("By continuing");
-    expect(en.auth.login.legalNote.links.map((link) => link.label)).toEqual([
+    expect("legalNote" in en.auth.login).toBe(false);
+  });
+
+  it("signup form has required legal consent and optional commercial consent copy", () => {
+    expect(en.auth.signup.submitLabel).toBeTruthy();
+    expect(en.auth.signup.submittingLabel).toBeTruthy();
+    expect("emailPlaceholder" in en.auth.signup).toBe(false);
+    expect("passwordPlaceholder" in en.auth.signup).toBe(false);
+    expect("subtitle" in en.auth.signup).toBe(false);
+    expect(JSON.stringify(en.auth.signup)).not.toContain("No credit card needed");
+    expect(en.auth.signup.requiredConsent.label.toLowerCase()).toContain("by creating");
+    expect(en.auth.signup.requiredConsent.links.map((link) => link.label)).toEqual([
       "Terms",
       "Privacy",
       "KVKK",
       "Cookies",
       "DPA",
+    ]);
+    expect(en.auth.signup.optionalConsent.label.toLowerCase()).toContain("optional");
+    expect(en.auth.signup.optionalConsent.links.map((link) => link.label)).toEqual([
       "Electronic communications",
     ]);
   });
 
-  it("signup form has its labels and terms note", () => {
-    expect(en.auth.signup.submitLabel).toBeTruthy();
-    expect(en.auth.signup.submittingLabel).toBeTruthy();
-    expect(en.auth.signup.termsNote).toBeTruthy();
+  it("signup form sends required legal consent separately from optional marketing consent", () => {
+    expect(signupFormSource).toContain("legal_terms_accepted: true");
+    expect(signupFormSource).toContain("marketing_consent");
+    expect(signupFormSource).not.toContain("legalTermsAccepted");
+    expect(signupFormSource).toContain("optionalConsent");
+  });
+
+  it("public auth forms do not render email or password placeholders", () => {
+    expect(loginFormSource).not.toContain("placeholder=");
+    expect(signupFormSource).not.toContain("placeholder=");
+    expect(JSON.stringify(en.auth.login)).not.toContain("you@example.com");
+    expect(JSON.stringify(en.auth.signup)).not.toContain("you@example.com");
   });
 
   it("verify form is a real 2fa step (code entry, no dev stub)", () => {

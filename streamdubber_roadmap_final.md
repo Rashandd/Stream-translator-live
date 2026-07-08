@@ -406,6 +406,10 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 - [ ] Platform bazlı izleyici karşılaştırması
 - [ ] Toplam yayın süresi
 - [ ] Haftalık email raporu
+      <!-- Kullanıcı kararı 2026-07-08: marketing/newsletter kampanyaları şimdilik planlanmıyor.
+      Bu madde yalnız ürün içi/transactional yayın özeti olarak düşünülmeli. Ticari elektronik
+      ileti altyapısı gerekirse ayrı gelecek iş: marketing_consent kalıcılığı, unsubscribe/preference
+      center, suppression list ve audit log. -->
 
 #### Abonelik & Fatura
 - [ ] Mevcut plan ve kullanım
@@ -921,7 +925,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 
 #### 4.2 Yayıncı Dashboard — Gelişmiş Analitik
 - [ ] İzleyici dil ve platform dağılımı
-- [ ] Haftalık email raporu
+- [ ] Haftalık email raporu  <!-- Transactional/ürün raporu; marketing/newsletter kampanyası değil. -->
 
 #### 4.3 Admin — Tam Operasyon
 - [ ] Churn analizi

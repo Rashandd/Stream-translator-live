@@ -1443,7 +1443,7 @@
   "auth": {
     "social": {
       "dividerLabel": "or",
-      "google": "Continue with Google",
+      "google": "Continue with YouTube",
       "twitch": "Continue with Twitch"
     },
     "oauthComplete": {
@@ -1455,13 +1455,21 @@
       "title": "Sign in",
       "subtitle": "Access your broadcaster dashboard.",
       "emailLabel": "Email",
-      "emailPlaceholder": "you@example.com",
       "passwordLabel": "Password",
-      "passwordPlaceholder": "Your password",
       "submitLabel": "Continue",
       "submittingLabel": "Signing in...",
-      "legalNote": {
-        "intro": "By continuing, you accept and acknowledge:",
+      "forgotLabel": "Forgot password?",
+      "signupPrompt": "New to Strovak?",
+      "signupLabel": "Create an account"
+    },
+    "signup": {
+      "title": "Create your account",
+      "emailLabel": "Email",
+      "passwordLabel": "Password",
+      "submitLabel": "Create account",
+      "submittingLabel": "Creating account...",
+      "requiredConsent": {
+        "label": "By creating an account, you accept the required service terms and notices:",
         "links": [
           {
             "label": "Terms",
@@ -1482,27 +1490,18 @@
           {
             "label": "DPA",
             "href": "/legal/dpa"
-          },
+          }
+        ]
+      },
+      "optionalConsent": {
+        "label": "I want to receive optional product updates and commercial electronic communications.",
+        "links": [
           {
             "label": "Electronic communications",
             "href": "/legal/communications"
           }
         ]
       },
-      "forgotLabel": "Forgot password?",
-      "signupPrompt": "New to Strovak?",
-      "signupLabel": "Create an account"
-    },
-    "signup": {
-      "title": "Create your account",
-      "subtitle": "Start free: live captions, 1 language, 5 hours a month. No credit card needed.",
-      "emailLabel": "Email",
-      "emailPlaceholder": "you@example.com",
-      "passwordLabel": "Password",
-      "passwordPlaceholder": "At least 8 characters",
-      "submitLabel": "Create account",
-      "submittingLabel": "Creating account...",
-      "termsNote": "By creating an account you agree to the terms of service and privacy policy.",
       "loginPrompt": "Already have an account?",
       "loginLabel": "Sign in"
     },

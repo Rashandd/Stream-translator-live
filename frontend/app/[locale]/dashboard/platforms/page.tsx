@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BrandMark, brandForPlatform } from "@/src/components/brand-mark";
 import { Icon } from "@/src/components/icon";
 import { PageHeader } from "@/src/components/dashboard-ui";
 import { TwitchExtensionLink } from "@/src/components/twitch-extension-link";
@@ -39,13 +40,20 @@ export default async function PlatformsPage({ params }: Props) {
       </div>
 
       <ul className="grid gap-4 sm:grid-cols-2">
-        {platforms.accounts.map((account) => (
-          <li className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5" key={account.name}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
-                  <Icon className="h-5 w-5" name={account.icon} />
-                </span>
+        {platforms.accounts.map((account) => {
+          const brand = brandForPlatform(account.provider);
+
+          return (
+            <li className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5" key={account.name}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
+                    {brand ? (
+                      <BrandMark brand={brand} className="h-5 w-5" />
+                    ) : (
+                      <Icon className="h-5 w-5" name={account.icon} />
+                    )}
+                  </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-ink">{account.name}</p>
                   <p className="truncate text-sm text-muted">{account.detail}</p>
@@ -83,8 +91,9 @@ export default async function PlatformsPage({ params }: Props) {
                 </>
               )}
             </button>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
 
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5">
