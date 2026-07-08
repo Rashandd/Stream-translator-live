@@ -1289,19 +1289,19 @@
   "legal": {
     "eyebrow": "Legal",
     "title": "Legal center",
-    "summary": "Core terms, privacy, KVKK and digital compliance notices for StreamDubber accounts and services.",
+    "summary": "Core terms, privacy, KVKK and digital compliance notices for Strovak accounts and services.",
     "updatedLabel": "Last updated",
-    "effectiveDate": "July 7, 2026",
+    "effectiveDate": "July 8, 2026",
     "backLabel": "Back to home",
     "pages": [
       {
         "slug": "terms",
         "title": "Terms of Service",
-        "summary": "The rules for using StreamDubber, including account access, acceptable use, subscriptions and service limits.",
+        "summary": "The rules for using Strovak, including account access, acceptable use, subscriptions and service limits.",
         "sections": [
           {
-            "title": "Using StreamDubber",
-            "body": "You may use StreamDubber to capture audio, generate live captions, translate speech and route supported streaming outputs according to your plan. You are responsible for the content you stream and for keeping your account credentials secure."
+            "title": "Using Strovak",
+            "body": "Strovak is operated from Lithuania. You may use Strovak to capture audio, generate live captions, translate speech and route supported streaming outputs according to your plan. You are responsible for the content you stream and for keeping your account credentials secure."
           },
           {
             "title": "Accounts and plans",
@@ -1314,13 +1314,17 @@
           {
             "title": "Service changes",
             "body": "Real-time services depend on third-party providers, network conditions and platform APIs. We may update providers, limits, routes and safety controls to keep the service reliable and compliant."
+          },
+          {
+            "title": "Contact",
+            "body": "Questions about these terms can be sent to legal@strovak.com."
           }
         ]
       },
       {
         "slug": "privacy",
         "title": "Privacy Policy",
-        "summary": "How StreamDubber handles account data, operational logs and the audio-only cloud pipeline used for live translation.",
+        "summary": "How Strovak handles account data, operational logs and the audio-only cloud pipeline used for live translation.",
         "sections": [
           {
             "title": "What we process",
@@ -1332,11 +1336,11 @@
           },
           {
             "title": "Retention and deletion",
-            "body": "Operational records are kept only as long as needed for service, security, billing or legal reasons. Account deletion requests should remove account data and related records according to the retention policy that applies to the deployed environment."
+            "body": "Operational records are kept only as long as needed for service, security, billing or legal reasons. To request deletion of your account and related records, contact legal@strovak.com."
           },
           {
             "title": "Your rights",
-            "body": "Depending on your location, you may request access, correction, deletion, objection, restriction or portability for personal data. KVKK and GDPR-style requests should be routed to the account owner or data contact listed for the production deployment."
+            "body": "Depending on your location, you may request access, correction, deletion, objection, restriction or portability for personal data. KVKK and GDPR-style requests should be sent to legal@strovak.com."
           }
         ]
       },
@@ -1347,7 +1351,7 @@
         "sections": [
           {
             "title": "Data controller and scope",
-            "body": "This notice explains how personal data may be processed for StreamDubber accounts, dashboard access, live audio translation, billing, security logging and support. The production operator must publish the legal data controller identity and contact details."
+            "body": "This notice explains how personal data may be processed for Strovak accounts, dashboard access, live audio translation, billing, security logging and support. Strovak is operated from Lithuania; formal company registration details will be published on this page once registration is complete. Until then, KVKK inquiries should be sent to legal@strovak.com."
           },
           {
             "title": "Processing purposes",
@@ -1355,11 +1359,11 @@
           },
           {
             "title": "Transfers and recipients",
-            "body": "Data may be shared with hosting, payment, email, analytics, speech-to-text, translation, text-to-speech and streaming integration providers only as needed to deliver the service. Cross-border transfers must follow the production operator's KVKK compliance basis."
+            "body": "Data may be shared with hosting, payment, email, analytics, speech-to-text, translation, text-to-speech and streaming integration providers only as needed to deliver the service. As Strovak operates from within the EU/EEA, cross-border transfers to Turkey and back follow the safeguards required under both KVKK and GDPR."
           },
           {
             "title": "KVKK rights",
-            "body": "Users may request information about processing, correction, deletion, anonymization, transfer recipients, objection to adverse results and compensation for unlawful processing where applicable under KVKK Article 11."
+            "body": "Users may request information about processing, correction, deletion, anonymization, transfer recipients, objection to adverse results and compensation for unlawful processing where applicable under KVKK Article 11. Send requests to legal@strovak.com; we aim to respond within 30 days as required by KVKK."
           }
         ]
       },
@@ -1382,26 +1386,26 @@
           },
           {
             "title": "Managing choices",
-            "body": "Browser settings can block or delete cookies, but essential authentication and security storage may be required for the dashboard, admin console and overlay builder to work correctly."
+            "body": "Browser settings can block or delete cookies, but essential authentication and security storage may be required for the dashboard, admin console and overlay builder to work correctly. Questions about this policy can be sent to legal@strovak.com."
           }
         ]
       },
       {
         "slug": "dpa",
         "title": "Data Processing Addendum",
-        "summary": "The business data processing terms for customers who use StreamDubber with employees, viewers, guests or event attendees.",
+        "summary": "The business data processing terms for customers who use Strovak with employees, viewers, guests or event attendees.",
         "sections": [
           {
             "title": "Roles",
-            "body": "For customer-controlled streams and events, the customer may act as data controller and StreamDubber may act as data processor for service data processed on the customer's instructions."
+            "body": "For customer-controlled streams and events, the customer may act as data controller and Strovak may act as data processor for service data processed on the customer's instructions."
           },
           {
             "title": "Processor commitments",
-            "body": "Processor commitments should cover confidentiality, security measures, subprocessors, incident notice, deletion or return of data, audit support and assistance with data subject requests."
+            "body": "Processor commitments cover confidentiality, security measures, subprocessors, incident notice, deletion or return of data, audit support and assistance with data subject requests. Signed DPA requests can be sent to legal@strovak.com."
           },
           {
             "title": "Subprocessors",
-            "body": "Speech, translation, email, payment, hosting, logging and support providers may be subprocessors when enabled. The production operator should publish the current subprocessor list and notice process."
+            "body": "Speech, translation, email, payment, hosting, logging and support providers may be subprocessors when enabled. Strovak publishes the current subprocessor list and notice process on request."
           },
           {
             "title": "Security measures",
@@ -1420,15 +1424,15 @@
           },
           {
             "title": "Product and commercial messages",
-            "body": "Product announcements, onboarding tips, campaign messages or commercial electronic messages should be sent only where there is a valid consent or other lawful basis for the recipient and region."
+            "body": "Product announcements, onboarding tips, campaign messages or commercial electronic messages are sent only where there is a valid consent or other lawful basis for the recipient and region."
           },
           {
             "title": "Unsubscribe and preferences",
-            "body": "Commercial or optional messages should include an unsubscribe or preference mechanism. Essential security and billing messages may continue when required to provide the service."
+            "body": "Commercial or optional messages include an unsubscribe or preference mechanism. Essential security and billing messages may continue when required to provide the service."
           },
           {
             "title": "Records",
-            "body": "Consent, unsubscribe and delivery records may be stored to prove compliance, troubleshoot delivery and respect communication preferences across the account lifecycle."
+            "body": "Consent, unsubscribe and delivery records may be stored to prove compliance, troubleshoot delivery and respect communication preferences across the account lifecycle. Contact legal@strovak.com to review your communication preferences."
           }
         ]
       }
