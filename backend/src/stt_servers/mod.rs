@@ -62,6 +62,13 @@ pub struct SttServer {
     /// TOFU: ilk başarılı bağlantıda pinlenir, sonrasında değişirse sert hata.
     #[serde(default)]
     pub host_fingerprint: Option<String>,
+    /// Dışarıdan erişilebilir gerçek uç nokta NAT'lı port eşleme yüzünden
+    /// bootstrap'ın bildirdiğinden farklıysa (ör. Vast.ai: SSH portu ve
+    /// STT servis portu host tarafından farklı dış portlara eşlenebilir)
+    /// admin bunu sunucu eklerken elle girer — doluysa `SshProvisioner`
+    /// bunu `endpoint_url` yerine kullanır.
+    #[serde(default)]
+    pub public_endpoint_override: Option<String>,
     pub status: SttServerStatus,
     #[serde(default)]
     pub status_detail: Option<String>,
@@ -194,12 +201,18 @@ impl SttServerStore {
     /// Yeni bir sunucu kaydı ekler: SSH keypair üretir, private key'i
     /// şifreleyip saklar, public key'i (admin'in sunucusuna ekleyeceği)
     /// döner. Kayıt `Pending` durumunda başlar.
+    ///
+    /// `public_endpoint_override`: NAT'lı port eşleme kullanan sağlayıcılar
+    /// için (ör. Vast.ai — STT servis portu dışarıya farklı bir port'tan
+    /// açılabilir) admin'in elle girdiği gerçek erişim adresi. Çoğu
+    /// sağlayıcıda (Hetzner/OVH/kendi donanımı) `None` yeterlidir.
     pub fn add(
         &self,
         name: &str,
         hostname: &str,
         ssh_port: u16,
         ssh_user: &str,
+        public_endpoint_override: Option<String>,
     ) -> Result<SttServer, SttServerError> {
         if name.trim().is_empty() || hostname.trim().is_empty() || ssh_user.trim().is_empty() {
             return Err(SttServerError::Invalid(
@@ -219,6 +232,9 @@ impl SttServerStore {
             ssh_public_key: public_key,
             ssh_private_key_encrypted: encrypted,
             host_fingerprint: None,
+            public_endpoint_override: public_endpoint_override
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
             status: SttServerStatus::Pending,
             status_detail: None,
             endpoint_url: None,
@@ -446,6 +462,7 @@ impl<'a> Serialize for FullSttServer<'a> {
             ssh_public_key: &'b str,
             ssh_private_key_encrypted: &'b str,
             host_fingerprint: &'b Option<String>,
+            public_endpoint_override: &'b Option<String>,
             status: SttServerStatus,
             status_detail: &'b Option<String>,
             endpoint_url: &'b Option<String>,
@@ -465,6 +482,7 @@ impl<'a> Serialize for FullSttServer<'a> {
             ssh_public_key: &s.ssh_public_key,
             ssh_private_key_encrypted: &s.ssh_private_key_encrypted,
             host_fingerprint: &s.host_fingerprint,
+            public_endpoint_override: &s.public_endpoint_override,
             status: s.status,
             status_detail: &s.status_detail,
             endpoint_url: &s.endpoint_url,
@@ -535,6 +553,10 @@ pub struct CreateServerRequest {
     pub ssh_port: u16,
     #[serde(default = "default_ssh_user")]
     pub ssh_user: String,
+    /// NAT'lı port eşleme kullanan sağlayıcılar için (ör. Vast.ai) dışarıdan
+    /// erişilebilir gerçek uç nokta — boşsa `http://{hostname}:{port}` kullanılır.
+    #[serde(default)]
+    pub public_endpoint_override: Option<String>,
 }
 
 /// Yeni bir self-hosted STT sunucu kaydı ekler: SSH keypair üretir, `Pending`
@@ -547,7 +569,13 @@ pub async fn create_server(
     Json(req): Json<CreateServerRequest>,
 ) -> Result<Json<SttServer>, (StatusCode, String)> {
     let server = store
-        .add(&req.name, &req.hostname, req.ssh_port, &req.ssh_user)
+        .add(
+            &req.name,
+            &req.hostname,
+            req.ssh_port,
+            &req.ssh_user,
+            req.public_endpoint_override,
+        )
         .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
     logger.log(
         LogLevel::Info,
@@ -661,7 +689,7 @@ mod tests {
     #[test]
     fn add_generates_keypair_and_starts_pending() {
         let store = SttServerStore::in_memory();
-        let server = store.add("gpu-1", "1.2.3.4", 22, "root").expect("add");
+        let server = store.add("gpu-1", "1.2.3.4", 22, "root", None).expect("add");
         assert_eq!(server.status, SttServerStatus::Pending);
         assert!(server.ssh_public_key.starts_with("ssh-ed25519 "));
         assert!(!server.ssh_private_key_encrypted.is_empty());
@@ -672,19 +700,51 @@ mod tests {
     fn rejects_empty_fields() {
         let store = SttServerStore::in_memory();
         assert!(matches!(
-            store.add("", "1.2.3.4", 22, "root"),
+            store.add("", "1.2.3.4", 22, "root", None),
             Err(SttServerError::Invalid(_))
         ));
         assert!(matches!(
-            store.add("gpu-1", "", 22, "root"),
+            store.add("gpu-1", "", 22, "root", None),
             Err(SttServerError::Invalid(_))
         ));
     }
 
     #[test]
+    fn public_endpoint_override_is_stored_and_visible_in_json() {
+        // Vast.ai gibi NAT'lı port eşleme kullanan sağlayıcılar için — bu
+        // alan gizli değil (private key/token'ın aksine), panelde görünür.
+        let store = SttServerStore::in_memory();
+        let server = store
+            .add(
+                "gpu-1",
+                "1.2.3.4",
+                22,
+                "root",
+                Some("https://142.214.185.187:41234".into()),
+            )
+            .expect("add");
+        assert_eq!(
+            server.public_endpoint_override.as_deref(),
+            Some("https://142.214.185.187:41234")
+        );
+
+        let json = serde_json::to_string(&server).expect("serialize");
+        assert!(json.contains("142.214.185.187:41234"));
+    }
+
+    #[test]
+    fn public_endpoint_override_blank_is_treated_as_none() {
+        let store = SttServerStore::in_memory();
+        let server = store
+            .add("gpu-1", "1.2.3.4", 22, "root", Some("   ".into()))
+            .expect("add");
+        assert_eq!(server.public_endpoint_override, None);
+    }
+
+    #[test]
     fn private_key_never_appears_in_json_serialization() {
         let store = SttServerStore::in_memory();
-        let server = store.add("gpu-1", "1.2.3.4", 22, "root").expect("add");
+        let server = store.add("gpu-1", "1.2.3.4", 22, "root", None).expect("add");
         store
             .mark_ready(&server.id, "https://gpu-1:8443", "super-secret-token", None, None)
             .expect("mark_ready");
@@ -701,8 +761,8 @@ mod tests {
     #[test]
     fn list_and_remove() {
         let store = SttServerStore::in_memory();
-        let a = store.add("a", "1.1.1.1", 22, "root").unwrap();
-        let b = store.add("b", "2.2.2.2", 22, "root").unwrap();
+        let a = store.add("a", "1.1.1.1", 22, "root", None).unwrap();
+        let b = store.add("b", "2.2.2.2", 22, "root", None).unwrap();
         assert_eq!(store.list().len(), 2);
 
         store.remove(&a.id).unwrap();
@@ -716,7 +776,7 @@ mod tests {
     #[test]
     fn set_status_updates_detail() {
         let store = SttServerStore::in_memory();
-        let server = store.add("a", "1.1.1.1", 22, "root").unwrap();
+        let server = store.add("a", "1.1.1.1", 22, "root", None).unwrap();
         store
             .set_status(&server.id, SttServerStatus::Provisioning, None)
             .unwrap();
@@ -733,8 +793,8 @@ mod tests {
     #[test]
     fn active_ready_returns_most_recent_and_decrypts_token() {
         let store = SttServerStore::in_memory();
-        let a = store.add("a", "1.1.1.1", 22, "root").unwrap();
-        let b = store.add("b", "2.2.2.2", 22, "root").unwrap();
+        let a = store.add("a", "1.1.1.1", 22, "root", None).unwrap();
+        let b = store.add("b", "2.2.2.2", 22, "root", None).unwrap();
 
         // Henüz hiç Ready yok.
         assert!(store.active_ready().is_none());
@@ -759,7 +819,7 @@ mod tests {
     #[test]
     fn pin_fingerprint_persists() {
         let store = SttServerStore::in_memory();
-        let server = store.add("a", "1.1.1.1", 22, "root").unwrap();
+        let server = store.add("a", "1.1.1.1", 22, "root", None).unwrap();
         store.pin_fingerprint(&server.id, "SHA256:abc123").unwrap();
         assert_eq!(
             store.get(&server.id).unwrap().host_fingerprint.as_deref(),
@@ -775,7 +835,7 @@ mod tests {
 
         let created_id = {
             let store = SttServerStore::with_file(&path, &key).unwrap();
-            let server = store.add("gpu-1", "1.2.3.4", 22, "root").unwrap();
+            let server = store.add("gpu-1", "1.2.3.4", 22, "root", None).unwrap();
             server.id
         };
 

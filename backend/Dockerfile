@@ -21,11 +21,15 @@ WORKDIR /app
 COPY --from=builder /build/target/release/streamdubber-backend /usr/local/bin/streamdubber-backend
 # Migration'lar binary'ye gömülü (sqlx::migrate!), ayrıca kopyalamaya gerek yok.
 
-# Self-hosted GPU STT provisioning (roadmap 2.6): SshProvisioner bu script'i
-# STT_BOOTSTRAP_SCRIPT yoluyla okur (varsayılan aynı yol) — image'a gömülü
-# olmazsa provisioning açık bir hatayla başarısız olur, backend çökmez.
+# Self-hosted GPU STT provisioning (roadmap 2.6): SshProvisioner bootstrap.sh'i
+# + main.py/requirements.txt'i (Docker kullanılamayan hedeflerde — ör. Vast.ai
+# container instance — bare-mode kurulum için) STT_BOOTSTRAP_SCRIPT/STT_APP_DIR
+# yollarından okur — image'a gömülü olmazlarsa provisioning açık bir hatayla
+# başarısız olur, backend çökmez.
 COPY infra/stt-server/bootstrap.sh /app/infra/stt-server/bootstrap.sh
+COPY stt-server/main.py stt-server/requirements.txt /app/stt-server/
 ENV STT_BOOTSTRAP_SCRIPT=/app/infra/stt-server/bootstrap.sh
+ENV STT_APP_DIR=/app/stt-server
 
 EXPOSE 8080
 

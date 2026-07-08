@@ -97,15 +97,31 @@ Canlı yayın            →    Gateway::transcribe() → SelfHostedStt
   entegrasyonu (VM'in kendisini otomatik oluşturma) bilinçli olarak kapsam
   dışı bırakıldı.
 
-## 5. Durum (2026-07-08)
+## 5. Vast.ai uyumluluğu (2026-07-08 kullanıcı talebi)
+
+Vast.ai, Hetzner/OVH gibi "kendi VM'ini kirala" modelinden farklı çalışır —
+üç somut fark, hepsi ele alındı:
+
+| Fark | Vast.ai gerçeği | Bu tasarımdaki karşılığı |
+|---|---|---|
+| SSH portu | Sabit 22 değil, instance başına rastgele atanır | `ssh_port` zaten serbest alan — admin Vast.ai'nin verdiği portu girer |
+| SSH key ekleme zamanı | Hesap ayarlarına eklenen key sadece **yeni** instance'lara uygulanır; var olan instance'a eklemek için instance'a özel arayüz gerekir | Panel kopyası bunu açıkça anlatır (`publicKeyIntro`) — admin key'i Vast.ai hesabına instance'ı OLUŞTURMADAN ÖNCE ekler |
+| Docker/systemd | Vast.ai'nin varsayılan instance tipi **kendisi zaten bir Docker container'ıdır** (host üzerinde) — içinde nested Docker daemon/systemd genelde yok | `bootstrap.sh` önce Docker'ın gerçekten kullanılabilir olup olmadığını tespit eder (`docker info` başarılı mı, systemd var mı); kullanılamıyorsa STT servisini Docker'a hiç dokunmadan bir Python venv içinde çalıştırır ("bare mode" — `nohup` + kendi kendini yeniden başlatan `while` döngüsü). `SshProvisioner` her provision çağrısında `main.py`/`requirements.txt`'i (base64 ile, heredoc/tırnak çakışması riski olmadan) uzak makineye zaten yazar — bare mode bunları kullanır, Docker modunda zararsızca kullanılmadan durur |
+| Port NAT eşleme | Dışarıdan erişilebilir port, servisin bağlandığı iç porttan farklı olabilir (host port-forwarding yapar) | Yeni **`public_endpoint_override`** alanı (sunucu eklerken opsiyonel) — doluysa `SshProvisioner` bunu `endpoint_url` yerine kullanır |
+
+Vast.ai'nin "Ubuntu VM" instance tipi (gerçek VM, systemd var) seçilirse
+normal Docker yolu sorunsuz çalışır — bare mode sadece varsayılan container
+instance tipi için devreye girer.
+
+## 6. Durum (2026-07-08)
 
 Tamamlanan: sunucu kayıt deposu + keypair üretimi, provisioning durum
-makinesi + admin route'ları (`FakeProvisioner` ile uçtan uca test edilmiş),
-`SelfHostedStt` gateway sağlayıcısı, `stt-server` FastAPI servisi + Docker
-image + CI, `bootstrap.sh` kurulum script'i.
+makinesi + admin route'ları, gerçek `SshProvisioner` (ssh/ssh-keyscan/
+ssh-keygen shell-out, TOFU fingerprint pinleme, Docker/bare-mode tespiti —
+Vast.ai dahil), `SelfHostedStt` gateway sağlayıcısı, `stt-server` FastAPI
+servisi + Docker image + CI, `bootstrap.sh` kurulum script'i, admin
+frontend paneli ("STT Servers").
 
-Kalan: gerçek `SshProvisioner` (ssh/scp shell-out + TOFU fingerprint
-pinleme — bugün `FakeProvisioner` her zaman açık bir hatayla başarısız olur,
-sessizce "hazır" gibi davranmaz), admin frontend paneli ("STT Sunucuları"),
-gerçek bir GPU VPS/VDS'te canlı smoke test + TR kalite karşılaştırması
+Kalan: gerçek bir GPU VPS/VDS'te (hem Hetzner/OVH tipi hem Vast.ai container
+instance tipi için ayrı ayrı) canlı smoke test + TR kalite karşılaştırması
 (Deepgram vs kendi faster-whisper'ımız).

@@ -34,4 +34,9 @@ describe("admin self-hosted STT servers panel", () => {
     expect(source).not.toContain("private_key");
     expect(source).not.toContain("api_token");
   });
+
+  it("supports an optional public endpoint override (e.g. Vast.ai NAT port mapping)", () => {
+    expect(source).toContain("publicEndpointOverride");
+    expect(source).toContain("public_endpoint_override");
+  });
 });

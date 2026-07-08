@@ -126,7 +126,7 @@ mod tests {
     #[tokio::test]
     async fn transcribes_using_active_ready_server() {
         let store = Arc::new(SttServerStore::in_memory());
-        let server = store.add("gpu-1", "1.2.3.4", 22, "root").expect("add");
+        let server = store.add("gpu-1", "1.2.3.4", 22, "root", None).expect("add");
         let endpoint = spawn_mock().await;
         store
             .mark_ready(&server.id, &endpoint, "test-token", Some("RTX 3070".into()), Some(8192))
@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn wrong_token_is_request_error() {
         let store = Arc::new(SttServerStore::in_memory());
-        let server = store.add("gpu-1", "1.2.3.4", 22, "root").expect("add");
+        let server = store.add("gpu-1", "1.2.3.4", 22, "root", None).expect("add");
         let endpoint = spawn_mock().await;
         store
             .mark_ready(&server.id, &endpoint, "wrong-token", None, None)

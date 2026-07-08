@@ -83,32 +83,81 @@ impl Provisioner for FakeProvisioner {
     }
 }
 
+/// `bootstrap.sh`'in bare-mode'da (Docker kullanılamadığında — bkz. Vast.ai
+/// notu, `infra/stt-server/bootstrap.sh`) uygulama kaynağını yazacağı yol.
+/// Bootstrap script'teki `INSTALL_DIR` literal'iyle BİREBİR aynı kalmalı —
+/// ikisi ayrı dosyalarda olduğu için elle senkronize tutulur.
+const APP_INSTALL_DIR: &str = "/opt/streamdubber-stt";
+
 /// Gerçek SSH implementasyonu — `ssh`/`ssh-keyscan`/`ssh-keygen`'e shell-out
 /// eder. Akış: (1) private key'i 0600 izinli geçici dosyaya yaz, (2)
 /// `ssh-keyscan` ile host'un güncel anahtarlarını al, (3) fingerprint'i
 /// (sadece ilk satır — `gpu_probe.rs`'in "yalnız ilk GPU" sadeleştirmesiyle
 /// aynı ilke) `server.host_fingerprint` ile karşılaştır (TOFU: yoksa kabul
-/// edilir, varsa uyuşmalı), (4) `bootstrap.sh`'i `ssh ... 'bash -s'` ile
-/// stdin'den çalıştırır — gerçek `ssh` istemcisi ayrıca tüm keyscan
-/// satırlarını içeren geçici bir `known_hosts` dosyasına karşı
-/// `StrictHostKeyChecking=yes` ile doğrular (bizim string karşılaştırmamızla
-/// aynı ana bağlı değil — TOCTOU'ya karşı asıl kriptografik doğrulama budur).
+/// edilir, varsa uyuşmalı), (4) `bootstrap.sh`'i (önüne `main.py`/
+/// `requirements.txt`'i `$INSTALL_DIR`'a yazan bir preamble eklenmiş halde)
+/// `ssh ... 'bash -s'` ile stdin'den çalıştırır — gerçek `ssh` istemcisi
+/// ayrıca tüm keyscan satırlarını içeren geçici bir `known_hosts` dosyasına
+/// karşı `StrictHostKeyChecking=yes` ile doğrular (bizim string
+/// karşılaştırmamızla aynı ana bağlı değil — TOCTOU'ya karşı asıl
+/// kriptografik doğrulama budur).
+///
+/// `main.py`/`requirements.txt` her zaman gönderilir (Docker modunda
+/// kullanılmasa da diskte durmaları zararsızdır) — böylece Rust tarafı,
+/// uzak makinenin Docker kullanıp kullanamayacağına (Vast.ai container
+/// instance'larında genelde kullanamaz) bakmadan tek bir SSH çağrısıyla her
+/// iki moda da hazır bir script gönderir; asıl mod seçimi bootstrap.sh
+/// içinde, uzak makinede tespit edilir.
 pub struct SshProvisioner {
     bootstrap_script: String,
+    main_py: String,
+    requirements_txt: String,
 }
 
 impl SshProvisioner {
-    /// Script içeriğini doğrudan verir (test için).
-    pub fn new(bootstrap_script: impl Into<String>) -> Self {
+    /// İçerikleri doğrudan verir (test için).
+    pub fn new(
+        bootstrap_script: impl Into<String>,
+        main_py: impl Into<String>,
+        requirements_txt: impl Into<String>,
+    ) -> Self {
         SshProvisioner {
             bootstrap_script: bootstrap_script.into(),
+            main_py: main_py.into(),
+            requirements_txt: requirements_txt.into(),
         }
     }
 
-    /// `infra/stt-server/bootstrap.sh`'i dosyadan okuyarak kurar.
-    pub fn from_file(path: impl AsRef<Path>) -> std::io::Result<Self> {
-        Ok(Self::new(std::fs::read_to_string(path)?))
+    /// `infra/stt-server/bootstrap.sh` + `stt-server/main.py` +
+    /// `stt-server/requirements.txt`'i dosyadan okuyarak kurar.
+    pub fn from_paths(
+        bootstrap_path: impl AsRef<Path>,
+        main_py_path: impl AsRef<Path>,
+        requirements_path: impl AsRef<Path>,
+    ) -> std::io::Result<Self> {
+        Ok(Self::new(
+            std::fs::read_to_string(bootstrap_path)?,
+            std::fs::read_to_string(main_py_path)?,
+            std::fs::read_to_string(requirements_path)?,
+        ))
     }
+}
+
+/// `main.py`/`requirements.txt`'i uzak makinede `$APP_INSTALL_DIR`'a yazan
+/// shell preamble'ı üretir. Base64 kullanılır — rastgele Python kaynak
+/// kodunun içinde heredoc delimiter'ıyla çakışma riski olmadan (kod, tırnak,
+/// `$()' vb. içerebilir) ikili-güvenli aktarım sağlar.
+fn build_write_app_files_preamble(main_py: &str, requirements_txt: &str) -> String {
+    use base64::engine::general_purpose::STANDARD as B64;
+    use base64::Engine;
+    format!(
+        "mkdir -p {dir}\n\
+         echo '{main_b64}' | base64 -d > {dir}/main.py\n\
+         echo '{req_b64}' | base64 -d > {dir}/requirements.txt\n",
+        dir = APP_INSTALL_DIR,
+        main_b64 = B64.encode(main_py.as_bytes()),
+        req_b64 = B64.encode(requirements_txt.as_bytes()),
+    )
 }
 
 #[async_trait]
@@ -132,13 +181,12 @@ impl Provisioner for SshProvisioner {
         }
         let known_hosts_path = workdir.write_known_hosts(&keyscan_output)?;
 
-        let output = run_bootstrap_over_ssh(
-            server,
-            &key_path,
-            &known_hosts_path,
-            &self.bootstrap_script,
-        )
-        .await?;
+        let script = format!(
+            "{}\n{}",
+            build_write_app_files_preamble(&self.main_py, &self.requirements_txt),
+            self.bootstrap_script
+        );
+        let output = run_bootstrap_over_ssh(server, &key_path, &known_hosts_path, &script).await?;
 
         if !output.status.success() {
             return Err(ProvisionError::Bootstrap(format!(
@@ -151,6 +199,13 @@ impl Provisioner for SshProvisioner {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut outcome = parse_bootstrap_result(&stdout, &server.hostname)?;
         outcome.host_fingerprint = Some(current_fingerprint);
+        // Vast.ai gibi NAT'lı port eşleme kullanan sağlayıcılarda dışarıdan
+        // erişilebilir port/host, servisin kendi bildirdiğinden farklı
+        // olabilir — admin bunu sunucu eklerken ayrıca belirtmişse (bkz.
+        // `SttServer::public_endpoint_override`) o değer esas alınır.
+        if let Some(override_endpoint) = &server.public_endpoint_override {
+            outcome.endpoint_url = override_endpoint.clone();
+        }
         Ok(outcome)
     }
 }
@@ -373,8 +428,34 @@ mod tests {
 
     fn server() -> SttServer {
         super::super::SttServerStore::in_memory()
-            .add("gpu-1", "1.2.3.4", 22, "root")
+            .add("gpu-1", "1.2.3.4", 22, "root", None)
             .expect("add")
+    }
+
+    // --- build_write_app_files_preamble (bare-mode/Vast.ai desteği) ---
+
+    #[test]
+    fn write_app_files_preamble_roundtrips_via_base64() {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+
+        let main_py = "print('hello')\nimport os\n# quotes ' and \" and $(cmd) are fine\n";
+        let requirements = "fastapi==0.115.6\n";
+        let preamble = build_write_app_files_preamble(main_py, requirements);
+
+        assert!(preamble.contains(&format!("mkdir -p {APP_INSTALL_DIR}")));
+        assert!(preamble.contains(&format!("> {APP_INSTALL_DIR}/main.py")));
+        assert!(preamble.contains(&format!("> {APP_INSTALL_DIR}/requirements.txt")));
+
+        // Base64 blokları düz metni bozmadan taşımalı (tırnak/$()/newline dahil).
+        let main_b64 = B64.encode(main_py.as_bytes());
+        let req_b64 = B64.encode(requirements.as_bytes());
+        assert!(preamble.contains(&main_b64));
+        assert!(preamble.contains(&req_b64));
+        assert_eq!(
+            String::from_utf8(B64.decode(main_b64).unwrap()).unwrap(),
+            main_py
+        );
     }
 
     fn outcome() -> ProvisionOutcome {

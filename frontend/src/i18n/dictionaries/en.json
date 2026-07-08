@@ -2227,9 +2227,12 @@
       "hostnamePlaceholder": "203.0.113.10",
       "sshPortLabel": "SSH port",
       "sshUserLabel": "SSH user",
+      "publicEndpointLabel": "Public endpoint override (optional)",
+      "publicEndpointPlaceholder": "http://142.214.185.187:41234",
+      "publicEndpointHint": "Only needed if the reachable STT port differs from the SSH port's host — e.g. on Vast.ai the SSH port and the STT service port are usually mapped to two different external ports; check the instance's port list and enter the STT one here.",
       "addButton": "Add server",
       "addingButton": "Adding...",
-      "publicKeyIntro": "Add this public key to the server (as its SSH key at creation time, or pasted into authorized_keys), then click Install.",
+      "publicKeyIntro": "Add this public key to the server. On Vast.ai: add it under Account > SSH Keys BEFORE creating the instance (existing instances don't pick up new account keys — use the instance's own SSH-key panel instead). On a regular VPS: pass it at creation time or paste it into authorized_keys. Then click Install.",
       "copyLabel": "Copy",
       "copiedLabel": "Copied",
       "columns": {

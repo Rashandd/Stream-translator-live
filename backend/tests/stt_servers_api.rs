@@ -139,6 +139,34 @@ async fn create_list_and_get_server() {
 }
 
 #[tokio::test]
+async fn create_with_vast_ai_style_public_endpoint_override() {
+    // Vast.ai: SSH portu ve STT servis portu host tarafından farklı NAT'lı
+    // dış portlara eşlenebilir — admin bunu ekleme anında ayrıca girer.
+    let addr = spawn_server(success_provisioner()).await;
+    let admin = token("admin");
+
+    let (status, body) = http(
+        addr,
+        &request(
+            "POST",
+            "/admin/stt-servers",
+            Some(&admin),
+            Some(
+                r#"{"name":"vast-1","hostname":"142.214.185.187","ssh_port":20544,"public_endpoint_override":"http://142.214.185.187:41234"}"#,
+            ),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    let created: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(created["ssh_port"], 20544);
+    assert_eq!(
+        created["public_endpoint_override"],
+        "http://142.214.185.187:41234"
+    );
+}
+
+#[tokio::test]
 async fn provision_success_transitions_to_ready() {
     let addr = spawn_server(success_provisioner()).await;
     let admin = token("admin");

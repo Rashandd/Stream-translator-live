@@ -15,6 +15,7 @@ type SttServer = {
   ssh_user: string;
   ssh_public_key: string;
   host_fingerprint: string | null;
+  public_endpoint_override: string | null;
   status: SttServerStatus;
   status_detail: string | null;
   endpoint_url: string | null;
@@ -32,6 +33,9 @@ type Labels = {
   hostnamePlaceholder: string;
   sshPortLabel: string;
   sshUserLabel: string;
+  publicEndpointLabel: string;
+  publicEndpointPlaceholder: string;
+  publicEndpointHint: string;
   addButton: string;
   addingButton: string;
   publicKeyIntro: string;
@@ -73,6 +77,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
   const [hostname, setHostname] = useState("");
   const [sshPort, setSshPort] = useState("22");
   const [sshUser, setSshUser] = useState("root");
+  const [publicEndpointOverride, setPublicEndpointOverride] = useState("");
   const [adding, setAdding] = useState(false);
   const [justAdded, setJustAdded] = useState<SttServer | null>(null);
 
@@ -129,6 +134,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
           hostname: hostname.trim(),
           ssh_port: Number(sshPort) || 22,
           ssh_user: sshUser.trim() || "root",
+          public_endpoint_override: publicEndpointOverride.trim() || null,
         }),
       });
       if (response.status === 401 || response.status === 403) {
@@ -145,6 +151,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
       setHostname("");
       setSshPort("22");
       setSshUser("root");
+      setPublicEndpointOverride("");
       await load();
     } catch {
       setError(labels.errors.network);
@@ -259,6 +266,16 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
             />
           </label>
         </div>
+        <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
+          {labels.publicEndpointLabel}
+          <input
+            className="h-9 w-full rounded-lg border border-border bg-white px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
+            onChange={(event) => setPublicEndpointOverride(event.target.value)}
+            placeholder={labels.publicEndpointPlaceholder}
+            value={publicEndpointOverride}
+          />
+        </label>
+        <p className="mt-1 text-xs text-faint">{labels.publicEndpointHint}</p>
         <button
           className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
           disabled={adding || !name.trim() || !hostname.trim()}
@@ -308,6 +325,9 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
                     <div className="font-mono text-xs text-muted">
                       {server.ssh_user}@{server.hostname}:{server.ssh_port}
                     </div>
+                    {server.public_endpoint_override ? (
+                      <div className="font-mono text-xs text-faint">{server.public_endpoint_override}</div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <span
