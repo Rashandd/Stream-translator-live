@@ -21,6 +21,7 @@ use streamdubber_backend::{
         deepl::DeeplTranslate,
         elevenlabs::ElevenLabsTts,
         google_translate::GoogleTranslate,
+        selfhosted_stt::SelfHostedStt,
         stt::{MockFallbackStt, SttProvider},
         translate::{MockFallbackTranslate, TranslateProvider},
         tts::{MockFallbackTts, TtsProvider},
@@ -466,6 +467,10 @@ async fn build_state(
             Arc::new(SttServerStore::in_memory())
         }
     };
+    // Sabit bir API key'i yok (host'u SttServerStore çözer) — MockFallbackStt
+    // sarmalayıcısına ihtiyaç duymaz, `stt.provider=selfhosted` seçilince
+    // doğrudan devreye girer.
+    gateway.register_stt(Arc::new(SelfHostedStt::new(Arc::clone(&stt_servers))));
     // Gerçek SshProvisioner roadmap 2.6 adım 6'da eklenir; o zamana kadar
     // provisioning her zaman açık bir hatayla başarısız olur (sessizce
     // "hazır" gibi davranmaz).

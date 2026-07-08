@@ -9,6 +9,7 @@ pub mod deepgram;
 pub mod deepl;
 pub mod elevenlabs;
 pub mod google_translate;
+pub mod selfhosted_stt;
 pub mod stt;
 pub mod translate;
 pub mod tts;
