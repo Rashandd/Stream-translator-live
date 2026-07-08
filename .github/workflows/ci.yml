@@ -63,3 +63,23 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npx tsc --noEmit
+
+  stt-server:
+    name: STT server (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: stt-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # faster-whisper hiç import edilmez (testler main.engine'i bir
+      # FakeEngine'le değiştirir, GPU/model indirme gerekmez) — yine de
+      # bağımlılık grafiği gerçek prod imajıyla aynı kalsın diye
+      # requirements.txt'ten kurulur.
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/ -v

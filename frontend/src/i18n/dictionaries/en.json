@@ -1601,6 +1601,11 @@
               "icon": "MonitorCog"
             },
             {
+              "label": "STT Servers",
+              "href": "/admin/stt-servers",
+              "icon": "Server"
+            },
+            {
               "label": "Logs",
               "href": "/admin/logs",
               "icon": "ScrollText"
@@ -2210,6 +2215,51 @@
       "signInLabel": "Go to admin sign-in",
       "maskNote": "Values are masked server-side: the API returns only the first and last characters of each secret (for example sk_l...3456). The full value never leaves the server.",
       "note": "Keys resolve at call time, so a key saved here activates its provider on the next request. In production set providers.mock_fallback to false under Service routing so missing keys fail loudly instead of producing mock output."
+    },
+    "sttServers": {
+      "title": "STT Servers",
+      "subtitle": "Add a GPU VPS/VDS from any provider once you have paying customers to justify the cost. The backend generates an SSH keypair, installs the self-hosted faster-whisper service over SSH, and reports back when it's ready.",
+      "addTitle": "Add a new server",
+      "nameLabel": "Name",
+      "namePlaceholder": "gpu-1",
+      "hostnameLabel": "Hostname / IP",
+      "hostnamePlaceholder": "203.0.113.10",
+      "sshPortLabel": "SSH port",
+      "sshUserLabel": "SSH user",
+      "publicEndpointLabel": "Public endpoint override (optional)",
+      "publicEndpointPlaceholder": "http://142.214.185.187:41234",
+      "publicEndpointHint": "Only needed if the reachable STT port differs from the SSH port's host — e.g. on Vast.ai the SSH port and the STT service port are usually mapped to two different external ports; check the instance's port list and enter the STT one here.",
+      "addButton": "Add server",
+      "addingButton": "Adding...",
+      "publicKeyIntro": "Add this public key to the server. On Vast.ai: add it under Account > SSH Keys BEFORE creating the instance (existing instances don't pick up new account keys — use the instance's own SSH-key panel instead). On a regular VPS: pass it at creation time or paste it into authorized_keys. Then click Install.",
+      "copyLabel": "Copy",
+      "copiedLabel": "Copied",
+      "columns": {
+        "name": "Server",
+        "status": "Status",
+        "gpu": "GPU",
+        "actions": "Actions"
+      },
+      "statusLabels": {
+        "pending": "Pending",
+        "provisioning": "Installing...",
+        "ready": "Ready",
+        "error": "Error"
+      },
+      "provisionButton": "Install",
+      "provisioningButton": "Installing...",
+      "deleteButton": "Remove",
+      "confirmDelete": "Remove this server record? This does not touch the remote machine, only StreamDubber's record of it.",
+      "loading": "Loading servers...",
+      "empty": "No self-hosted STT servers yet.",
+      "errors": {
+        "unauthorized": "Your admin session is missing or expired. Sign in again to manage STT servers.",
+        "network": "Could not reach the API. Check NEXT_PUBLIC_API_URL and that the backend is running.",
+        "addFailed": "Could not add the server. Check the name and hostname.",
+        "provisionFailed": "Could not start installation."
+      },
+      "signInLabel": "Go to admin sign-in",
+      "note": "Once a server reports Ready, switch stt.provider to \"selfhosted\" under Service routing to send transcription there instead of Deepgram."
     },
     "productionSetup": {
       "title": "Production Setup",

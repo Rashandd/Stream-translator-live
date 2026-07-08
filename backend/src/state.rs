@@ -22,6 +22,8 @@ use crate::relay::RelayTargetStore;
 use crate::sdk_link::{SdkCommandQueue, SttSettingsStore, TtsSettingsStore};
 use crate::secrets::ManagedSecrets;
 use crate::stream_settings::StreamSettingsStore;
+use crate::stt_servers::provision::Provisioner;
+use crate::stt_servers::SttServerStore;
 use crate::usage::UsageTracker;
 use crate::users::{TwoFactorStore, UserStore};
 use crate::voice_models::{VoiceModelStore, VoiceSampleStore};
@@ -78,6 +80,11 @@ pub struct AppState {
     pub tts_settings: Arc<TtsSettingsStore>,
     /// Ham ses örneği, AES-256 şifreli (Faz 2.2; `VOICE_SAMPLES_FILE`).
     pub voice_samples: Arc<VoiceSampleStore>,
+    /// Self-hosted GPU STT sunucu kayıtları (roadmap 2.6; `STT_SERVERS_FILE`).
+    pub stt_servers: Arc<SttServerStore>,
+    /// Bir sunucuyu SSH ile kurup hazır hale getiren implementasyon —
+    /// `SshProvisioner` roadmap 2.6 adım 6'da eklenene kadar `FakeProvisioner`.
+    pub stt_provisioner: Arc<dyn Provisioner>,
 }
 
 impl AppState {
@@ -116,6 +123,12 @@ impl AppState {
             voice_models: Arc::new(VoiceModelStore::in_memory()),
             tts_settings: Arc::new(TtsSettingsStore::in_memory()),
             voice_samples: Arc::new(VoiceSampleStore::in_memory()),
+            stt_servers: Arc::new(SttServerStore::in_memory()),
+            stt_provisioner: Arc::new(crate::stt_servers::provision::FakeProvisioner::always(Err(
+                crate::stt_servers::provision::ProvisionError::Bootstrap(
+                    "no provisioner configured".into(),
+                ),
+            ))),
         }
     }
 }
@@ -279,5 +292,17 @@ impl FromRef<AppState> for Arc<TtsSettingsStore> {
 impl FromRef<AppState> for Arc<VoiceSampleStore> {
     fn from_ref(state: &AppState) -> Self {
         state.voice_samples.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SttServerStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.stt_servers.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<dyn Provisioner> {
+    fn from_ref(state: &AppState) -> Self {
+        state.stt_provisioner.clone()
     }
 }

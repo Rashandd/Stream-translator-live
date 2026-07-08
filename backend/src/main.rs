@@ -21,6 +21,7 @@ use streamdubber_backend::{
         deepl::DeeplTranslate,
         elevenlabs::ElevenLabsTts,
         google_translate::GoogleTranslate,
+        selfhosted_stt::SelfHostedStt,
         stt::{MockFallbackStt, SttProvider},
         translate::{MockFallbackTranslate, TranslateProvider},
         tts::{MockFallbackTts, TtsProvider},
@@ -37,6 +38,8 @@ use streamdubber_backend::{
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     stream_settings,
+    stt_servers::provision::{FakeProvisioner, ProvisionError, Provisioner, SshProvisioner},
+    stt_servers::SttServerStore,
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
     tls::{self, TlsSettings},
@@ -448,6 +451,67 @@ async fn build_state(
         }
     };
 
+    // Self-hosted GPU STT sunucuları (roadmap 2.6): STT_SERVERS_FILE
+    // verilirse SSH private key/API token AES-256 şifreli kalıcı.
+    let stt_servers_file = std::env::var("STT_SERVERS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let stt_servers = match stt_servers_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.stt_servers.v1").await?;
+            tracing::info!(%path, "stt server store: encrypted persistent file");
+            Arc::new(SttServerStore::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("STT_SERVERS_FILE not set — stt server records are lost on restart");
+            Arc::new(SttServerStore::in_memory())
+        }
+    };
+    // Sabit bir API key'i yok (host'u SttServerStore çözer) — MockFallbackStt
+    // sarmalayıcısına ihtiyaç duymaz, `stt.provider=selfhosted` seçilince
+    // doğrudan devreye girer.
+    gateway.register_stt(Arc::new(SelfHostedStt::new(Arc::clone(&stt_servers))));
+
+    // STT_BOOTSTRAP_SCRIPT: infra/stt-server/bootstrap.sh'in yolu.
+    // STT_APP_DIR: stt-server/main.py + requirements.txt'in bulunduğu dizin
+    // (bare-mode kurulum — Docker kullanılamayan ortamlar, ör. Vast.ai
+    // container instance — için SshProvisioner bunları uzak makineye yazar).
+    // Hiçbiri okunamazsa (yerel dev'de kopyalanmamış, image'a gömülmemiş vb.)
+    // backend çökmez — provisioning açık bir hatayla başarısız olur, admin
+    // panel "sunucu hazır" gibi yanıltıcı bir şey göstermez.
+    let bootstrap_script_path = std::env::var("STT_BOOTSTRAP_SCRIPT")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "infra/stt-server/bootstrap.sh".to_string());
+    let app_dir = std::env::var("STT_APP_DIR")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "stt-server".to_string());
+    let main_py_path = format!("{app_dir}/main.py");
+    let requirements_path = format!("{app_dir}/requirements.txt");
+    let stt_provisioner: Arc<dyn Provisioner> =
+        match SshProvisioner::from_paths(&bootstrap_script_path, &main_py_path, &requirements_path) {
+            Ok(provisioner) => {
+                tracing::info!(
+                    bootstrap = %bootstrap_script_path,
+                    app_dir = %app_dir,
+                    "stt provisioner: real SshProvisioner"
+                );
+                Arc::new(provisioner)
+            }
+            Err(err) => {
+                tracing::warn!(
+                    bootstrap = %bootstrap_script_path,
+                    app_dir = %app_dir,
+                    %err,
+                    "STT provisioner files not readable — self-hosted STT provisioning will fail until fixed"
+                );
+                Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(format!(
+                    "provisioner files not readable (bootstrap={bootstrap_script_path}, app_dir={app_dir}): {err}"
+                )))))
+            }
+        };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -474,6 +538,8 @@ async fn build_state(
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
         stream_settings,
+        stt_servers,
+        stt_provisioner,
         voice_models,
         tts_settings,
         voice_samples,

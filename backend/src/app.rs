@@ -385,6 +385,20 @@ pub fn router(state: AppState) -> Router {
             "/admin/setup/status",
             get(crate::setup_status::get_setup_status),
         )
+        // Self-hosted GPU STT sunucuları (roadmap 2.6): admin herhangi bir
+        // sağlayıcıdan GPU'lu VPS/VDS ekler, backend SSH ile kurar.
+        .route(
+            "/admin/stt-servers",
+            get(crate::stt_servers::list_servers).post(crate::stt_servers::create_server),
+        )
+        .route(
+            "/admin/stt-servers/{id}",
+            get(crate::stt_servers::get_server).delete(crate::stt_servers::delete_server),
+        )
+        .route(
+            "/admin/stt-servers/{id}/provision",
+            post(crate::stt_servers::provision_server),
+        )
         // Dashboard CORS yalnız yukarıdaki route'ları sarar (bkz. fn doc).
         .layer(cors)
         // Twitch Extension EBS yüzeyi (kendi Any-origin CORS'u, Twitch JWT doğrulamalı).
