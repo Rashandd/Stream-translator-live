@@ -38,7 +38,7 @@ use streamdubber_backend::{
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     stream_settings,
-    stt_servers::provision::{FakeProvisioner, ProvisionError},
+    stt_servers::provision::{FakeProvisioner, ProvisionError, Provisioner, SshProvisioner},
     stt_servers::SttServerStore,
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
@@ -471,12 +471,31 @@ async fn build_state(
     // sarmalayıcısına ihtiyaç duymaz, `stt.provider=selfhosted` seçilince
     // doğrudan devreye girer.
     gateway.register_stt(Arc::new(SelfHostedStt::new(Arc::clone(&stt_servers))));
-    // Gerçek SshProvisioner roadmap 2.6 adım 6'da eklenir; o zamana kadar
-    // provisioning her zaman açık bir hatayla başarısız olur (sessizce
-    // "hazır" gibi davranmaz).
-    let stt_provisioner = Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(
-        "SshProvisioner henüz bağlanmadı (roadmap 2.6 adım 6)".into(),
-    ))));
+
+    // STT_BOOTSTRAP_SCRIPT: infra/stt-server/bootstrap.sh'in yolu. Script
+    // okunamazsa (yerel dev'de kopyalanmamış, image'a gömülmemiş vb.)
+    // backend çökmez — provisioning açık bir hatayla başarısız olur, admin
+    // panel "sunucu hazır" gibi yanıltıcı bir şey göstermez.
+    let bootstrap_script_path = std::env::var("STT_BOOTSTRAP_SCRIPT")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "infra/stt-server/bootstrap.sh".to_string());
+    let stt_provisioner: Arc<dyn Provisioner> = match SshProvisioner::from_file(&bootstrap_script_path) {
+            Ok(provisioner) => {
+                tracing::info!(path = %bootstrap_script_path, "stt provisioner: real SshProvisioner");
+                Arc::new(provisioner)
+            }
+            Err(err) => {
+                tracing::warn!(
+                    path = %bootstrap_script_path,
+                    %err,
+                    "STT_BOOTSTRAP_SCRIPT not readable — self-hosted STT provisioning will fail until fixed"
+                );
+                Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(format!(
+                    "bootstrap script not readable at {bootstrap_script_path}: {err}"
+                )))))
+            }
+        };
 
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),

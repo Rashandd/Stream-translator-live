@@ -86,6 +86,7 @@ fn success_provisioner() -> Arc<dyn streamdubber_backend::stt_servers::provision
         api_token: "super-secret-token-123456".into(),
         gpu_name: Some("RTX 3070".into()),
         vram_mb: Some(8192),
+        host_fingerprint: Some("SHA256:fake-fingerprint-for-test".into()),
     })))
 }
 

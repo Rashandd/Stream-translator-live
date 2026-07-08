@@ -336,6 +336,13 @@ impl SttServerStore {
         Some((candidate, token))
     }
 
+    /// Bir sunucunun SSH private key'ini çözer (düz metin) — provisioning
+    /// (`SshProvisioner`) bunu ihtiyaç anında çağırır, private key hiçbir
+    /// yerde uzun süre düz metin tutulmaz.
+    pub fn decrypt_private_key(&self, server: &SttServer) -> Result<String, SttServerError> {
+        self.decrypt(&server.ssh_private_key_encrypted)
+    }
+
     fn update(
         &self,
         id: &str,
@@ -594,9 +601,8 @@ pub async fn delete_server(
 
 /// Kurulumu tetikler: durumu `Provisioning`'e çevirir, `Provisioner`'ı arka
 /// planda çalıştırır (`tokio::spawn`) ve hemen `202 Accepted` döner — panel
-/// `GET /admin/stt-servers/{id}` ile durumu pollar. Gerçek SSH implementasyonu
-/// (`SshProvisioner`) roadmap 2.6 adım 6'da eklenir; o zamana kadar
-/// `AppState.stt_provisioner` bir `FakeProvisioner` olabilir.
+/// `GET /admin/stt-servers/{id}` ile durumu pollar. `AppState.stt_provisioner`
+/// prod'da `SshProvisioner`, testlerde `FakeProvisioner` olabilir.
 pub async fn provision_server(
     admin: AdminUser,
     Path(id): Path<String>,
@@ -607,6 +613,9 @@ pub async fn provision_server(
     let server = store
         .get(&id)
         .ok_or_else(|| (StatusCode::NOT_FOUND, format!("stt server not found: {id}")))?;
+    let private_key = store
+        .decrypt_private_key(&server)
+        .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
     store
         .set_status(&id, SttServerStatus::Provisioning, None)
         .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
@@ -619,8 +628,13 @@ pub async fn provision_server(
     );
 
     tokio::spawn(async move {
-        match provisioner.provision(&server).await {
+        match provisioner.provision(&server, &private_key).await {
             Ok(outcome) => {
+                if let Some(fingerprint) = &outcome.host_fingerprint {
+                    if let Err(err) = store.pin_fingerprint(&server.id, fingerprint) {
+                        tracing::warn!(server_id = %server.id, %err, "failed to persist host fingerprint");
+                    }
+                }
                 if let Err(err) = store.mark_ready(
                     &server.id,
                     &outcome.endpoint_url,

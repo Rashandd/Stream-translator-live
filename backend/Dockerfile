@@ -21,6 +21,12 @@ WORKDIR /app
 COPY --from=builder /build/target/release/streamdubber-backend /usr/local/bin/streamdubber-backend
 # Migration'lar binary'ye gömülü (sqlx::migrate!), ayrıca kopyalamaya gerek yok.
 
+# Self-hosted GPU STT provisioning (roadmap 2.6): SshProvisioner bu script'i
+# STT_BOOTSTRAP_SCRIPT yoluyla okur (varsayılan aynı yol) — image'a gömülü
+# olmazsa provisioning açık bir hatayla başarısız olur, backend çökmez.
+COPY infra/stt-server/bootstrap.sh /app/infra/stt-server/bootstrap.sh
+ENV STT_BOOTSTRAP_SCRIPT=/app/infra/stt-server/bootstrap.sh
+
 EXPOSE 8080
 
 # Healthcheck binary'nin kendi --health-check moduyla (distroless'ta curl yok).
