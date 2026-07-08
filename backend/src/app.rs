@@ -56,16 +56,31 @@ struct ConfigUpdate {
 ///
 /// Yalnızca seed'de tanımlı anahtarlar yazılabilir; bilinmeyen anahtar 404.
 /// Değişiklik restart gerektirmez, çalışan tüm okuyuculara anında yansır.
+/// `DATABASE_URL` yapılandırılmışsa aynı anda `service_config` tablosuna da
+/// yazılır (restart-safe); DB yazımı başarısız olursa bellek eski değere
+/// geri alınır ve 500 döner — bellek ve DB asla sessizce ayrışmaz.
 async fn put_config(
     _admin: AdminUser,
     State(cfg): State<Arc<ServiceConfig>>,
+    State(db): State<Option<sqlx::PgPool>>,
     Json(update): Json<ConfigUpdate>,
 ) -> Result<Json<BTreeMap<String, String>>, StatusCode> {
-    if cfg.set_existing(&update.key, update.value) {
-        Ok(Json(cfg.snapshot()))
-    } else {
-        Err(StatusCode::NOT_FOUND)
+    let previous = cfg.get(&update.key);
+    if !cfg.set_existing(&update.key, update.value.clone()) {
+        return Err(StatusCode::NOT_FOUND);
     }
+
+    if let Some(pool) = db {
+        if let Err(err) = crate::config::persist_to_db(&pool, &update.key, &update.value).await {
+            tracing::warn!(%err, key = %update.key, "service_config: DB yazımı başarısız, bellek geri alınıyor");
+            if let Some(prev) = previous {
+                cfg.set_existing(&update.key, prev);
+            }
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    Ok(Json(cfg.snapshot()))
 }
 
 /// Log kayıtlarını arar/filtreler (sadece admin) — Faz 1.12.

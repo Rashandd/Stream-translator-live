@@ -194,6 +194,19 @@ async fn build_state(
         service_config.set("cors.allowed_origins", origins.trim());
     }
 
+    // DB varsa önceki oturumlarda admin panelden kaydedilmiş override'ları
+    // (legal.*.html dahil) belleğe yükle — restart'ta kaybolmasınlar. Bu env
+    // seed'inden SONRA çalışır: DB'de kayıtlı bir değer varsa (örn. admin
+    // cors.allowed_origins'i panelden değiştirmişse) env yerine onu kullanır.
+    if let Some(pool) = &db_pool {
+        match streamdubber_backend::config::load_from_db(pool).await {
+            Ok(rows) => service_config.apply_db_rows(rows),
+            Err(err) => {
+                tracing::warn!(%err, "service_config: DB'den yüklenemedi, varsayılanlar kullanılıyor")
+            }
+        }
+    }
+
     let store: Arc<dyn SecretStore> = Arc::clone(&secrets) as Arc<dyn SecretStore>;
 
     let mut gateway = Gateway::new(Arc::clone(&service_config));

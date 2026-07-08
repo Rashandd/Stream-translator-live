@@ -255,6 +255,39 @@ impl ServiceConfig {
             .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .unwrap_or_default()
     }
+
+    /// `service_config` tablosundan okunan satırları üzerine yazar.
+    ///
+    /// `set_existing` ile aynı whitelist kuralı geçerli — DB'de kalmış eski/
+    /// bilinmeyen bir anahtar sessizce yok sayılır, seed şemasını bozmaz.
+    pub fn apply_db_rows(&self, rows: Vec<(String, String)>) {
+        for (key, value) in rows {
+            self.set_existing(&key, value);
+        }
+    }
+}
+
+/// `service_config` tablosundaki tüm satırları okur (başlangıçta, admin'in
+/// önceki oturumlarda kaydettiği override'ları belleğe yüklemek için).
+pub async fn load_from_db(pool: &sqlx::PgPool) -> Result<Vec<(String, String)>, sqlx::Error> {
+    sqlx::query_as("SELECT key, value FROM service_config")
+        .fetch_all(pool)
+        .await
+}
+
+/// Bir anahtarı `service_config` tablosuna yazar (upsert) — admin panelden
+/// `PUT /admin/config` çağrıldığında bellek içi değerle birlikte kalıcı hale
+/// gelir, restart'ta kaybolmaz.
+pub async fn persist_to_db(pool: &sqlx::PgPool, key: &str, value: &str) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO service_config (key, value) VALUES ($1, $2) \
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 impl Default for ServiceConfig {
@@ -314,6 +347,20 @@ mod tests {
     fn set_existing_rejects_unknown_key() {
         let cfg = ServiceConfig::with_defaults();
         assert!(!cfg.set_existing("attacker.key", "x"));
+        assert_eq!(cfg.get("attacker.key"), None);
+    }
+
+    #[test]
+    fn apply_db_rows_overrides_known_keys() {
+        let cfg = ServiceConfig::with_defaults();
+        cfg.apply_db_rows(vec![("legal.terms.html".to_string(), "<h1>Terms</h1>".to_string())]);
+        assert_eq!(cfg.get("legal.terms.html").as_deref(), Some("<h1>Terms</h1>"));
+    }
+
+    #[test]
+    fn apply_db_rows_ignores_unknown_keys() {
+        let cfg = ServiceConfig::with_defaults();
+        cfg.apply_db_rows(vec![("attacker.key".to_string(), "x".to_string())]);
         assert_eq!(cfg.get("attacker.key"), None);
     }
 

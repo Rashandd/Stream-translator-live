@@ -20,12 +20,19 @@ use streamdubber_backend::{
 const SECRET: &[u8] = b"config-api-test-secret";
 
 async fn spawn_server() -> SocketAddr {
+    spawn_server_with_db(None).await
+}
+
+/// `spawn_server` ile aynı, ama DB pool'u (varsa) state'e takar — `service_config`
+/// tablosuna gerçek yazım/okuma gerektiren testler için.
+async fn spawn_server_with_db(db: Option<sqlx::PgPool>) -> SocketAddr {
     let service_config = Arc::new(ServiceConfig::with_defaults());
     let mut gateway = Gateway::new(Arc::clone(&service_config));
     gateway.register_stt(Arc::new(MockStt::new("deepgram")));
     gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
 
-    let state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
+    let mut state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
+    state.db = db;
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
@@ -122,6 +129,36 @@ async fn legal_html_config_is_admin_editable() {
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
     assert!(body.contains("Updated from admin panel."), "body: {body}");
+}
+
+/// Gerçek Postgres ile: admin yazımı `service_config` tablosuna da işlenir ve
+/// süreç yeniden başlasa (taze `ServiceConfig` + DB'den yükleme) değer kalıcı
+/// kalır. Çalıştırmak için:
+/// `TEST_DATABASE_URL=postgres://... cargo test -- --ignored legal_config_persists`
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL with a migrated database"]
+async fn legal_config_persists_to_db_and_survives_restart() {
+    let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL");
+    let pool = streamdubber_backend::db::connect(&url).await.expect("connect");
+    streamdubber_backend::db::run_migrations(&pool).await.expect("migrations");
+
+    let addr = spawn_server_with_db(Some(pool.clone())).await;
+
+    let html = "<h1>Terms</h1><p>Persisted via DB.</p>";
+    let payload = format!(
+        r#"{{"key":"legal.terms.html","value":{}}}"#,
+        serde_json::to_string(html).expect("html json")
+    );
+    let (status, body) = http(addr, &put_config(Some(&token("admin")), &payload)).await;
+    assert_eq!(status, 200, "body: {body}");
+
+    // "Restart" simülasyonu: taze bellek-içi store, DB'den yeniden yükle.
+    let restarted = ServiceConfig::with_defaults();
+    let rows = streamdubber_backend::config::load_from_db(&pool)
+        .await
+        .expect("load_from_db");
+    restarted.apply_db_rows(rows);
+    assert_eq!(restarted.get("legal.terms.html").as_deref(), Some(html));
 }
 
 #[tokio::test]
