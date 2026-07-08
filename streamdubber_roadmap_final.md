@@ -361,10 +361,17 @@ Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
 
 #### Ana Sayfa
 - [ ] Canlı yayın durumu (aktif mi, izleyici sayısı, platformlar)
-- [ ] İzleyici dil dağılımı (EN: 680 / TR: 412 / ES: 148)
 - [ ] Altyazı latency göstergesi
 - [ ] Bu ayki kullanım / plan limiti
 - [ ] Hızlı başlat (stream key kopyala)
+
+> **İzleyici dil dağılımı roadmap'ten kaldırıldı (kullanıcı kararı, 2026-07-08).**
+> Overview + ayrı Analytics sayfasında sahte örnek verilerle ("EN: 680 / TR: 412 / ES: 148")
+> ikisi de aynı şeyi tekrarlıyordu ve gerçek veriyi üreten hiçbir backend mekanizması
+> hiç kurulmadı. Yayıncı için gereksiz karmaşıklık: basit Faz 1 hedefine ("her mod
+> anlaşılabilir olsun") aykırı. `frontend/app/[locale]/dashboard/analytics/` silindi,
+> Overview'daki "Audience languages" bloğu kaldırıldı, nav'dan "Analytics" girdisi çıkarıldı.
+> Basit tekil "Live viewers" metrik kartı (dil kırılımı değil) Ana Sayfa'da kaldı.
 
 #### Yayın Kurulumu — Dağıtım Yöntemi
 - [ ] Dağıtım yöntemi seçimi (web panelden, SDK uygular)
@@ -709,6 +716,7 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] Relay hedef senkronu: `PUT /api/relay/targets` (doğrulama: rtmp(s):// zorunlu, boş key reddi, max 8 hedef; 422) + `GET /api/relay/targets` (SDK pairing token'ı veya panel; TLS üstünden düz key — RTMP publish için gerekli). `RELAY_FILE` ile AES-256-GCM şifreli kalıcılık (diskte düz stream key YOK); loglara sadece hedef ADEDİ yazılır, key asla. <!-- backend/src/relay/mod.rs -->
 - [x] Testler: pairing unit (üretim/tek kullanım/eski kod iptali/expiry) + relay unit (roundtrip, doğrulama, şifreli persist+reload, yanlış anahtar reddi) + `tests/pairing_api.rs` e2e (tam akış: kod→claim→SDK token'ıyla hedef çekme; token claim'leri doğru; kod tek kullanımlık; kullanıcı izolasyonu; stream key'in /admin/logs çıktısında OLMADIĞI). Workspace 275 test + clippy temiz. Compose/railway/.env.example: `RELAY_FILE=/data/relay.enc`.
 - Doğrulama listesi karşılıkları: "Pairing backend endpoint'i" KAPANDI; "Stream key senkronizasyonu SDK'ya" backend ucu KAPANDI (SDK'nın GET'i çağırıp RelayEngine'e bağlaması = 1.6 NOT 2'deki desktop-shell wiring, ayrı iş).
+- [x] **2026-07-08 (kullanıcı geri bildirimi):** `PUT /api/relay/targets` artık `platform=="youtube"` (case-insensitive) hedefini 422 ile reddediyor. Sebep: YouTube zaten OBS'ten doğrudan yayın alıyor — SDK relay'i üzerinden bir de YouTube'un RTMP ingest'ine göndermek gereksiz/yanlış (video iki kez gönderilir); YouTube'un altyazı/multi-audio desteği `Platform Hesapları` (379. satır) altındaki OAuth entegrasyonundan (`backend/src/integrations/youtube.rs`) geliyor, relay'den değil. Twitch/Kick/serbest RTMP etiketleri relay hedefi olarak kalmaya devam ediyor. <!-- backend/src/relay/mod.rs::set, testler: relay::tests::validation_rejects_youtube_as_relay_target, tests/pairing_api.rs::relay_targets_reject_youtube, sdk/tests/relay_wiring.rs (youtube→twitch test verisi güncellendi) -->
 
 #### V10 — Admin panel canlı veri başlangıcı + kalan wiring — TAMAMLANDI
 - [x] `/admin/logs` canlı: `AdminLogsPanel` (client) `GET /admin/logs?level=&service=&limit=200`'e Bearer ile bağlanır; seviye/servis filtreleri query param'a, arama client-side; "Live" / "Sample data" rozetiyle hangi modda olduğu görünür; API yoksa sözlük örnek satırlarına düşer (testler bozulmaz); 401'de login yönlendirmesi; son hatalar paneli canlı veriden türetilir.

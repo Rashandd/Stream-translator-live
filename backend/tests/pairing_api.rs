@@ -122,9 +122,11 @@ async fn full_pairing_flow_yields_working_sdk_token() {
     assert_eq!(status, 404);
 
     // 4) Panel hedefleri yazar, SDK kendi token'ıyla aynı listeyi okur.
+    // (youtube relay hedefi olarak YASAK — bkz. relay_targets_reject_youtube; burada
+    // twitch + kick kullanılıyor, tıpkı gerçek bir çift-platform relay kurulumu gibi.)
     let targets = r#"{"targets":[
-        {"platform":"youtube","rtmp_url":"rtmp://a.rtmp.youtube.com/live2","stream_key":"yt-key-123"},
-        {"platform":"twitch","rtmp_url":"rtmps://ingest.twitch.tv/app","stream_key":"tw-key-456"}
+        {"platform":"twitch","rtmp_url":"rtmps://ingest.twitch.tv/app","stream_key":"tw-key-456"},
+        {"platform":"kick","rtmp_url":"rtmp://ingest.kick.example/live","stream_key":"kick-key-789"}
     ]}"#;
     let (status, body) = http(
         addr,
@@ -141,8 +143,8 @@ async fn full_pairing_flow_yields_working_sdk_token() {
     assert_eq!(status, 200);
     let list: serde_json::Value = serde_json::from_str(&body).expect("json");
     assert_eq!(list.as_array().unwrap().len(), 2);
-    assert_eq!(list[0]["stream_key"], "yt-key-123");
-    assert_eq!(list[1]["rtmp_url"], "rtmps://ingest.twitch.tv/app");
+    assert_eq!(list[0]["stream_key"], "tw-key-456");
+    assert_eq!(list[1]["rtmp_url"], "rtmp://ingest.kick.example/live");
 
     // 5) Stream key hiçbir log kaydına düşmemiş olmalı (redaction + adet loglama).
     let admin = {
@@ -156,8 +158,8 @@ async fn full_pairing_flow_yields_working_sdk_token() {
         .unwrap()
     };
     let (_, logs) = http(addr, &request("GET", "/admin/logs", Some(&admin), None)).await;
-    assert!(!logs.contains("yt-key-123"), "stream key leaked to logs: {logs}");
-    assert!(!logs.contains("tw-key-456"));
+    assert!(!logs.contains("tw-key-456"), "stream key leaked to logs: {logs}");
+    assert!(!logs.contains("kick-key-789"));
 }
 
 #[tokio::test]
@@ -199,7 +201,7 @@ async fn relay_targets_require_auth_and_validation() {
     assert_eq!(status, 401);
 
     // Geçersiz hedef (http URL) → 422.
-    let bad = r#"{"targets":[{"platform":"youtube","rtmp_url":"http://x","stream_key":"k"}]}"#;
+    let bad = r#"{"targets":[{"platform":"kick","rtmp_url":"http://x","stream_key":"k"}]}"#;
     let (status, _) = http(
         addr,
         &request("PUT", "/api/relay/targets", Some(&broadcaster_token()), Some(bad)),
@@ -229,4 +231,20 @@ async fn relay_targets_require_auth_and_validation() {
     let (status, body) = http(addr, &request("GET", "/api/relay/targets", Some(&other), None)).await;
     assert_eq!(status, 200);
     assert_eq!(body.trim(), "[]");
+}
+
+#[tokio::test]
+async fn relay_targets_reject_youtube() {
+    let addr = spawn_server().await;
+
+    // YouTube zaten OBS'ten doğrudan yayın alır — relay hedefi olarak reddedilmeli
+    // (native captions/multi-audio OAuth entegrasyonundan gelir, RTMP relay'den değil).
+    let youtube = r#"{"targets":[{"platform":"youtube","rtmp_url":"rtmp://a.rtmp.youtube.com/live2","stream_key":"k"}]}"#;
+    let (status, body) = http(
+        addr,
+        &request("PUT", "/api/relay/targets", Some(&broadcaster_token()), Some(youtube)),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+    assert!(body.to_lowercase().contains("youtube"), "body: {body}");
 }
