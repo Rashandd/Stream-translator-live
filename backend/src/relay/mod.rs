@@ -241,7 +241,7 @@ mod tests {
         let store = RelayTargetStore::in_memory();
         let mut dub_target = target("kick", "kick-key");
         dub_target.dub_language = Some("en".into());
-        store.set("u1", vec![target("youtube", "yt-key"), dub_target]).unwrap();
+        store.set("u1", vec![target("twitch", "tw-key"), dub_target]).unwrap();
 
         let targets = store.get("u1");
         assert_eq!(targets[0].dub_language, None);
