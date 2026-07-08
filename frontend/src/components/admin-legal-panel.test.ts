@@ -24,8 +24,20 @@ describe("admin legal HTML editor", () => {
     expect(source).toContain("value.trim() ? value : fallbackHtml(selectedPage)");
   });
 
+  it("exposes an editable company entity panel (name, registration number, address)", () => {
+    expect(source).toContain("company.legal_name");
+    expect(source).toContain("company.registration_number");
+    expect(source).toContain("company.registered_address");
+    expect(source).toContain("saveCompanyDetails");
+  });
+
+  it("public legal page renders the company entity block once a legal name is configured", () => {
+    expect(legalPageSource).toContain('runtimeConfig?.["company.legal_name"]');
+    expect(legalPageSource).toContain("entityHeading");
+  });
+
   it("public legal page reads configured HTML before fallback content", () => {
-    expect(legalPageSource).toContain("loadRuntimeLegalHtml");
+    expect(legalPageSource).toContain("loadRuntimeConfig");
     expect(legalPageSource).toContain("dangerouslySetInnerHTML");
     expect(legalPageSource).toContain("legal.${slug}.html");
   });

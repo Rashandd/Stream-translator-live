@@ -16,7 +16,19 @@ type LegalPage = {
   sections: LegalSection[];
 };
 
+type CompanyLabels = {
+  title: string;
+  subtitle: string;
+  legalNameLabel: string;
+  registrationNumberLabel: string;
+  registeredAddressLabel: string;
+  saveLabel: string;
+  savingLabel: string;
+  savedLabel: string;
+};
+
 type Labels = {
+  company: CompanyLabels;
   editorTitle: string;
   editorSubtitle: string;
   selectLabel: string;
@@ -67,6 +79,12 @@ function configKey(slug: string): string {
   return `legal.${slug}.html`;
 }
 
+const COMPANY_FIELDS = [
+  { key: "company.legal_name", labelKey: "legalNameLabel" },
+  { key: "company.registration_number", labelKey: "registrationNumberLabel" },
+  { key: "company.registered_address", labelKey: "registeredAddressLabel" },
+] as const satisfies readonly { key: string; labelKey: keyof CompanyLabels }[];
+
 export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
   const [selectedSlug, setSelectedSlug] = useState(pages[0]?.slug ?? "");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -76,6 +94,9 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
   const [saved, setSaved] = useState(false);
   const [unauthorized, setUnauthorized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [companyDrafts, setCompanyDrafts] = useState<Record<string, string>>({});
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companySaved, setCompanySaved] = useState(false);
 
   const selectedPage = useMemo(
     () => pages.find((page) => page.slug === selectedSlug) ?? pages[0],
@@ -100,6 +121,9 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
             return [page.slug, saved?.trim() ? saved : fallbackHtml(page)];
           }),
         ),
+      );
+      setCompanyDrafts(
+        Object.fromEntries(COMPANY_FIELDS.map((field) => [field.key, config[field.key] ?? ""])),
       );
     } catch {
       setError(labels.errors.network);
@@ -152,6 +176,36 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
     }
   }
 
+  async function saveCompanyDetails() {
+    setCompanySaving(true);
+    setCompanySaved(false);
+    setError(null);
+    try {
+      let latestConfig = runtimeConfig;
+      for (const field of COMPANY_FIELDS) {
+        const response = await adminFetch("/admin/config", {
+          method: "PUT",
+          body: JSON.stringify({ key: field.key, value: companyDrafts[field.key] ?? "" }),
+        });
+        if (response.status === 401 || response.status === 403) {
+          setUnauthorized(true);
+          return;
+        }
+        if (!response.ok) {
+          setError(labels.errors.saveFailed);
+          return;
+        }
+        latestConfig = (await response.json()) as Record<string, string>;
+      }
+      setRuntimeConfig(latestConfig);
+      setCompanySaved(true);
+    } catch {
+      setError(labels.errors.network);
+    } finally {
+      setCompanySaving(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-muted">{labels.loading}</p>;
   }
@@ -181,6 +235,39 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
           {error}
         </p>
       ) : null}
+
+      <SectionCard title={labels.company.title} subtitle={labels.company.subtitle}>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {COMPANY_FIELDS.map((field) => (
+            <div key={field.key}>
+              <label className="text-sm font-semibold text-ink" htmlFor={field.key}>
+                {labels.company[field.labelKey]}
+              </label>
+              <input
+                className="mt-2 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+                id={field.key}
+                onChange={(event) => {
+                  setCompanyDrafts((current) => ({ ...current, [field.key]: event.target.value }));
+                  setCompanySaved(false);
+                }}
+                value={companyDrafts[field.key] ?? ""}
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          className="mt-4 inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+          disabled={companySaving}
+          onClick={() => void saveCompanyDetails()}
+          type="button"
+        >
+          {companySaving
+            ? labels.company.savingLabel
+            : companySaved
+              ? labels.company.savedLabel
+              : labels.company.saveLabel}
+        </button>
+      </SectionCard>
 
       <SectionCard title={labels.editorTitle} subtitle={labels.editorSubtitle}>
         <div className="grid gap-5 lg:grid-cols-[260px_1fr]">

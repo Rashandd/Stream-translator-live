@@ -1293,6 +1293,8 @@
     "updatedLabel": "Last updated",
     "effectiveDate": "July 8, 2026",
     "backLabel": "Back to home",
+    "entityHeading": "Legal entity",
+    "entityRegistrationLabel": "Registration number",
     "pages": [
       {
         "slug": "terms",
@@ -1730,6 +1732,16 @@
     "legal": {
       "title": "Legal",
       "subtitle": "Edit the public legal documents as trusted HTML. Empty fields use the built-in fallback copy.",
+      "company": {
+        "title": "Legal entity",
+        "subtitle": "Optional — fill these in once company registration is complete. Shown on every public /legal page once a legal name is set.",
+        "legalNameLabel": "Legal name",
+        "registrationNumberLabel": "Registration number",
+        "registeredAddressLabel": "Registered address",
+        "saveLabel": "Save details",
+        "savingLabel": "Saving...",
+        "savedLabel": "Saved"
+      },
       "editorTitle": "Legal HTML editor",
       "editorSubtitle": "Changes are saved through runtime config and apply without a frontend rebuild.",
       "selectLabel": "Document",

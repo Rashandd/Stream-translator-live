@@ -39,15 +39,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-async function loadRuntimeLegalHtml(slug: string): Promise<string | null> {
+async function loadRuntimeConfig(): Promise<Record<string, string> | null> {
   try {
     const response = await fetch(`${API_URL}/config`, { cache: "no-store" });
     if (!response.ok) {
       return null;
     }
-    const runtimeConfig = (await response.json()) as Record<string, string>;
-    const html = runtimeConfig[`legal.${slug}.html`]?.trim();
-    return html ? html : null;
+    return (await response.json()) as Record<string, string>;
   } catch {
     return null;
   }
@@ -68,7 +66,11 @@ export default async function LegalPage({ params }: Props) {
     notFound();
   }
 
-  const runtimeHtml = await loadRuntimeLegalHtml(slug);
+  const runtimeConfig = await loadRuntimeConfig();
+  const runtimeHtml = runtimeConfig?.[`legal.${slug}.html`]?.trim() || null;
+  const legalName = runtimeConfig?.["company.legal_name"]?.trim() || "";
+  const registrationNumber = runtimeConfig?.["company.registration_number"]?.trim() || "";
+  const registeredAddress = runtimeConfig?.["company.registered_address"]?.trim() || "";
 
   return (
     <main className="min-h-screen bg-white">
@@ -107,6 +109,19 @@ export default async function LegalPage({ params }: Props) {
             ))}
           </div>
         )}
+
+        {legalName ? (
+          <div className="mt-10 border-t border-hairline pt-8 text-sm text-muted">
+            <p className="font-semibold text-ink">{config.legal.entityHeading}</p>
+            <p className="mt-2">{legalName}</p>
+            {registrationNumber ? (
+              <p>
+                {config.legal.entityRegistrationLabel}: {registrationNumber}
+              </p>
+            ) : null}
+            {registeredAddress ? <p>{registeredAddress}</p> : null}
+          </div>
+        ) : null}
       </article>
 
       <SiteFooter config={config} locale={locale} />
