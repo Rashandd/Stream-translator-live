@@ -27,6 +27,7 @@ pub mod setup_status;
 pub mod state;
 pub mod stream_settings;
 pub mod stt_policy;
+pub mod stt_servers;
 pub mod tls;
 pub mod translate_languages;
 pub mod tts_policy;
