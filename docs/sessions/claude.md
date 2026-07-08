@@ -3,6 +3,82 @@
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
+## Neredeyim? (GÜNCEL — 2026-07-08, background job, bu oturumun sonu)
+Kullanıcı geri bildirimi: yayıncı/admin panelindeki izleyici istatistikleri
+"alakasız ve uğraştırıcı", MVP için gereksiz karmaşıklık; ayrıca YouTube'un
+"otomatik desteği" (native CC/multi-audio) olduğunu ve OBS'ten YouTube'a SDK
+relay üzerinden video göndermemesi gerektiğini fark etmiş ama tam olarak nasıl
+çalıştığını bilmiyordu. İki AskUserQuestion ile netleştirildi, ikisi de
+"Önerilen" seçenekle onaylandı:
+
+1. Overview + ayrı Analytics sayfasındaki sahte izleyici/dil dağılımı
+   istatistikleri (EN 680/TR 412/ES 148, hiç gerçek veriye bağlanmamıştı)
+   Faz 1'den TAMAMEN kaldırıldı.
+2. Backend `PUT /api/relay/targets` artık `platform=="youtube"` (case-insensitive)
+   hedefini 422 ile reddediyor — YouTube zaten OBS'ten doğrudan yayın alıyor,
+   relay üzerinden bir de ona göndermek gereksiz/yanlış; YouTube'un
+   altyazı/multi-audio'su `backend/src/integrations/youtube.rs` OAuth
+   akışından geliyor.
+
+Her ikisi de kodlandı, TEST EDİLDİ (workspace `cargo test` 288+ yeşil,
+`cargo clippy --workspace --all-targets -D warnings` temiz, frontend
+`tsc/lint/vitest(119)/build` temiz) ve **worktree'de commit'lendi**
+(`c321f3e`, branch `worktree-logical-twirling-harp`,
+`.claude/worktrees/logical-twirling-harp`). **PUSH EDİLEMEDİ** — bu
+background job sandbox'ında GitHub için kimlik bilgisi yok (`origin` HTTPS,
+`gh` CLI kurulu değil, uygun SSH anahtarı yok). Kullanıcıya bildirildi,
+worktree bilerek dokunulmadan bırakıldı.
+
+## Değiştirdiğim Alanlar (bu oturum, 2026-07-08)
+- `frontend/app/[locale]/dashboard/page.tsx` — languageBreakdown bloğu
+  kaldırıldı, quickStart tek sütuna indirildi
+- `frontend/app/[locale]/dashboard/analytics/page.tsx` — SİLİNDİ (route +
+  nav girdisi de kaldırıldı)
+- `frontend/src/i18n/dictionaries/en.json` — `dashboard.overview.
+  languageBreakdown`, `dashboard.analytics`, nav'daki "Analytics" girdisi
+  kaldırıldı
+- `backend/src/relay/mod.rs` — `set()` içine youtube reddi + yeni test
+  (`validation_rejects_youtube_as_relay_target`) + mevcut testlerdeki
+  "youtube" platform verisi twitch/kick'e çevrildi
+- `backend/tests/pairing_api.rs` — yeni e2e test
+  (`relay_targets_reject_youtube`) + mevcut testlerdeki youtube kullanımı
+  değiştirildi
+- `sdk/tests/relay_wiring.rs` — test verisi youtube→twitch (backend artık
+  youtube'u reddettiği için gerekli)
+- `streamdubber_roadmap_final.md` — Ana Sayfa'dan "İzleyici dil dağılımı"
+  maddesi çıkarıldı + V9 altına youtube-relay-reddi kararı not edildi
+
+## Son Kararlar (bu oturum)
+- Viewer/dil istatistikleri Faz 1 kapsamı DIŞI — basit tekil "Live viewers"
+  metrik kartı kaldı, dil kırılımı/Analytics sayfası tamamen gitti.
+- YouTube relay hedefi olarak YASAK (backend validasyonu), sadece
+  Twitch/Kick/serbest RTMP etiketleri relay'e girebilir. Bu, mevcut frontend
+  `sdk-stream-key-panel.tsx`'i ETKİLEMEDİ (o zaten tek sabit "obs" hedefi
+  kullanıyor, per-platform seçim henüz frontend'de yok).
+
+## Sonraki Adım (TAM OLARAK)
+1. **Bu worktree'deki commit'i push et + PR aç** — kullanıcı ya bu ortama
+   GitHub kimlik bilgisi eklemeli ya da kendi makinesinde
+   `git fetch && git checkout worktree-logical-twirling-harp` ile alıp
+   push etmeli. Worktree/commit SİLİNMEDİ, olduğu gibi duruyor.
+2. Bu iş, aşağıdaki (2026-07-06 tarihli, hâlâ güncel/bitmemiş) Task 2.2 TTS
+   pipeline tasarımıyla TAMAMEN BAĞIMSIZ — birbirini etkilemiyor, aynı
+   anda ilerleyebilir.
+
+## Blokerlar / Dikkat (bu oturum)
+- **Bu worktree'de commit var ama push edilmedi** (sandbox'ta GitHub
+  kimlik bilgisi yok). Başka bir Codex/Claude oturumu bu değişikliği
+  main'de GÖRMEYECEK — aynı dosyalarda (özellikle `en.json`,
+  `streamdubber_roadmap_final.md`) tekrar çalışmaya başlamadan önce bu
+  worktree/branch'in push edilip edilmediğini kontrol et.
+- `frontend/src/i18n/dictionaries/en.json`, ana checkout'ta bu oturumdan
+  BAĞIMSIZ olarak zaten uncommitted değişikliklere sahipti (legal sayfalar,
+  macOS/Linux indirme durumu, voice cloning language_mode) — bu worktree
+  o değişiklikleri İÇERMİYOR (worktree origin/main'den fresh branch'lendi).
+  Push/merge sırasında `en.json`'da conflict beklenebilir, veri kaybı değil.
+
+---
+
 ## YENİ KULLANICI İSTEĞİ (2026-07-06, en güncel — bu oturum sadece NOT DÜŞTÜ, kod YAZMADI)
 Kullanıcı, ses klonlama/dublaj konusunda mevcut ElevenLabs-bağımlı tasarımı GENİŞLETME kararı verdi.
 Tam detay + görev listesi roadmap'in EN SONUNA eklendi: bkz.
