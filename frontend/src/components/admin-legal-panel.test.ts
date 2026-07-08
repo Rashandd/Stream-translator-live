@@ -19,6 +19,11 @@ describe("admin legal HTML editor", () => {
     expect(source).toContain("dangerouslySetInnerHTML");
   });
 
+  it("seeds the editable draft from the en.json fallback until a custom save exists", () => {
+    expect(source).toContain("saved?.trim() ? saved : fallbackHtml(page)");
+    expect(source).toContain("value.trim() ? value : fallbackHtml(selectedPage)");
+  });
+
   it("public legal page reads configured HTML before fallback content", () => {
     expect(legalPageSource).toContain("loadRuntimeLegalHtml");
     expect(legalPageSource).toContain("dangerouslySetInnerHTML");

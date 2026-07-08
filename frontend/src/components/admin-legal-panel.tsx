@@ -95,7 +95,10 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
       setRuntimeConfig(config);
       setDrafts(
         Object.fromEntries(
-          pages.map((page) => [page.slug, config[configKey(page.slug)] ?? ""]),
+          pages.map((page) => {
+            const saved = config[configKey(page.slug)];
+            return [page.slug, saved?.trim() ? saved : fallbackHtml(page)];
+          }),
         ),
       );
     } catch {
@@ -137,7 +140,10 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
       }
       const updated = (await response.json()) as Record<string, string>;
       setRuntimeConfig(updated);
-      setDrafts((current) => ({ ...current, [selectedPage.slug]: value }));
+      setDrafts((current) => ({
+        ...current,
+        [selectedPage.slug]: value.trim() ? value : fallbackHtml(selectedPage),
+      }));
       setSaved(true);
     } catch {
       setError(labels.errors.network);
