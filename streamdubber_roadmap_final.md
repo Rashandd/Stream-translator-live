@@ -193,11 +193,9 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 
 | Seçenek | Tür | Kalite | Maliyet (1000 kullanıcı×4saat) | Latency | Faz |
 |---|---|---|---|---|---|
-| **Deepgram Nova-2** | API | ⭐⭐⭐⭐⭐ | ~$1,032/ay | <300ms | Faz 1 başlangıç |
 | **faster-whisper large-v3** | Local GPU | ⭐⭐⭐⭐⭐ | ~$80/ay sabit | ~500ms | Faz 2 geçiş |
 | **Voxtral Realtime** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | <200ms | Faz 3 araştırma (13 dil) |
-| **AssemblyAI** | API | ⭐⭐⭐⭐ | ~$1,200/ay | ~400ms | Deepgram fallback |
-| **whisper.cpp** | Local CPU | ⭐⭐⭐ | ~$20/ay | ~800ms | Düşük maliyet yedek |
+
 
 ### Çeviri
 
@@ -218,6 +216,7 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **PlayHT** | API | ⭐⭐⭐⭐ | ~$200/ay | ~500ms | Ucuz API |
 | **XTTS-v2 (Coqui)** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~600ms | Faz 3 geçiş |
 | **StyleTTS2** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~400ms | Faz 3 araştırma |
+https://github.com/kyutai-labs/pocket-tts
 
 ### Multistream / RTMP
 
@@ -344,12 +343,12 @@ Yayıncı  → Aylık abonelik
 
 | Plan | Fiyat | İçerik |
 |---|---|---|
-| **Free** | $0/ay | Altyazı, 1 dil, 5 saat/ay, StreamDubber watermark |
-| **Starter** | $9.99/ay | Altyazı, 3 dil, 3 platform, 20 saat, watermark yok |
-| **Pro** | $24.99/ay | Altyazı + ses klonlama, 10 dil, tüm platformlar, 40 saat |
-| **Streamer** | $49.99/ay | Her şey, sınırsız dil, öncelikli destek, 100 saat |
+| **Free** | $0/ay |Sadece Altyazı, bütün diller, 5 saat, StreamDubber watermark |
+| **Starter** | $9.99/ay | Sadece Altyazı, bütün diller , 30 saat, extra saat 0.3$ watermark yok |
+| **Pro** | $24.99/ay | Altyazı + dublör ses klonlama, bütün diller, 80 saat |
+| **Streamer** | $99.99/ay | Her şey, orijinial ses klonlama 200 saat |
 
-Admin panelden ayarlaanbilir olmali kesin degil fiaytlar.
+Admin panelden ayarlanabilir olmali büütn özellikler kesin degil fiyatlar ve productlar.
 
 
 
