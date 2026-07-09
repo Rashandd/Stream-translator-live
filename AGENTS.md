@@ -141,30 +141,9 @@ Komut başarısız olursa ne yapılır:
 
 ## Multi-Agent Handoff Protokolü
 
-Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Agent bazli session dosyalari kullanilmaz; Codex ve Claude ayni merkezi session panosunu okur ve gunceller.
+Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Session dosyasi kullanilmaz; agentlar baglami git durumu, son commitler, ilgili dokumanlar ve kullanici mesajlarindan kurar.
 
-Session dosyalari:
-- Ana koordinasyon ozeti: `docs/SESSION.md`
-
-Her calisma sonunda `docs/SESSION.md` dosyasini kisa ve somut sekilde guncelle:
-
-```
-## Neredeyim?
-[hangi görev, hangi adım]
-
-## Son Kararlar
-[bu session'da alınan teknik kararlar]
-
-## Sonraki Adım
-[tam olarak ne yapılacak — belirsiz bırakma]
-
-## Blokerlar / Dikkat
-[çözülmemiş sorunlar, dikkat edilmesi gerekenler]
-```
-
-`docs/sessions/codex.md` ve `docs/sessions/claude.md` kullanilmaz; bu dosyalara yeni not yazma.
-
-Bir sonraki agent `docs/SESSION.md` dosyasini okuyarak baglami kurar. "Sonraki adim" satiri somut olmali.
+Handoff gerekiyorsa calisma sonunda final cevapta kisa ve somut ozet ver: neredesin, son kararlar, sonraki adim ve blokerlar.
 
 ## Faz 1 Sınırları — Bu Fazda Yok
 - Ses klonlama → Faz 2
@@ -187,17 +166,6 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | Docker yapısı, env var listesi | `docs/docker-config.md` |
 | WebSocket protokol (SDK ↔ Backend mesaj formatları) | `docs/websocket-protocol.md` |
 | PostgreSQL şeması (tüm tablolar, migration stratejisi) | `docs/schema.md` |
-
-## Session Sürekliliği
-
-Her yeni session'da ilk iş:
-```bash
-bash scripts/session-start.sh
-```
-
-Script şunları otomatik yapar: nerede kaldık (SESSION.md özeti), son commitler, git durumu, test sonuçları (geçti/kaldı).
-
-Bırakmadan önce `docs/SESSION.md` dosyasını güncelle: neredesin, son kararlar, sonraki adım, blokerlar.
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
