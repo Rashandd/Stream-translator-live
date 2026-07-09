@@ -46,6 +46,8 @@ type FormLabels = {
   sourceLanguagePlaceholder: string;
   noSourceLanguageError: string;
   notEnoughSourceLanguagesError: string;
+  consentLabel: string;
+  noConsentError: string;
 };
 
 type ModelMetaLabels = {
@@ -98,6 +100,11 @@ const statusTone: Record<VoiceModel["status"], string> = {
 
 const LANGUAGE_MODES: LanguageMode[] = ["single_to_multi", "single_to_single", "multi_to_single"];
 
+/** Version of `labels.form.consentLabel` sent as `consent_text_version` —
+ * bump this alongside the copy so past acceptances stay tied to the wording
+ * they actually agreed to (backend voice_models::VoiceConsent). */
+const CONSENT_TEXT_VERSION = "v1";
+
 export function VoiceCloneStudio({ labels }: { labels: Labels }) {
   const [name, setName] = useState("");
   const [sample, setSample] = useState<Blob | null>(null);
@@ -109,6 +116,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
   const [catalog, setCatalog] = useState<LanguageCatalogEntry[]>([]);
   const [languageMode, setLanguageMode] = useState<LanguageMode>("single_to_multi");
   const [sourceLangs, setSourceLangs] = useState<string[]>([]);
+  const [ownVoiceConsent, setOwnVoiceConsent] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -202,6 +210,10 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
       setError(labels.form.notEnoughSourceLanguagesError);
       return;
     }
+    if (!ownVoiceConsent) {
+      setError(labels.form.noConsentError);
+      return;
+    }
     setSubmitting(true);
     try {
       const sampleBase64 = await blobToBase64(sample);
@@ -212,6 +224,8 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
           sample_base64: sampleBase64,
           language_mode: languageMode,
           source_languages: sourceLangs,
+          consent_text_version: CONSENT_TEXT_VERSION,
+          is_own_voice: ownVoiceConsent,
         }),
       });
       if (res.status === 401) {
@@ -227,6 +241,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
         setSample(null);
         setRecordedSeconds(0);
         setSourceLangs([]);
+        setOwnVoiceConsent(false);
         await loadModels();
       }
     } catch {
@@ -236,6 +251,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
     }
   }, [
     labels.errors,
+    labels.form.noConsentError,
     labels.form.noSampleError,
     labels.form.noSourceLanguageError,
     labels.form.notEnoughSourceLanguagesError,
@@ -243,6 +259,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
     loadModels,
     name,
     needsMultipleSourceLanguages,
+    ownVoiceConsent,
     sample,
     sourceLangs,
   ]);
@@ -380,6 +397,16 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
               : labels.form.sampleReadyGeneric}
           </p>
         ) : null}
+
+        <label className="flex items-start gap-2.5 text-xs leading-5 text-muted">
+          <input
+            checked={ownVoiceConsent}
+            className="mt-0.5 h-4 w-4 shrink-0"
+            onChange={(event) => setOwnVoiceConsent(event.target.checked)}
+            type="checkbox"
+          />
+          {labels.form.consentLabel}
+        </label>
 
         <button
           className="inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:cursor-not-allowed disabled:opacity-50"
