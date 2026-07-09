@@ -1,7 +1,6 @@
 # Aktif Multi-Agent Session Durumu
 
-<!-- Ana koordinasyon dosyasi. Agent bazli session dosyalari kullanilmaz:
-docs/sessions/codex.md ve docs/sessions/claude.md dosyalarina yeni not yazilmaz. -->
+<!-- Ana koordinasyon dosyasi. Agent bazli session dosyasi kullanilmaz. -->
 
 ## Genel Proje Durumu
 Repo blueprint/dokumantasyon asamasinda. Backend/frontend/sdk/infra kod klasorleri henuz olusturulmamis.
@@ -11,7 +10,7 @@ Repo blueprint/dokumantasyon asamasinda. Backend/frontend/sdk/infra kod klasorle
 
 ## Cakisma Kurali
 - Agentlar calisma sonunda sadece `docs/SESSION.md` dosyasini gunceller.
-- `docs/sessions/codex.md` ve `docs/sessions/claude.md` kullanilmaz.
+- Agent bazli session dosyasi kullanilmaz.
 - Ayni anda ayni klasor veya dosya uzerinde calisilmadan once `git status --short` kontrol edilir.
 
 ## Neredeyim?
@@ -19,7 +18,7 @@ Commit/push politikasi dokumanlara yayildi: agent talimatlari, merkezi session p
 
 ## Son Kararlar
 - Commit akışı: Testler ve lint temizse anlamlı mesajla commit oluşturulur; `git push` kullanıcı açıkça istemedikçe yapılmaz.
-- Session akışı: `docs/sessions/codex.md` ve `docs/sessions/claude.md` kullanılmaz; Codex ve Claude `docs/SESSION.md` üzerinden aynı bağlamı paylaşır.
+- Session akışı: Codex ve Claude `docs/SESSION.md` üzerinden aynı bağlamı paylaşır; agent bazlı session dosyası kullanılmaz.
 - Issue akışı: `docs/commands/fix-issue.md` commit atar, push/PR yalnizca kullanici acikca isterse yapilir.
 - Faz 1 kapsamı: Deepgram + DeepL + kendi SDK gömülü RTMP relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı; Restream/Castr desteği kaldırıldı. Ses klonlama, Twitch/Chrome extension ve local AI sonraki fazlarda.
 - Transit güvenlikte TLS 1.3 + SDK-backend mTLS kullanılacak; ses akışına ayrıca AES eklenmeyecek. AES-256 sadece at-rest veriler, lokal stream key'ler ve ileride ses modelleri için.
