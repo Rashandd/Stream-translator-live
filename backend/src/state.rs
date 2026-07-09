@@ -15,7 +15,7 @@ use crate::gateway::Gateway;
 use crate::integrations::Integrations;
 use crate::logging::Logger;
 use crate::overlay::{ActiveStreams, OverlayHub};
-use crate::pairing::PairingStore;
+use crate::pairing::{ClaimLimiter, PairingStore};
 use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
@@ -52,6 +52,8 @@ pub struct AppState {
     pub db: Option<sqlx::PgPool>,
     /// SDK ↔ hesap eşleştirme kodları (bellek içi, kısa ömürlü).
     pub pairing: Arc<PairingStore>,
+    /// `/api/pairing/claim` brute-force koruması (per-IP, bellek içi).
+    pub pairing_claim_limiter: Arc<ClaimLimiter>,
     /// SDK relay hedefleri (stream key'ler şifreli kalıcı).
     pub relay: Arc<RelayTargetStore>,
     /// Sağlayıcı canlı testlerinin en son sonucu (bellek içi — "last tested at").
@@ -109,6 +111,7 @@ impl AppState {
             bootstrap_admin: Arc::new(None),
             db: None,
             pairing: Arc::new(PairingStore::new()),
+            pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
             relay: Arc::new(RelayTargetStore::in_memory()),
             provider_tests: Arc::new(ProviderTestStore::new()),
             bindings: Arc::new(ChannelBindingStore::new()),
@@ -208,6 +211,12 @@ impl FromRef<AppState> for Option<sqlx::PgPool> {
 impl FromRef<AppState> for Arc<PairingStore> {
     fn from_ref(state: &AppState) -> Self {
         state.pairing.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ClaimLimiter> {
+    fn from_ref(state: &AppState) -> Self {
+        state.pairing_claim_limiter.clone()
     }
 }
 

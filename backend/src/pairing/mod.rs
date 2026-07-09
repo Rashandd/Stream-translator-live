@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -29,6 +29,14 @@ pub const CODE_LEN: usize = 6;
 const CODE_TTL: Duration = Duration::from_secs(600);
 /// SDK cihaz token'ı ömrü (30 gün) — cihaz yeniden eşleşmeden çalışır.
 const DEVICE_TOKEN_TTL_SECS: i64 = 30 * 24 * 3600;
+
+/// `/api/pairing/claim` auth gerektirmez (kod capability'dir), bu yüzden
+/// istemci başına deneme limiti şart — 6 haneli kod alanı sadece 1M
+/// kombinasyon, limitsiz bırakılırsa 10 dakikalık TTL içinde brute-force
+/// edilebilir (bkz. `waitlist::WaitlistLimiter` — aynı desen, ayrı instance).
+const CLAIM_RATE_LIMIT_PER_MIN: u32 = 10;
+const CLAIM_RATE_WINDOW: Duration = Duration::from_secs(60);
+const CLAIM_RATE_PRUNE_THRESHOLD: usize = 4096;
 
 struct PendingPairing {
     user_id: String,
@@ -113,6 +121,56 @@ impl Default for PairingStore {
     }
 }
 
+/// Sabit pencereli, bellek içi per-IP rate limiter — `/api/pairing/claim`
+/// brute-force koruması (bkz. `CLAIM_RATE_LIMIT_PER_MIN`).
+pub struct ClaimLimiter {
+    rate: Mutex<HashMap<String, (Instant, u32)>>,
+}
+
+impl ClaimLimiter {
+    pub fn new() -> Self {
+        ClaimLimiter {
+            rate: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn check(&self, key: &str) -> bool {
+        let Ok(mut map) = self.rate.lock() else {
+            return false;
+        };
+        if map.len() > CLAIM_RATE_PRUNE_THRESHOLD {
+            map.retain(|_, (start, _)| start.elapsed() < CLAIM_RATE_WINDOW);
+        }
+        let now = Instant::now();
+        let entry = map.entry(key.to_string()).or_insert((now, 0));
+        if entry.0.elapsed() >= CLAIM_RATE_WINDOW {
+            *entry = (now, 0);
+        }
+        entry.1 += 1;
+        entry.1 <= CLAIM_RATE_LIMIT_PER_MIN
+    }
+}
+
+impl Default for ClaimLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// İstemci anahtarı: `X-Forwarded-For` → `X-Real-IP` → "unknown" (bkz.
+/// `waitlist::client_key` — aynı desen).
+fn client_key(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
+        .unwrap_or("unknown")
+        .to_string()
+}
+
 /// 6 haneli rastgele numerik kod (kriptografik RNG).
 fn random_code() -> Result<String, PairingError> {
     let mut bytes = [0u8; CODE_LEN];
@@ -195,8 +253,24 @@ pub async fn claim(
     State(jwt): State<Arc<Jwt>>,
     State(db): State<Option<sqlx::PgPool>>,
     State(logger): State<Arc<Logger>>,
+    State(limiter): State<Arc<ClaimLimiter>>,
+    headers: HeaderMap,
     Json(req): Json<ClaimRequest>,
 ) -> Result<Json<ClaimResponse>, (StatusCode, String)> {
+    if !limiter.check(&client_key(&headers)) {
+        logger.log(
+            LogLevel::Warn,
+            "pairing",
+            "pairing claim rate limited",
+            None,
+            None,
+        );
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many pairing attempts, try again later".to_string(),
+        ));
+    }
+
     let code = req.pairing_code.trim();
     if code.len() != CODE_LEN || !code.bytes().all(|b| b.is_ascii_digit()) {
         let err = PairingError::BadFormat;
@@ -302,5 +376,25 @@ mod tests {
     fn unknown_code_is_rejected() {
         let store = PairingStore::new();
         assert_eq!(store.claim("000000"), Err(PairingError::UnknownCode));
+    }
+
+    #[test]
+    fn claim_limiter_allows_up_to_limit_then_blocks() {
+        let limiter = ClaimLimiter::new();
+        for _ in 0..CLAIM_RATE_LIMIT_PER_MIN {
+            assert!(limiter.check("1.2.3.4"));
+        }
+        assert!(!limiter.check("1.2.3.4"));
+    }
+
+    #[test]
+    fn claim_limiter_tracks_clients_independently() {
+        let limiter = ClaimLimiter::new();
+        for _ in 0..CLAIM_RATE_LIMIT_PER_MIN {
+            assert!(limiter.check("1.2.3.4"));
+        }
+        assert!(!limiter.check("1.2.3.4"));
+        // Farklı istemci kendi bütçesini kullanır.
+        assert!(limiter.check("5.6.7.8"));
     }
 }

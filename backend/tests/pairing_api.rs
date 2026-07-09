@@ -194,6 +194,50 @@ async fn claim_rejects_bad_and_unknown_codes() {
 }
 
 #[tokio::test]
+async fn claim_is_rate_limited_per_client() {
+    let addr = spawn_server().await;
+
+    // Aynı istemciden (forwarded IP sabit) art arda kod yokmuş gibi denemeler:
+    // limit dolduktan sonra 429 dönmeli — bu, auth'suz `claim` ucuna karşı
+    // 6 haneli kodun brute-force edilmesini engelliyor.
+    let bad_claim = |code: &str| {
+        format!(r#"{{"pairing_code":"{code}","device_name":"Attacker"}}"#)
+    };
+
+    let mut saw_429 = false;
+    for i in 0..30u32 {
+        let code = format!("{:06}", i);
+        let (status, _) = http(
+            addr,
+            &format!(
+                "POST /api/pairing/claim HTTP/1.1\r\nHost: t\r\nX-Forwarded-For: 9.9.9.9\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                bad_claim(&code).len(),
+                bad_claim(&code)
+            ),
+        )
+        .await;
+        if status == 429 {
+            saw_429 = true;
+            break;
+        }
+        assert_eq!(status, 404, "expected unknown-code 404 before limit kicks in");
+    }
+    assert!(saw_429, "expected rate limiter to eventually return 429");
+
+    // Farklı istemci (farklı IP) hâlâ isteğini yapabilmeli.
+    let (status, _) = http(
+        addr,
+        &format!(
+            "POST /api/pairing/claim HTTP/1.1\r\nHost: t\r\nX-Forwarded-For: 1.1.1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            bad_claim("000000").len(),
+            bad_claim("000000")
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
 async fn relay_targets_require_auth_and_validation() {
     let addr = spawn_server().await;
 
