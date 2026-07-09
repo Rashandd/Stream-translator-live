@@ -51,6 +51,11 @@ describe("public navigation and links", () => {
     const items = en.nav.items.map((item) => item.href);
     expect(items).toContain("/pricing");
   });
+
+  it("security is not shown in the public header nav", () => {
+    const items = en.nav.items.map((item) => item.href);
+    expect(items).not.toContain("/security");
+  });
 });
 
 describe("pricing page config", () => {
