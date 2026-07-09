@@ -249,7 +249,10 @@ impl ServiceConfig {
             // Frontend Vercel'de, API VPS'te — tarayıcı istekleri cross-origin.
             // İlk deploy CORS_ALLOWED_ORIGINS env'iyle tohumlanır, sonrası
             // admin panelden restart'sız değiştirilir.
-            ("cors.allowed_origins", "http://localhost:3000"),
+            (
+                "cors.allowed_origins",
+                "http://localhost:3000,http://127.0.0.1:3000",
+            ),
         ];
         let mut map: HashMap<String, String> = defaults
             .into_iter()

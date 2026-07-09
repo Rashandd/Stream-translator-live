@@ -56,15 +56,20 @@ fn preflight(path: &str, origin: &str) -> String {
 }
 
 #[tokio::test]
-async fn allowed_origin_passes_preflight_on_dashboard_routes() {
+async fn default_dev_origins_pass_preflight_on_dashboard_routes() {
     let (addr, _cfg) = spawn_server().await;
 
-    let response = raw(addr, &preflight("/api/auth/login", "http://localhost:3000")).await;
-    assert!(
-        response.contains("access-control-allow-origin: http://localhost:3000"),
-        "response: {response}"
-    );
-    assert!(response.contains("access-control-allow-methods"), "response: {response}");
+    for origin in ["http://localhost:3000", "http://127.0.0.1:3000"] {
+        let response = raw(addr, &preflight("/api/auth/login", origin)).await;
+        assert!(
+            response.contains(&format!("access-control-allow-origin: {origin}")),
+            "response: {response}"
+        );
+        assert!(
+            response.contains("access-control-allow-methods"),
+            "response: {response}"
+        );
+    }
 
     // Admin ailesi de aynı katmanın arkasında.
     let response = raw(addr, &preflight("/admin/secrets", "http://localhost:3000")).await;
@@ -93,7 +98,7 @@ async fn origins_update_from_config_without_restart() {
 
     cfg.set(
         "cors.allowed_origins",
-        "http://localhost:3000,https://strovak.com",
+        "http://localhost:3000,http://127.0.0.1:3000,https://strovak.com",
     );
 
     let response = raw(addr, &preflight("/api/auth/login", "https://strovak.com")).await;
