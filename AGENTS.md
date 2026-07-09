@@ -28,7 +28,7 @@ Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel S
 ```bash
 cargo build          # backend derle
 cargo test           # backend testleri
-cargo clippy         # lint — hata varsa commit etme
+cargo clippy         # lint
 npm run dev          # frontend geliştirme
 npm run lint         # frontend lint
 npm run test         # frontend testleri
@@ -58,16 +58,16 @@ Bir task bittiğinde şu sırayı takip et — atlamadan:
 - [ ] Task adı   →   - [x] Task adı
 ```
 
-**2. Değişiklikleri incelemeye sun — otomatik commit YOK**
+**2. Değişiklikleri incele ve commit oluştur**
 ```bash
 git status
 git diff
 ```
-- Yaptığın değişiklikleri kısaca özetle ve dur.
-- Commit'i kullanıcı inceler ve kendisi onaylar/yapar.
-- Kullanıcı açıkça "commit et" demeden `git commit` / `git push` çalıştırma.
+- Yaptığın değişiklikleri kısaca özetle.
+- Testler ve lint temizse, ilgili değişiklikleri anlamlı bir commit mesajıyla commit'le.
+- Kullanıcı açıkça istemedikçe `git push` çalıştırma.
 
-**Kural:** Her commit kullanıcı incelemesinden geçer; otomatik commit atma.
+**Kural:** Her commit tek sorumluluk taşımalı ve repo kurallarındaki mesaj formatına uymalıdır.
 
 ---
 
@@ -133,7 +133,7 @@ Komut başarısız olursa ne yapılır:
 
 | Hata | Aksiyon |
 |---|---|
-| `cargo clippy` hata verir | Clippy hatalarını düzelt, commit etme |
+| `cargo clippy` hata verir | Clippy hatalarını düzelt |
 | `cargo test` başarısız | Testi geçir, workaround yazma |
 | `npm run lint` başarısız | Lint hatalarını düzelt |
 | Vault bağlantısı yok | Local dev için `.env` kullan, prod'a asla gömme |
@@ -141,15 +141,12 @@ Komut başarısız olursa ne yapılır:
 
 ## Multi-Agent Handoff Protokolü
 
-Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Bu yuzden tek `docs/SESSION.md` dosyasina surekli yazmak yerine agent bazli session dosyalari kullanilir.
+Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Agent bazli session dosyalari kullanilmaz; Codex ve Claude ayni merkezi session panosunu okur ve gunceller.
 
 Session dosyalari:
 - Ana koordinasyon ozeti: `docs/SESSION.md`
-- Codex notlari: `docs/sessions/codex.md`
-- Claude notlari: `docs/sessions/claude.md`
-- Ortak sablon: `docs/sessions/handoff-template.md`
 
-Her calisma sonunda sadece kendi agent dosyani guncelle:
+Her calisma sonunda `docs/SESSION.md` dosyasini kisa ve somut sekilde guncelle:
 
 ```
 ## Neredeyim?
@@ -165,9 +162,9 @@ Her calisma sonunda sadece kendi agent dosyani guncelle:
 [çözülmemiş sorunlar, dikkat edilmesi gerekenler]
 ```
 
-`docs/SESSION.md` yalnizca kisa koordinasyon panosudur. Kullanici acikca istemedikce veya aktif agent/alan paylasimi degismedikce bu dosyayi guncelleme.
+`docs/sessions/codex.md` ve `docs/sessions/claude.md` kullanilmaz; bu dosyalara yeni not yazma.
 
-Bir sonraki agent once `docs/SESSION.md` dosyasini, sonra kendi agent dosyasini ve gerekiyorsa diger agent dosyasini okuyarak baglami kurar. "Sonraki adim" satiri somut olmali.
+Bir sonraki agent `docs/SESSION.md` dosyasini okuyarak baglami kurar. "Sonraki adim" satiri somut olmali.
 
 ## Faz 1 Sınırları — Bu Fazda Yok
 - Ses klonlama → Faz 2
@@ -200,7 +197,7 @@ bash scripts/session-start.sh
 
 Script şunları otomatik yapar: nerede kaldık (SESSION.md özeti), son commitler, git durumu, test sonuçları (geçti/kaldı).
 
-Bırakmadan önce sadece kendi agent session dosyasını güncelle: neredesin, son kararlar, sonraki adım, blokerlar.
+Bırakmadan önce `docs/SESSION.md` dosyasını güncelle: neredesin, son kararlar, sonraki adım, blokerlar.
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
