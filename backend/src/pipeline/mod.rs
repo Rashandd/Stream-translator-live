@@ -65,6 +65,12 @@ pub struct StreamSession {
     /// Admin'in (kullanıcı, hedef dil) başına aktif kıldığı onaylı ses
     /// modelleri — cloud TTS dispatch'i (Faz 2.2) bunu okur.
     voice_models: Arc<VoiceModelStore>,
+    /// Backend'in kendi işlediği (indirimsiz) STT saatinin kredi ağırlığı
+    /// (`stt_policy::cloud_credit_weight`, roadmap "Fiyatlandırma — Kredi
+    /// Sistemi"). Varsayılan `1.0` — belirtilmezse eski sabit davranış.
+    stt_credit_weight: f64,
+    /// Aynı şey TTS/ses klonlama için (`tts_policy::cloud_credit_weight`).
+    tts_credit_weight: f64,
 }
 
 impl StreamSession {
@@ -99,7 +105,19 @@ impl StreamSession {
             stt_source,
             tts_source,
             voice_models,
+            stt_credit_weight: 1.0,
+            tts_credit_weight: 1.0,
         }
+    }
+
+    /// Backend-side (indirimsiz) STT/TTS kredi ağırlıklarını ayarlar —
+    /// admin'in `stt.cloud.credit_weight`/`tts.cloud.credit_weight`
+    /// config'inden okunan değerler (`ws::handle_control` StreamStart'ta
+    /// çözülür). Çağrılmazsa ikisi de `1.0` (eski sabit davranış).
+    pub fn with_credit_weights(mut self, stt: f64, tts: f64) -> Self {
+        self.stt_credit_weight = stt;
+        self.tts_credit_weight = tts;
+        self
     }
 
     /// Bu session'ın overlay capability token'ı.
@@ -122,9 +140,10 @@ impl StreamSession {
     /// - STT başarısızsa `None` (frame atlanır, akış bloklanmaz),
     /// - aksi halde `Subtitle`.
     pub async fn process_audio(&mut self, audio: &[u8]) -> Option<ServerMessage> {
-        // Ses yolu her zaman tam tarife: bulut STT (veya local fallback'i)
-        // çalışıyor demektir — yerel kota indirimi uygulanmaz.
-        if let Some(limit_error) = self.tick_usage(1.0) {
+        // Ses yolu her zaman backend'in kendi kredi ağırlığıyla tarifelenir:
+        // bulut/self-hosted STT çalışıyor demektir — yerel kota indirimi
+        // uygulanmaz (o yalnız process_transcript/yerel yolda geçerli).
+        if let Some(limit_error) = self.tick_usage(self.stt_credit_weight) {
             return Some(limit_error);
         }
 
@@ -237,10 +256,11 @@ impl StreamSession {
     /// hata verirse o dil sessizce atlanır (best-effort — translate_all'ın
     /// başarısız dilleri atlaması ile aynı desen); bir dilin başarısızlığı
     /// diğerlerini engellemez. Başarılı her sentez, gerçek ses baytından
-    /// hesaplanan saniyeyi (indirimsiz — cloud sağlayıcı tam maliyetli)
-    /// aynı kullanım havuzuna (`UsageTracker`, STT ile PAYLAŞILAN) işler; bu
-    /// havuzun limiti STT'nin bir sonraki tick'inde zaten kontrol edilir, bu
-    /// yüzden burada ayrıca session kapatılmaz.
+    /// hesaplanan saniyeyi `tts_credit_weight` ile ölçekleyip (varsayılan
+    /// 1.0 — indirimsiz/tam maliyetli, admin farklı bir self-hosted model
+    /// için değiştirebilir) aynı kullanım havuzuna (`UsageTracker`, STT ile
+    /// PAYLAŞILAN) işler; bu havuzun limiti STT'nin bir sonraki tick'inde
+    /// zaten kontrol edilir, bu yüzden burada ayrıca session kapatılmaz.
     async fn synthesize_dubs(&mut self, translations: &[Translation]) -> Vec<DubbedAudioTrack> {
         let mut tracks = Vec::with_capacity(translations.len());
         for t in translations {
@@ -250,7 +270,11 @@ impl StreamSession {
             match self.gateway.synthesize(&model.provider_voice_id, &t.text).await {
                 Ok(audio) => {
                     let seconds = tts_audio_seconds(audio.len());
-                    self.usage.record(&self.user_id, seconds, self.monthly_hours);
+                    self.usage.record(
+                        &self.user_id,
+                        seconds * self.tts_credit_weight,
+                        self.monthly_hours,
+                    );
                     tracks.push(DubbedAudioTrack {
                         lang: t.lang.clone(),
                         audio_base64: B64.encode(&audio),
@@ -558,6 +582,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn audio_path_applies_stt_credit_weight() {
+        // Admin stt.cloud.credit_weight'i 2.0'a ayarlarsa (ör. pahalı bir
+        // self-hosted model), ses yolu tam saniyeyi değil ağırlıklanmış
+        // saniyeyi kotadan düşmeli.
+        let usage = Arc::new(UsageTracker::new());
+        let mut session = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            test_gateway(),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage),
+            test_logger(),
+            SttSource::Local,
+            TtsSource::Cloud,
+            test_voice_models(),
+        )
+        .with_credit_weights(2.0, 1.0);
+        session.backdate_last_tick(10.0);
+        session.process_audio(&[1, 2, 3]).await.expect("subtitle");
+        assert_eq!(usage.status("user-1", -1).used_seconds, 20);
+    }
+
+    #[tokio::test]
     async fn local_transcript_respects_plan_limit() {
         let usage = Arc::new(UsageTracker::new());
         usage.record("user-1", 1.0, 0);
@@ -586,7 +636,9 @@ mod tests {
 
     use async_trait::async_trait;
     use crate::gateway::tts::{MockTts, TtsError, TtsProvider};
-    use crate::voice_models::{LanguageMode, VoiceModel, VoiceModelStatus, VoiceMode, VoiceSource};
+    use crate::voice_models::{
+        LanguageMode, VoiceConsent, VoiceModel, VoiceModelStatus, VoiceMode, VoiceSource,
+    };
 
     #[test]
     fn tts_audio_seconds_uses_explicit_bitrate() {
@@ -624,6 +676,11 @@ mod tests {
             mode: VoiceMode::Dubbing,
             source: VoiceSource::UserCloned,
             has_stored_sample: false,
+            consent: VoiceConsent {
+                text_version: "v1".to_string(),
+                is_own_voice: true,
+                accepted_at: 0,
+            },
         };
         store.insert(model);
         store.set_status("m1", VoiceModelStatus::Approved);
@@ -805,5 +862,59 @@ mod tests {
             .await
             .expect("subtitle");
         assert!(usage.status("user-1", -1).used_seconds > 0);
+    }
+
+    #[tokio::test]
+    async fn cloud_tts_applies_tts_credit_weight() {
+        // tts_audio_seconds((11+60_000) bayt) ≈ 1.25 sn → weight=1.0'da
+        // round() ile 1 sn, weight=3.0'da ≈3.75 sn → round() ile 4 sn.
+        // Admin farklı bir self-hosted TTS modeli için ağırlığı
+        // değiştirdiğinde kotaya yansıması gerekir.
+        let long_text = "a".repeat(60_000);
+
+        let voice_models_baseline = voice_models_with_active("user-1", "en", "voice-abc");
+        let usage_baseline = Arc::new(UsageTracker::new());
+        let mut baseline = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage_baseline),
+            test_logger(),
+            SttSource::Local,
+            TtsSource::Cloud,
+            voice_models_baseline,
+        );
+        baseline
+            .process_transcript(&long_text, true, 1.0)
+            .await
+            .expect("subtitle");
+        assert_eq!(usage_baseline.status("user-1", -1).used_seconds, 1);
+
+        let voice_models_weighted = voice_models_with_active("user-1", "en", "voice-abc");
+        let usage_weighted = Arc::new(UsageTracker::new());
+        let mut weighted = StreamSession::new(
+            "s1",
+            "tr",
+            vec!["en".to_string()],
+            gateway_with_tts(Arc::new(MockTts::new("elevenlabs"))),
+            "tok-1",
+            "user-1",
+            -1,
+            Arc::clone(&usage_weighted),
+            test_logger(),
+            SttSource::Local,
+            TtsSource::Cloud,
+            voice_models_weighted,
+        )
+        .with_credit_weights(1.0, 3.0);
+        weighted
+            .process_transcript(&long_text, true, 1.0)
+            .await
+            .expect("subtitle");
+        assert_eq!(usage_weighted.status("user-1", -1).used_seconds, 4);
     }
 }

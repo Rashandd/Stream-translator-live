@@ -319,20 +319,25 @@ fn handle_control(
                 Some(&claims.sub),
                 Some(&session_id),
             );
-            *session = Some(StreamSession::new(
-                session_id.clone(),
-                source_lang,
-                target_langs,
-                Arc::clone(&state.gateway),
-                overlay_token.clone(),
-                claims.sub.clone(),
-                monthly_hours,
-                Arc::clone(&state.usage),
-                Arc::clone(&state.logger),
-                stt_source,
-                tts_source,
-                Arc::clone(&state.voice_models),
-            ));
+            let stt_credit_weight = crate::stt_policy::cloud_credit_weight(&state.service_config);
+            let tts_credit_weight = crate::tts_policy::cloud_credit_weight(&state.service_config);
+            *session = Some(
+                StreamSession::new(
+                    session_id.clone(),
+                    source_lang,
+                    target_langs,
+                    Arc::clone(&state.gateway),
+                    overlay_token.clone(),
+                    claims.sub.clone(),
+                    monthly_hours,
+                    Arc::clone(&state.usage),
+                    Arc::clone(&state.logger),
+                    stt_source,
+                    tts_source,
+                    Arc::clone(&state.voice_models),
+                )
+                .with_credit_weights(stt_credit_weight, tts_credit_weight),
+            );
             // EBS (Twitch Extension) kanalın canlı olduğunu buradan görür.
             state.active_streams.set(&claims.sub, &overlay_token);
             Some(ServerMessage::StreamAck {

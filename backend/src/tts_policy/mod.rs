@@ -59,6 +59,21 @@ pub fn usage_multiplier(config: &ServiceConfig) -> f64 {
         .unwrap_or(1.0)
 }
 
+/// `tts.cloud.credit_weight` değerini okur — backend'in kendi işlediği
+/// (indirimsiz) TTS/ses-klonlama saatinin kredi ağırlığı. Şu an tek aktif
+/// cloud sağlayıcı `tts.provider`'dan seçilir; farklı self-hosted modeller
+/// (ör. Chatterbox/VibeVoice ucuz GPU tier vs. Qwen3-TTS/VoxCPM2 üst tier)
+/// farklı GPU $/saat maliyeti taşıdığı için bu, admin'in `tts.provider`'ı
+/// değiştirdikçe birlikte güncellediği çarpandır (roadmap "Fiyatlandırma —
+/// Kredi Sistemi"). Yok/bozuk/≤0 değerde eski sabit davranışa (`1.0`) düşer.
+pub fn cloud_credit_weight(config: &ServiceConfig) -> f64 {
+    config
+        .get("tts.cloud.credit_weight")
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|w| *w > 0.0)
+        .unwrap_or(1.0)
+}
+
 /// Politikayı config'ten kurar (handler + testlerin ortak çekirdeği).
 pub fn policy_for_plan(config: &ServiceConfig, plan: &str) -> TtsPolicy {
     let plans_csv = config.get("tts.local.plans").unwrap_or_default();
@@ -156,5 +171,19 @@ mod tests {
         assert_eq!(usage_multiplier(&config), 1.0);
         config.set("tts.local.usage_multiplier", "1.5");
         assert_eq!(usage_multiplier(&config), 1.0);
+    }
+
+    #[test]
+    fn cloud_credit_weight_defaults_to_one_and_reads_config() {
+        let config = ServiceConfig::with_defaults();
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("tts.cloud.credit_weight", "8.0");
+        assert_eq!(cloud_credit_weight(&config), 8.0);
+        config.set("tts.cloud.credit_weight", "abc");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("tts.cloud.credit_weight", "0");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("tts.cloud.credit_weight", "-3");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
     }
 }

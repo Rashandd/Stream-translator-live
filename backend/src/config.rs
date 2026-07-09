@@ -80,6 +80,11 @@ impl ServiceConfig {
             // "kotan yarı hızda tükenir"). Ses/fallback yolu her zaman 1.0 —
             // indirim yalnız gerçekten yerel işlenen dakikalara uygulanır.
             ("stt.local.usage_multiplier", "0.5"),
+            // Kredi sistemi (roadmap "Fiyatlandırma — Kredi Sistemi"):
+            // backend'in kendi işlediği (indirimsiz) STT saatinin kredi
+            // ağırlığı. Admin `stt.provider`'ı self-hosted bir modelle
+            // değiştirdikçe gerçek GPU $/saat maliyetine göre günceller.
+            ("stt.cloud.credit_weight", "1.0"),
             // Yerel STT donanım/watchdog politikası (docs/local-stt-plan.md §2-3).
             // SDK bu eşikleri GET /api/stt/policy'den çeker — SDK güncellemeden
             // panelden ayarlanır. min_vram_mb: etkinleştirme şartı;
@@ -115,6 +120,12 @@ impl ServiceConfig {
             // Yerel TTS kota teşviki: transcript yolundaki 0.5 çarpanla aynı
             // gerekçe (ElevenLabs karakter başı ücretlendirir, yerelde bu maliyet yok).
             ("tts.local.usage_multiplier", "0.5"),
+            // Kredi sistemi: backend'in kendi işlediği (indirimsiz) TTS/ses
+            // klonlama saatinin kredi ağırlığı — stt.cloud.credit_weight ile
+            // aynı gerekçe, farklı self-hosted TTS modellerinin (ör. ucuz
+            // Chatterbox/VibeVoice vs. üst tier Qwen3-TTS/VoxCPM2) GPU
+            // maliyeti farklıdır.
+            ("tts.cloud.credit_weight", "1.0"),
             // Donanım/watchdog eşikleri — stt.local.* ile aynı alan adları,
             // XTTS-v2'ye özgü değerler. watchdog_p95_ms=2000: roadmap 2.2'nin
             // "metin → klonlanmış ses (2 sn altı)" hedefiyle aynı eşik.

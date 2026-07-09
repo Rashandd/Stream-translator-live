@@ -63,6 +63,20 @@ pub fn usage_multiplier(config: &ServiceConfig) -> f64 {
         .unwrap_or(1.0)
 }
 
+/// `stt.cloud.credit_weight` değerini okur — backend'in kendi işlediği
+/// (indirimsiz) STT saatinin kredi ağırlığı. Farklı self-hosted modeller
+/// (ör. faster-whisper vs. Voxtral) farklı GPU $/saat maliyeti taşır; tek
+/// global sabit `1.0` yerine bu, admin'in gerçek maliyete göre ayarladığı
+/// çarpandır (roadmap "Fiyatlandırma — Kredi Sistemi"). Yok/bozuk/≤0
+/// değerde eski sabit davranışa (`1.0`) düşer — varsayılan davranışı değiştirmez.
+pub fn cloud_credit_weight(config: &ServiceConfig) -> f64 {
+    config
+        .get("stt.cloud.credit_weight")
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|w| *w > 0.0)
+        .unwrap_or(1.0)
+}
+
 /// Politikayı config'ten kurar (handler + testlerin ortak çekirdeği).
 pub fn policy_for_plan(config: &ServiceConfig, plan: &str) -> SttPolicy {
     let plans_csv = config.get("stt.local.plans").unwrap_or_default();
@@ -156,5 +170,20 @@ mod tests {
         assert_eq!(usage_multiplier(&config), 1.0);
         config.set("stt.local.usage_multiplier", "-0.2");
         assert_eq!(usage_multiplier(&config), 1.0);
+    }
+
+    #[test]
+    fn cloud_credit_weight_defaults_to_one_and_reads_config() {
+        let config = ServiceConfig::with_defaults();
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("stt.cloud.credit_weight", "2.5");
+        assert_eq!(cloud_credit_weight(&config), 2.5);
+        // Bozuk / <=0 değerler eski sabit davranışa (1.0) düşer.
+        config.set("stt.cloud.credit_weight", "abc");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("stt.cloud.credit_weight", "0");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
+        config.set("stt.cloud.credit_weight", "-1.0");
+        assert_eq!(cloud_credit_weight(&config), 1.0);
     }
 }

@@ -84,7 +84,7 @@ fn request(method: &str, path: &str, token: Option<&str>, json: Option<&str>) ->
 
 fn clone_request_body(name: &str, sample: &[u8]) -> String {
     format!(
-        r#"{{"name":"{name}","sample_base64":"{}","language_mode":"single_to_multi","source_languages":["tr"]}}"#,
+        r#"{{"name":"{name}","sample_base64":"{}","language_mode":"single_to_multi","source_languages":["tr"],"consent_text_version":"v1","is_own_voice":true}}"#,
         B64.encode(sample)
     )
 }
@@ -195,7 +195,7 @@ async fn empty_sample_and_bad_base64_are_rejected() {
             "POST",
             "/api/voice/clone",
             Some(&pro),
-            Some(r#"{"name":"x","sample_base64":""}"#),
+            Some(r#"{"name":"x","sample_base64":"","consent_text_version":"v1","is_own_voice":true}"#),
         ),
     )
     .await;
@@ -207,11 +207,65 @@ async fn empty_sample_and_bad_base64_are_rejected() {
             "POST",
             "/api/voice/clone",
             Some(&pro),
-            Some(r#"{"name":"x","sample_base64":"not-valid-base64!!!"}"#),
+            Some(r#"{"name":"x","sample_base64":"not-valid-base64!!!","consent_text_version":"v1","is_own_voice":true}"#),
         ),
     )
     .await;
     assert_eq!(status, 422);
+}
+
+#[tokio::test]
+async fn missing_or_false_consent_is_rejected_before_calling_the_provider() {
+    let (addr, _cfg) = spawn_server(true).await;
+    let pro = token("00000000-0000-0000-0000-0000000000c1", "broadcaster", "pro");
+
+    // Boş consent_text_version reddedilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&format!(
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"single_to_multi","source_languages":["tr"],"consent_text_version":"","is_own_voice":true}}"#,
+                B64.encode(b"sample")
+            )),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    // is_own_voice=false reddedilir.
+    let (status, _) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&format!(
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"single_to_multi","source_languages":["tr"],"consent_text_version":"v1","is_own_voice":false}}"#,
+                B64.encode(b"sample")
+            )),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    // İkisi de geçerliyse kabul edilir ve rıza kaydı modelde görünür.
+    let (status, body) = http(
+        addr,
+        &request(
+            "POST",
+            "/api/voice/clone",
+            Some(&pro),
+            Some(&clone_request_body("consented voice", b"sample")),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    let model: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(model["consent"]["text_version"], "v1");
+    assert_eq!(model["consent"]["is_own_voice"], true);
 }
 
 #[tokio::test]
@@ -269,7 +323,7 @@ async fn language_mode_source_language_count_is_validated() {
             "/api/voice/clone",
             Some(&pro),
             Some(&format!(
-                r#"{{"name":"x","sample_base64":"{}","language_mode":"single_to_single","source_languages":["tr","en"]}}"#,
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"single_to_single","source_languages":["tr","en"],"consent_text_version":"v1","is_own_voice":true}}"#,
                 B64.encode(b"sample")
             )),
         ),
@@ -285,7 +339,7 @@ async fn language_mode_source_language_count_is_validated() {
             "/api/voice/clone",
             Some(&pro),
             Some(&format!(
-                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr"]}}"#,
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr"],"consent_text_version":"v1","is_own_voice":true}}"#,
                 B64.encode(b"sample")
             )),
         ),
@@ -301,7 +355,7 @@ async fn language_mode_source_language_count_is_validated() {
             "/api/voice/clone",
             Some(&pro),
             Some(&format!(
-                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr","en"]}}"#,
+                r#"{{"name":"x","sample_base64":"{}","language_mode":"multi_to_single","source_languages":["tr","en"],"consent_text_version":"v1","is_own_voice":true}}"#,
                 B64.encode(b"sample")
             )),
         ),

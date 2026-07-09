@@ -95,6 +95,30 @@ pub enum VoiceSource {
     Preset,
 }
 
+/// Yayıncının ses klonlama için verdiği rıza kaydı (docs/security.md
+/// GDPR/KVKK — ses biyometrik veri sayılır, açık/spesifik rıza gerektirir).
+/// `clone_voice`'un zorunlu ön koşulu: `is_own_voice=false` veya
+/// `text_version` boşsa model asla oluşturulmaz, `pending_review`'a bile
+/// giremez. Admin onay kapısı (bkz. modül dokümantasyonu) kötüye kullanımı
+/// gözden geçirir; bu kayıt ise hukuki rızanın kendisidir — ikisi ayrı
+/// amaçlara hizmet eder.
+///
+/// `#[serde(default)]` ile `VoiceModel` üstünden okunur: bu alan eklenmeden
+/// önce diske yazılmış kayıtlar `is_own_voice=false` (rızasız) olarak geri
+/// yüklenir — fail-closed, eski kayıtları geriye dönük "onaylı" saymaz.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct VoiceConsent {
+    /// Onaylanan rıza metninin versiyonu (ör. "v1") — hangi metne onay
+    /// verildiğinin kanıtı olarak saklanır.
+    pub text_version: String,
+    /// Yayıncının "bu benim kendi sesim" beyanı. Başkasının sesini klonlama
+    /// (rızasız taklit) bu akıştan geçemez.
+    pub is_own_voice: bool,
+    /// Sunucunun kayıt anı — client'tan gelmez, spoofing'e kapalı.
+    #[serde(default)]
+    pub accepted_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceModel {
     pub id: String,
@@ -120,6 +144,9 @@ pub struct VoiceModel {
     /// Ham ses örneği `VoiceSampleStore`'a şifreli kaydedildiyse `true`.
     #[serde(default)]
     pub has_stored_sample: bool,
+    /// Klonlama rızası — `clone_voice` bunu doğrulamadan model oluşturmaz.
+    #[serde(default)]
+    pub consent: VoiceConsent,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -345,6 +372,10 @@ pub struct CloneVoiceRequest {
     pub mode: VoiceMode,
     #[serde(default)]
     pub source: VoiceSource,
+    /// Onaylanan rıza metninin versiyonu — boşsa istek reddedilir.
+    pub consent_text_version: String,
+    /// "Bu benim kendi sesim" beyanı — `false` ise istek reddedilir.
+    pub is_own_voice: bool,
 }
 
 /// `POST /api/voice/clone` — ses örneğinden klonlanmış bir model oluşturur.
@@ -369,6 +400,18 @@ pub async fn clone_voice(
         return Err((
             StatusCode::FORBIDDEN,
             "voice cloning is not available on your plan".to_string(),
+        ));
+    }
+    if req.consent_text_version.trim().is_empty() {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "consent_text_version must not be empty".to_string(),
+        ));
+    }
+    if !req.is_own_voice {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "voice cloning requires confirming this is your own voice (is_own_voice)".to_string(),
         ));
     }
     if req.name.trim().is_empty() {
@@ -433,19 +476,25 @@ pub async fn clone_voice(
         }
     };
 
+    let now = chrono::Utc::now().timestamp();
     let model = VoiceModel {
         id,
         user_id: user.claims.sub.clone(),
         name: req.name,
         provider_voice_id,
         status: VoiceModelStatus::PendingReview,
-        created_at: chrono::Utc::now().timestamp(),
+        created_at: now,
         language_mode: req.language_mode,
         source_languages: req.source_languages,
         target_languages: Vec::new(),
         mode: req.mode,
         source: req.source,
         has_stored_sample,
+        consent: VoiceConsent {
+            text_version: req.consent_text_version,
+            is_own_voice: req.is_own_voice,
+            accepted_at: now,
+        },
     };
     store.insert(model.clone());
     Ok(Json(model))
@@ -547,7 +596,32 @@ mod tests {
             mode: VoiceMode::Dubbing,
             source: VoiceSource::UserCloned,
             has_stored_sample: false,
+            consent: VoiceConsent {
+                text_version: "v1".to_string(),
+                is_own_voice: true,
+                accepted_at: created_at,
+            },
         }
+    }
+
+    /// Rıza alanı eklenmeden önce yazılmış bir kayıt (JSON'da `consent` yok)
+    /// fail-closed geri yüklenmeli: `is_own_voice=false`, asla geriye dönük
+    /// "onaylı rıza" varsaymamalı.
+    #[test]
+    fn missing_consent_field_deserializes_as_not_consented() {
+        let legacy_json = r#"{
+            "id": "legacy-1",
+            "user_id": "u1",
+            "name": "legacy voice",
+            "provider_voice_id": "provider-voice-1",
+            "status": "pending_review",
+            "created_at": 1,
+            "language_mode": "single_to_multi",
+            "source_languages": ["tr"]
+        }"#;
+        let m: VoiceModel = serde_json::from_str(legacy_json).expect("legacy deserialize");
+        assert!(!m.consent.is_own_voice);
+        assert_eq!(m.consent.text_version, "");
     }
 
     #[test]
