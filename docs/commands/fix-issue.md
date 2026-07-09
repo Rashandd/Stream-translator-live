@@ -11,5 +11,5 @@ description: GitHub issue'yu analiz et ve düzelt
 4. Next.js ise: `npm run lint` geç, component test yaz
 5. Fix'i implement et
 6. `cargo test` veya `npm run test` çalıştır — hepsi geçmeli
-7. Conventional commit: `fix: <kısa açıklama>` (#issue-no)
-8. PR aç
+7. Testler/lint temizse Conventional Commit oluştur: `fix: <kısa açıklama>` (#issue-no)
+8. `git push` veya PR açma işlemini yalnızca kullanıcı açıkça isterse yap

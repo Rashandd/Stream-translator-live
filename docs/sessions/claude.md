@@ -1,5 +1,8 @@
 # Claude Session
 
+> Bu dosya artık aktif session kaynağı değildir. Codex ve Claude aynı merkezi
+> `docs/SESSION.md` dosyasını kullanır. Yeni notları buraya yazma.
+
 ## Agent
 Claude (Sonnet 5, claude-sonnet-5)
 
