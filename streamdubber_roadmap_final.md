@@ -331,6 +331,15 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 - [ ] Her yayıncının ses modeli kendi anahtarıyla şifreli (izolasyon)
 - [ ] Audit log: hangi key ne zaman kullanıldı
 - [ ] Yayıncı hesabı silindiğinde ses modeli kalıcı silinir (GDPR/KVKK)
+- [x] Ses klonlama rıza kaydı (2026-07-09): `voice_models::VoiceConsent`
+  (`consent_text_version`, `is_own_voice`, sunucu-taraflı `accepted_at`) —
+  `clone_voice`'un zorunlu ön koşulu, eksik/`is_own_voice=false` ise model
+  `pending_review`'a bile giremez. Admin onay kapısı kötüye kullanımı
+  gözden geçirir, bu kayıt ise hukuki rızanın kendisi — ikisi ayrı. Eski
+  (bu alan öncesi) kayıtlar fail-closed geri yüklenir (`is_own_voice=false`).
+  Henüz yapılmayan: rıza geri çekme akışı (UI) + AB AI Act şeffaflık
+  etiketi ("AI ile dublajlanmış ses" overlay bildirimi, yürürlük 2026
+  ortası) — ayrı bir görev.
 - [ ] SDK ↔ bulut mTLS karşılıklı doğrulama
 - [ ] Veritabanı şifreleme (PostgreSQL TDE veya disk-level)
 
@@ -352,7 +361,66 @@ Yayıncı  → Aylık abonelik
 
 Admin panelden ayarlanabilir olmali büütn özellikler kesin degil fiyatlar ve productlar.
 
+### Fiyatlandırma — Kredi Sistemi (2026-07-09 kullanıcı kararı)
 
+Yukarıdaki "saat" birimi kredi'ye evriliyor: STT ve TTS/ses klonlama için
+3. parti API yok (Deepgram/AssemblyAI/ElevenLabs/Cartesia/PlayHT kapsam
+dışı) — hepsi ya **yayıncının kendi PC'sinde** (SDK, `local_stt.rs`/
+`local_tts.rs`) ya da **StreamDubber'ın kendi kiraladığı GPU'da** (Vast.ai/
+Hetzner, self-hosted açık kaynak modeller — bkz. STT/TTS tabloları yukarıda)
+çalışır. Çeviri (DeepL) bu kuralın dışında kalır — ucuz ($150/ay civarı),
+API olarak kalmaya devam eder.
+
+**Neden kredi, neden saat değil:** aynı 1 saatlik yayın, hangi donanımda ve
+hangi modelle işlendiğine göre StreamDubber'a çok farklı maliyet çıkarıyor
+(yayıncı PC'si = $0, ucuz self-hosted model = düşük $/saat, üst-tier
+self-hosted model = yüksek $/saat). Kredi, bu gerçek maliyet farkını
+yayıncıya yansıtan birim.
+
+**Bileşen × konum ağırlık tablosu** (başlangıç değerleri — gerçek Vast.ai
+$/saat + eşzamanlı kapasite testinden sonra kalibre edilmeli):
+
+| Bileşen | Konum | Tahmini maliyet | Kredi ağırlığı |
+|---|---|---|---|
+| STT | Yayıncı PC (SDK local) | $0 | 1 |
+| STT | StreamDubber GPU (faster-whisper/Voxtral) | ~$0.03-0.07/saat | 3 |
+| Çeviri | DeepL (her zaman) | ~$0.04/saat (sabit) | 1 (sabit ek) |
+| TTS/Klonlama | Yayıncı PC (SDK local, ör. Pocket-TTS) | $0 | 2 |
+| TTS/Klonlama | StreamDubber GPU — ucuz model (Chatterbox/VibeVoice-Realtime) | ~$0.05-0.10/saat | 5 |
+| TTS/Klonlama | StreamDubber GPU — üst model (Qwen3-TTS-CustomVoice/VoxCPM2) | ~$0.15-0.25/saat | 8 |
+
+Plan-model eşlemesi: **Pro** yalnızca ucuz-tier self-hosted TTS modellerine
+("dublör ses klonlama"), **Streamer** ayrıca üst-tier modellere de
+("orijinal ses klonlama") erişebilir.
+
+**Kod tarafında bugüne kadar yapılan (2026-07-09):**
+- `stt_policy::cloud_credit_weight` / `tts_policy::cloud_credit_weight` —
+  `stt.cloud.credit_weight` / `tts.cloud.credit_weight` config anahtarları
+  (varsayılan `1.0`, admin panelden restart'sız değiştirilir). Backend'in
+  kendi işlediği (indirimsiz) STT/TTS saatinin kredi ağırlığı artık sabit
+  `1.0` değil, admin'in gerçek GPU maliyetine göre ayarladığı bir çarpan.
+- `pipeline::StreamSession::with_credit_weights(stt, tts)` — bu ağırlıkları
+  session'a bağlar; `ws::handle_control`'daki `StreamStart` işleyicisi
+  config'ten okuyup geçirir.
+- Yayıncı-PC (local) tarafındaki indirim mekanizması zaten vardı
+  (`stt_policy`/`tts_policy::usage_multiplier`, varsayılan 0.5) — STT
+  tarafında `process_transcript` üzerinden zaten bağlıydı; TTS'de local
+  sentez zaten backend'e hiç görünmüyor (SDK kendi motoruyla üretir,
+  `tts_source=local` iken `synthesize_dubs` hiç çağrılmaz) — yani local TTS
+  fiilen $0/kredi, ek koda gerek yok.
+
+**Henüz yapılmayan (sıradaki adımlar):**
+- `PlanDefinition.monthly_hours` → `monthly_credits` dönüşümü (plans/mod.rs
+  + docs/schema.md + frontend pricing sayfası) — geniş kapsamlı, ayrı bir
+  PR olmalı (CLAUDE.md: "her PR tek sorumluluk").
+- `usage::UsageTracker` şu an saniye biriktiriyor; kredi birimine geçince
+  saniye × bileşen ağırlığı toplamının krediye çevrilmesi gerekir.
+- Çoklu self-hosted TTS modeli için `tts_servers` modülü (stt_servers'ın
+  kopyası) + model başına `credit_weight`/`min_plan` alanları — bugün tek
+  aktif `tts.provider` var, gerçek model entegrasyonları (Chatterbox/
+  VibeVoice/Qwen3-TTS/VoxCPM2) henüz `gateway::` altında yok.
+- Gerçek Vast.ai $/saat + eşzamanlı kapasite ölçümüyle yukarıdaki ağırlık
+  tablosunun kalibrasyonu.
 
 ---
 
