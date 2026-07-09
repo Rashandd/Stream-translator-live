@@ -15,7 +15,7 @@ use streamdubber_backend::{
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, tts::MockTts, Gateway},
     state::AppState,
-    voice_models::{LanguageMode, VoiceModel, VoiceModelStatus, VoiceMode, VoiceSource},
+    voice_models::{LanguageMode, VoiceConsent, VoiceModel, VoiceModelStatus, VoiceMode, VoiceSource},
 };
 use streamdubber_sdk::core::capture::{CaptureConfig, MockCapture};
 use streamdubber_sdk::core::cloud_session::{run_cloud_session, CloudSessionError};
@@ -65,6 +65,11 @@ async fn spawn_backend_with_active_voice_model(user_id: &str, lang: &str) -> Soc
         mode: VoiceMode::Dubbing,
         source: VoiceSource::UserCloned,
         has_stored_sample: false,
+        consent: VoiceConsent {
+            text_version: "v1".to_string(),
+            is_own_voice: true,
+            accepted_at: 0,
+        },
     });
     state.voice_models.set_status("m1", VoiceModelStatus::Approved);
     state.voice_models.set_active_for_language("m1", lang).expect("activate model");
