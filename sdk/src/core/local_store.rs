@@ -28,6 +28,18 @@ const SESSION_FILE: &str = "session.enc";
 pub struct LocalSession {
     pub backend_url: String,
     pub token: String,
+    /// Live-presence identifiers from the claim response (see
+    /// `sdk_session::heartbeat` on the backend and `core::heartbeat` here) —
+    /// used to sign periodic heartbeats so the panel's "connected" device
+    /// list can't be spoofed or confused with another paired device.
+    /// `#[serde(default)]` so a session persisted before this field existed
+    /// still loads (falls back to empty — the heartbeat loop just gets 404s,
+    /// logged and swallowed like any other network hiccup, until the next
+    /// re-pair; it never fails to load the token itself).
+    #[serde(default)]
+    pub sdk_session_id: String,
+    #[serde(default)]
+    pub heartbeat_secret: String,
 }
 
 /// Local session store errors.
@@ -166,6 +178,8 @@ mod tests {
         let session = LocalSession {
             backend_url: "https://api.strovak.com".to_string(),
             token: "device-jwt-abc".to_string(),
+            sdk_session_id: "sess-1".to_string(),
+            heartbeat_secret: "aabbcc".to_string(),
         };
         store.save(&session).expect("save");
         assert_eq!(store.load(), Some(session));
@@ -179,6 +193,8 @@ mod tests {
         let session = LocalSession {
             backend_url: "https://api.strovak.com".to_string(),
             token: "super-secret-device-jwt".to_string(),
+            sdk_session_id: "sess-1".to_string(),
+            heartbeat_secret: "aabbcc".to_string(),
         };
         store.save(&session).expect("save");
         let raw = fs::read(dir.join(SESSION_FILE)).expect("session file exists");
@@ -195,6 +211,8 @@ mod tests {
             .save(&LocalSession {
                 backend_url: "https://api.strovak.com".to_string(),
                 token: "t".to_string(),
+                sdk_session_id: "sess-1".to_string(),
+                heartbeat_secret: "aabbcc".to_string(),
             })
             .expect("save");
         store.clear().expect("clear");
@@ -219,12 +237,16 @@ mod tests {
             .save(&LocalSession {
                 backend_url: "https://api.strovak.com".to_string(),
                 token: "a-token".to_string(),
+                sdk_session_id: "sess-a".to_string(),
+                heartbeat_secret: "aabbcc".to_string(),
             })
             .expect("save a");
         store_b
             .save(&LocalSession {
                 backend_url: "https://api.strovak.com".to_string(),
                 token: "b-token".to_string(),
+                sdk_session_id: "sess-b".to_string(),
+                heartbeat_secret: "ddeeff".to_string(),
             })
             .expect("save b");
 
@@ -234,5 +256,32 @@ mod tests {
 
         fs::remove_dir_all(&dir_a).ok();
         fs::remove_dir_all(&dir_b).ok();
+    }
+
+    #[test]
+    fn session_without_heartbeat_fields_still_loads() {
+        // Pre-heartbeat-feature format: only backend_url + token. `#[serde(default)]`
+        // must let this still deserialize instead of losing the paired session.
+        let dir = temp_dir("legacy-format");
+        fs::create_dir_all(&dir).unwrap();
+        let store = LocalTokenStore::at(&dir);
+        let key = store.load_or_create_key().expect("key");
+        let cipher = aes_gcm::Aes256Gcm::new_from_slice(&key).unwrap();
+        let legacy_json = r#"{"backend_url":"https://api.strovak.com","token":"old-jwt"}"#;
+        let mut nonce_bytes = [0u8; NONCE_LEN];
+        getrandom::getrandom(&mut nonce_bytes).unwrap();
+        let ciphertext = cipher
+            .encrypt(Nonce::from_slice(&nonce_bytes), legacy_json.as_bytes())
+            .unwrap();
+        let mut sealed = Vec::new();
+        sealed.extend_from_slice(&nonce_bytes);
+        sealed.extend_from_slice(&ciphertext);
+        fs::write(store.session_path(), sealed).unwrap();
+
+        let loaded = store.load().expect("legacy session still loads");
+        assert_eq!(loaded.token, "old-jwt");
+        assert_eq!(loaded.sdk_session_id, "");
+        assert_eq!(loaded.heartbeat_secret, "");
+        fs::remove_dir_all(&dir).ok();
     }
 }

@@ -10,19 +10,30 @@ pub mod integrations;
 
 use core::capture::CaptureConfig;
 use core::cloud_session::run_cloud_session;
+use core::heartbeat::run_heartbeat_loop;
 use core::local_stt::LocalSttEngine;
 use core::relay_service::{accept_and_relay, bind_ingest_listener, RelayServiceError};
 use core::relay_sync::{fetch_relay_targets, RelaySyncError};
 use core::stt_control::{run_polling_loop, BenchmarkSample};
 
+/// How often the desktop shell signs and sends a heartbeat (see
+/// `core::heartbeat`). Matches the backend's `CONNECTED_WINDOW_SECS` (45s)
+/// with margin for a couple of missed ticks before the panel shows
+/// "disconnected".
+const HEARTBEAT_INTERVAL: std::time::Duration = std::time::Duration::from_secs(20);
+
 /// Parameters the desktop shell needs to start the local relay: which
 /// backend to sync targets from, the paired device's JWT, and which local
-/// address OBS should publish into.
+/// address OBS should publish into. `sdk_session_id`/`heartbeat_secret` come
+/// from the pairing claim response and drive the signed liveness heartbeat
+/// the panel's device list reads (`core::heartbeat`).
 #[derive(Debug, Clone)]
 pub struct DesktopShellConfig {
     pub backend_base_url: String,
     pub device_token: String,
     pub listen_addr: String,
+    pub sdk_session_id: String,
+    pub heartbeat_secret: String,
 }
 
 /// Local-STT control-plane wiring (phase 2.6b) — `None` until a real
@@ -103,6 +114,16 @@ pub async fn run_desktop_shell(
         }
         None => tracing::info!("local stt control disabled — no local engine configured yet"),
     }
+
+    tokio::spawn(run_heartbeat_loop(
+        http.clone(),
+        cfg.backend_base_url.clone(),
+        cfg.device_token.clone(),
+        cfg.sdk_session_id.clone(),
+        cfg.heartbeat_secret.clone(),
+        HEARTBEAT_INTERVAL,
+    ));
+    tracing::info!("sdk presence heartbeat loop started");
 
     let listener = bind_ingest_listener(&cfg.listen_addr)
         .await

@@ -239,21 +239,28 @@ pub struct ClaimRequest {
 }
 
 /// Başarılı eşleşme: SDK bu token'la bulut WS'e bağlanır ve relay
-/// hedeflerini çeker.
+/// hedeflerini çeker. `sdk_session_id`+`heartbeat_secret`, canlı bağlantı
+/// durumu için (`sdk_session` modülü) — secret burada BİR KEZ düz metin
+/// döner, SDK yerel şifreli deposunda saklar ve heartbeat imzalamak için
+/// kullanır; sunucu bir daha göstermez.
 #[derive(Debug, Serialize)]
 pub struct ClaimResponse {
     pub token: String,
     pub user_id: String,
     pub expires_at: i64,
+    pub sdk_session_id: String,
+    pub heartbeat_secret: String,
 }
 
 /// `POST /api/pairing/claim` (SDK — auth başlığı yok, kod capability'dir).
+#[allow(clippy::too_many_arguments)]
 pub async fn claim(
     State(pairing): State<Arc<PairingStore>>,
     State(jwt): State<Arc<Jwt>>,
     State(db): State<Option<sqlx::PgPool>>,
     State(logger): State<Arc<Logger>>,
     State(limiter): State<Arc<ClaimLimiter>>,
+    State(sessions): State<Arc<crate::sdk_session::SdkSessionStore>>,
     headers: HeaderMap,
     Json(req): Json<ClaimRequest>,
 ) -> Result<Json<ClaimResponse>, (StatusCode, String)> {
@@ -300,15 +307,23 @@ pub async fn claim(
         None,
     );
 
-    // Best-effort DB kaydı (sdk_sessions) — users kaydı yoksa warn (1.4).
+    // Best-effort DB kaydı (sdk_sessions tablosu — kalıcı denetim izi;
+    // `sdk_session::SdkSessionStore`'dan FARKLI: o canlı presence/heartbeat
+    // kaynağı, DB'siz kurulumlarda da çalışır).
     if let Some(pool) = &db {
         persist_session(pool, &user_id, &req, &logger).await;
     }
+
+    let (sdk_session_id, heartbeat_secret) = sessions
+        .create(&user_id, &req.device_name, &req.sdk_version)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(ClaimResponse {
         token,
         user_id,
         expires_at,
+        sdk_session_id,
+        heartbeat_secret,
     }))
 }
 

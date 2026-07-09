@@ -20,6 +20,7 @@ use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
 use crate::relay::RelayTargetStore;
 use crate::sdk_link::{SdkCommandQueue, SttSettingsStore, TtsSettingsStore};
+use crate::sdk_session::SdkSessionStore;
 use crate::secrets::ManagedSecrets;
 use crate::stream_settings::StreamSettingsStore;
 use crate::stt_servers::provision::Provisioner;
@@ -54,6 +55,9 @@ pub struct AppState {
     pub pairing: Arc<PairingStore>,
     /// `/api/pairing/claim` brute-force koruması (per-IP, bellek içi).
     pub pairing_claim_limiter: Arc<ClaimLimiter>,
+    /// Eşleşmiş cihazların canlı presence'ı (imzalı heartbeat + panel
+    /// cihaz listesi) — `SDK_SESSIONS_FILE` ile şifreli kalıcı.
+    pub sdk_sessions: Arc<SdkSessionStore>,
     /// SDK relay hedefleri (stream key'ler şifreli kalıcı).
     pub relay: Arc<RelayTargetStore>,
     /// Sağlayıcı canlı testlerinin en son sonucu (bellek içi — "last tested at").
@@ -112,6 +116,7 @@ impl AppState {
             db: None,
             pairing: Arc::new(PairingStore::new()),
             pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
+            sdk_sessions: Arc::new(SdkSessionStore::in_memory()),
             relay: Arc::new(RelayTargetStore::in_memory()),
             provider_tests: Arc::new(ProviderTestStore::new()),
             bindings: Arc::new(ChannelBindingStore::new()),
@@ -217,6 +222,12 @@ impl FromRef<AppState> for Arc<PairingStore> {
 impl FromRef<AppState> for Arc<ClaimLimiter> {
     fn from_ref(state: &AppState) -> Self {
         state.pairing_claim_limiter.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SdkSessionStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.sdk_sessions.clone()
     }
 }
 

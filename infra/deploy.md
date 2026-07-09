@@ -119,6 +119,7 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `TOKENS_FILE` | `/data/tokens.enc` — OAuth token'ları şifreli kalıcı |
 | `RELAY_FILE` | `/data/relay.enc` — SDK relay hedefleri (stream key) şifreli |
 | `USERS_FILE` | `/data/users.enc` — yayıncı hesapları (1.4) şifreli kalıcı |
+| `SDK_SESSIONS_FILE` | `/data/sdk-sessions.enc` — eşleşmiş cihazların canlı presence kaydı (heartbeat secret) şifreli kalıcı |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client

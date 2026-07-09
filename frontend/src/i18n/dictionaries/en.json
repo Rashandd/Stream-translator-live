@@ -976,7 +976,23 @@
       },
       "syncLabel": "App sync",
       "syncValue": "Waiting for the app",
-      "syncTone": "warning"
+      "syncTone": "warning",
+      "devicesTitle": "Connected devices",
+      "devicesNote": "Every desktop app paired with your account, with a live connection status — the app signs a heartbeat every few seconds so this can't be spoofed or mixed up with someone else's device.",
+      "devices": {
+        "emptyState": "No devices paired yet — pair one above.",
+        "connectedLabel": "Connected",
+        "offlineLabel": "Offline",
+        "pairedTemplate": "Paired {time} ago",
+        "lastSeenTemplate": "last seen {time} ago",
+        "removeLabel": "Remove",
+        "removingLabel": "Removing…",
+        "errors": {
+          "unauthorized": "Your session has expired — sign in again to see your devices.",
+          "network": "Could not reach the API. Check your connection and try again.",
+          "failed": "Could not remove this device."
+        }
+      }
     },
     "voice": {
       "title": "Voice cloning studio",

@@ -51,7 +51,7 @@ impl AppState {
     /// every time they open the app.
     pub fn resume_if_paired(&self, app: AppHandle) {
         if let Some(session) = self.store.load() {
-            self.start(app, session.backend_url, session.token);
+            self.start(app, session);
         }
     }
 
@@ -60,13 +60,13 @@ impl AppState {
     /// shell runs per process (a second pairing while already running is a
     /// no-op here — full restart-on-repair is future work, same limitation
     /// `run_desktop_shell` itself already documents for stop/restart).
-    fn start(&self, app: AppHandle, backend_url: String, token: String) {
+    fn start(&self, app: AppHandle, session: LocalSession) {
         if self.started.swap(true, Ordering::SeqCst) {
             return;
         }
 
         let mut status_rx = self.status_tx.subscribe();
-        let event_backend_url = backend_url.clone();
+        let event_backend_url = session.backend_url.clone();
         tauri::async_runtime::spawn(async move {
             while status_rx.changed().await.is_ok() {
                 let shell = status_rx.borrow_and_update().clone();
@@ -82,9 +82,11 @@ impl AppState {
         });
 
         let cfg = DesktopShellConfig {
-            backend_base_url: backend_url,
-            device_token: token,
+            backend_base_url: session.backend_url,
+            device_token: session.token,
             listen_addr: DEFAULT_LISTEN_ADDR.to_string(),
+            sdk_session_id: session.sdk_session_id,
+            heartbeat_secret: session.heartbeat_secret,
         };
         let status_tx = self.status_tx.clone();
         tauri::async_runtime::spawn(async move {
@@ -144,21 +146,23 @@ pub async fn submit_pairing_code(
     #[derive(serde::Deserialize)]
     struct ClaimResponse {
         token: String,
+        sdk_session_id: String,
+        heartbeat_secret: String,
     }
     let claimed: ClaimResponse = response
         .json()
         .await
         .map_err(|e| format!("unexpected response from backend: {e}"))?;
 
-    state
-        .store
-        .save(&LocalSession {
-            backend_url: backend_url.clone(),
-            token: claimed.token.clone(),
-        })
-        .map_err(|e| e.to_string())?;
+    let session = LocalSession {
+        backend_url,
+        token: claimed.token,
+        sdk_session_id: claimed.sdk_session_id,
+        heartbeat_secret: claimed.heartbeat_secret,
+    };
+    state.store.save(&session).map_err(|e| e.to_string())?;
 
-    state.start(app, backend_url, claimed.token);
+    state.start(app, session);
     Ok(())
 }
 

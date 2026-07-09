@@ -11,6 +11,10 @@ const streamKeySource = readFileSync(
   fileURLToPath(new URL("../../components/sdk-stream-key-panel.tsx", import.meta.url)),
   "utf8",
 );
+const devicesSource = readFileSync(
+  fileURLToPath(new URL("../../components/sdk-devices-panel.tsx", import.meta.url)),
+  "utf8",
+);
 const copyRowSource = readFileSync(
   fileURLToPath(new URL("../../components/copy-row.tsx", import.meta.url)),
   "utf8",
@@ -45,6 +49,25 @@ describe("/dashboard/sdk pairing + stream key wiring (Faz 2.8)", () => {
     expect(sdkPageSource).toContain("href={href}");
   });
 
+  it("connected-devices card reads the live device list and can remove a device", () => {
+    expect(devicesSource).toContain('userFetch("/api/sdk/devices")');
+    expect(devicesSource).toContain("userFetch(`/api/sdk/devices/${id}`");
+    expect(devicesSource).toContain('method: "DELETE"');
+  });
+
+  it("connected-devices card is wired into the sdk page", () => {
+    expect(sdkPageSource).toContain("<SdkDevicesPanel");
+  });
+
+  it("has non-placeholder copy for the devices card", () => {
+    expect(sdk.devicesTitle).toBeTruthy();
+    expect(sdk.devices.emptyState).toBeTruthy();
+    expect(sdk.devices.connectedLabel).toBeTruthy();
+    expect(sdk.devices.offlineLabel).toBeTruthy();
+    expect(sdk.devices.pairedTemplate).toContain("{time}");
+    expect(sdk.devices.lastSeenTemplate).toContain("{time}");
+  });
+
   it("all three platforms are enabled (macOS/Linux are no longer coming_soon)", () => {
     for (const platform of sdk.platforms) {
       expect(platform.status).toBe("enabled");
@@ -61,7 +84,7 @@ describe("/dashboard/sdk pairing + stream key wiring (Faz 2.8)", () => {
   });
 
   it("has distinct, non-empty error messages within each card", () => {
-    for (const errors of [sdk.pairingErrors, sdk.streamKeyErrors]) {
+    for (const errors of [sdk.pairingErrors, sdk.streamKeyErrors, sdk.devices.errors]) {
       const values = Object.values(errors);
       expect(new Set(values).size).toBe(values.length);
       for (const value of values) expect(value).toBeTruthy();

@@ -35,6 +35,7 @@ use streamdubber_backend::{
     provider_check::ProviderTestStore,
     relay::RelayTargetStore,
     sdk_link,
+    sdk_session::SdkSessionStore,
     secrets::{names, EnvSecretStore, ManagedSecrets, SecretRef, SecretStore, VaultSecretStore},
     state::AppState,
     stream_settings,
@@ -306,6 +307,23 @@ async fn build_state(
         }
     };
 
+    // Eşleşmiş cihazların canlı presence'ı (heartbeat secret + cihaz adı):
+    // SDK_SESSIONS_FILE verilirse AES-256 şifreli kalıcı; yoksa restart'ta
+    // cihazlar yeniden pairing yapmadan da çalışmaya devam eder (device JWT
+    // hâlâ geçerli) ama panel listesi/heartbeat state'i sıfırlanır.
+    let sdk_sessions_file = std::env::var("SDK_SESSIONS_FILE").ok().filter(|p| !p.is_empty());
+    let sdk_sessions = match sdk_sessions_file {
+        Some(path) => {
+            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.sdk_sessions.v1").await?;
+            tracing::info!(%path, "sdk session store: encrypted persistent file");
+            Arc::new(SdkSessionStore::with_file(path, &key)?)
+        }
+        None => {
+            tracing::warn!("SDK_SESSIONS_FILE not set — sdk device list is lost on restart");
+            Arc::new(SdkSessionStore::in_memory())
+        }
+    };
+
     // Yayıncı hesapları (1.4): USERS_FILE verilirse AES-256 şifreli kalıcı;
     // DB pool'u varsa users tablosuna best-effort yansıtılır.
     let users_file = std::env::var("USERS_FILE").ok().filter(|p| !p.is_empty());
@@ -529,6 +547,7 @@ async fn build_state(
         db: db_pool,
         pairing: Arc::new(PairingStore::new()),
         pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
+        sdk_sessions,
         relay,
         provider_tests: Arc::new(ProviderTestStore::new()),
         bindings: channel_bindings,

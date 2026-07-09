@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     http::{header, Method, StatusCode},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
@@ -320,6 +320,14 @@ pub fn router(state: AppState) -> Router {
             post(crate::sdk_link::push_command).get(crate::sdk_link::poll_commands),
         )
         .route("/api/sdk/benchmark", post(crate::sdk_link::report_benchmark))
+        // Canlı cihaz presence'ı: SDK imzalı heartbeat gönderir, panel
+        // eşleşmiş cihazları listeler/kaldırır (bkz. `sdk_session` modülü).
+        .route("/api/sdk/heartbeat", post(crate::sdk_session::heartbeat))
+        .route("/api/sdk/devices", get(crate::sdk_session::list_devices))
+        .route(
+            "/api/sdk/devices/{id}",
+            delete(crate::sdk_session::remove_device),
+        )
         // Yerel TTS politikası (2.2b) — stt/policy ile aynı desen, XTTS-v2
         // için: plan izni + kota çarpanı + donanım/watchdog eşikleri +
         // kullanıcının mod/benchmark durumu tek çağrıda.

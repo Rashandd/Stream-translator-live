@@ -22,6 +22,7 @@ pub mod plans;
 pub mod provider_check;
 pub mod relay;
 pub mod sdk_link;
+pub mod sdk_session;
 pub mod secrets;
 pub mod setup_status;
 pub mod state;

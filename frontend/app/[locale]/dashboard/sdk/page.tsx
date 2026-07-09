@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
+import { SdkDevicesPanel } from "@/src/components/sdk-devices-panel";
 import { SdkPairingPanel } from "@/src/components/sdk-pairing-panel";
 import { SdkStreamKeyPanel } from "@/src/components/sdk-stream-key-panel";
 import { StatusPill } from "@/src/components/status-pill";
@@ -108,6 +109,21 @@ export default async function SdkPage({ params }: Props) {
           }}
         />
         <p className="mt-3 text-sm leading-6 text-muted">{sdk.regenerateNote}</p>
+      </SectionCard>
+
+      <SectionCard subtitle={sdk.devicesNote} title={sdk.devicesTitle}>
+        <SdkDevicesPanel
+          labels={{
+            emptyState: sdk.devices.emptyState,
+            connectedLabel: sdk.devices.connectedLabel,
+            offlineLabel: sdk.devices.offlineLabel,
+            pairedTemplate: sdk.devices.pairedTemplate,
+            lastSeenTemplate: sdk.devices.lastSeenTemplate,
+            removeLabel: sdk.devices.removeLabel,
+            removingLabel: sdk.devices.removingLabel,
+            errors: sdk.devices.errors,
+          }}
+        />
       </SectionCard>
     </div>
   );
