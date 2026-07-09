@@ -108,8 +108,8 @@ git diff
 ### SDK Mimarisi
 - `sdk/src/core/` → platform-bağımsız (her şey burada)
 - `sdk/src/audio/wasapi.rs` → Windows (aktif)
-- `sdk/src/audio/coreaudio.rs` → macOS (iskelet, devre dışı — Faz 4)
-- `sdk/src/audio/pipewire.rs` → Linux (iskelet, devre dışı — Faz 4)
+- `sdk/src/audio/coreaudio.rs` → macOS (iskelet )
+- `sdk/src/audio/pipewire.rs` → Linux (iskelet )
 - Video lokal kalır, buluta sadece ses gider
 
 ## Paralel Görev Stratejisi

@@ -733,6 +733,25 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [ ] Plans tablosundaki gerçek `stripe_price_id`'lerin admin panelden girilmesi (mekanizma hazır: `PUT /admin/config` `billing.plan.<plan>.stripe_price_id`; gerçek price_id'ler Stripe hesabı açılınca girilir — ops)
 - [x] Kullanım takibinin (UsageTracker) kalıcı hale getirilmesi <!-- Claude 2026-07-03 (V7): USAGE_FILE JSONL persist + boot restore + kompaksiyon; DATABASE_URL varsa usage_records dakika-bazlı upsert. Restart kalıcılığı testli. -->
 
+### "Founding 5" kapalı beta (Stripe öncesi ilk canlı test — 2026-07-09)
+
+> Karar (kullanıcı, 2026-07-09): Stripe hazır olmadan, tek GPU STT worker'ıyla ilk 5 yayıncıya
+> STT-only kapalı test. Pricing'de fiyatların üstü çizilir + admin-düzenlenebilir promo mesajı;
+> yayıncı hesap açıp platform+kanal linkiyle başvurur (OAuth YOK — serbest metin), admin panelden
+> seçilenlere ücretsiz erişim açılır; onaysız kullanıcı dashboard'ı gezer ama yayın başlatamaz.
+> Dubbing/TTS coming-soon kalır. Ops rehberi: `infra/deploy.md` §4b.
+
+- [x] `founding` modülü: başvuru store'u (user_id → platform/kanal/status; `FOUNDING_APPS_FILE` düz-JSON kalıcı, voice_models deseni) + `POST/GET /api/founding/application`, `GET /admin/founding/applications`, `POST /admin/founding/{id}/approve|revoke` <!-- Claude 2026-07-09: backend/src/founding/mod.rs — 7 unit + 6 e2e (tests/founding_api.rs). Tekrar gönderim admin kararını KORUR (upsert alanları günceller, status'a dokunmaz). -->
+- [x] WS "founding gate": `founding.gate.enabled=true` iken StreamStart onaylı başvuru şartı (yeni `ErrorCode::FoundingApprovalPending=4010`); onay CANLI okunur (`effective_plan` — JWT stale kalsa da approve/revoke anında etkili, re-login gerekmez); admin rolü bypass <!-- Claude 2026-07-09: ws/mod.rs effective_plan + gate, 5 yeni unit test. Seed "false" — beta başlarken admin panelden açılır. -->
+- [x] `founding` planı PlanRegistry seed'inde ($0, 50 saat/ay, 3 dil, watermark'sız, voice-clone'suz — `PUT /admin/plans` ile ayarlanır); onaylı kullanıcının max_languages/monthly_hours/stt.local.plans kontrolleri bu plandan okunur <!-- Claude 2026-07-09: plans/mod.rs; public GET /api/plans JSON'unda görünür ama pricing UI'ı etkilenmez (mergeLivePlans isim eşleşmesi). -->
+- [x] Promo config anahtarları: `promo.founding.enabled` + `promo.founding.message` (+ gate anahtarı) `with_defaults()` seed'inde — admin panelden restart'sız <!-- Claude 2026-07-09: config.rs. -->
+- [x] Pricing sayfası: promo aktifken banner (admin mesajı) + fiyatların üstü çizili + "Free for founding testers" chip'i; backend kapalıysa sayfa statik hâliyle bozulmadan çalışır <!-- Claude 2026-07-09: src/lib/promo.ts (fetchFoundingPromo GET /config) + pricing/page.tsx + pricing.promo dictionary. -->
+- [x] Dashboard "Founding beta access" başvuru kartı (platform seçimi + kanal linki + opsiyonel mesaj; pending/approved/revoked durum kartı) <!-- Claude 2026-07-09: founding-application-panel.tsx, dashboard ana sayfada. -->
+- [x] Admin panel: Users sayfasında founding başvuru tablosu (approve/revoke) + Production Setup'ta promo/gate editörü <!-- 2026-07-09: admin-founding-panel.tsx + admin-promo-panel.tsx (paralel oturum) + Claude backend uçları. -->
+- [x] Voice sayfası coming-soon karta çevrildi (STT-only beta; WaitlistCta interest="voice-clone") <!-- 2026-07-09 (paralel oturum). -->
+- [x] Infra: `FOUNDING_APPS_FILE` (.env.example, docker-compose, deploy.md env tablosu) + deploy.md §4b founding beta ops runbook'u <!-- Claude 2026-07-09. -->
+- [ ] Kullanıcı/Operator: betayı başlat — `founding.gate.enabled=true` + `promo.founding.enabled=true` + promo mesajını düzenle (Admin → Production Setup), ilk 5 yayıncıyı onayla (Admin → Users)
+
 ---
 
 ## Faz 1 — Cloud Deploy Hazırlık Planı (detaylı, sıralı)

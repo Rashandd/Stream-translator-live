@@ -23,6 +23,7 @@ services:
       SDK_SESSIONS_FILE: /data/sdk-sessions.enc
       STT_SETTINGS_FILE: /data/stt-settings.json
       USERS_FILE: /data/users.enc
+      FOUNDING_APPS_FILE: /data/founding-apps.json
     volumes:
       - sddata:/data
     ports:

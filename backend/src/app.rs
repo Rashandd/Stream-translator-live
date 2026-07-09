@@ -172,13 +172,34 @@ async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefin
 }
 
 /// Bir planı ekler/günceller (sadece admin). Restart gerekmez.
+///
+/// `DATABASE_URL` yapılandırılmışsa aynı anda `plans` tablosuna da yazılır
+/// (restart-safe); DB yazımı başarısız olursa bellek önceki değere (veya
+/// yeni bir plansa hiç yoktuysa silinmiş haline) geri alınır ve 500 döner —
+/// `put_config` ile aynı bellek/DB tutarlılık kuralı.
 async fn put_plan(
     _admin: AdminUser,
     State(plans): State<Arc<PlanRegistry>>,
+    State(db): State<Option<sqlx::PgPool>>,
     Json(plan): Json<PlanDefinition>,
-) -> Json<Vec<PlanDefinition>> {
-    plans.set(plan);
-    Json(plans.snapshot())
+) -> Result<Json<Vec<PlanDefinition>>, StatusCode> {
+    let previous = plans.get(&plan.name);
+    plans.set(plan.clone());
+
+    if let Some(pool) = db {
+        if let Err(err) = crate::plans::persist_to_db(&pool, &plan).await {
+            tracing::warn!(%err, plan = %plan.name, "plans: DB yazımı başarısız, bellek geri alınıyor");
+            match previous {
+                Some(prev) => plans.set(prev),
+                None => {
+                    plans.remove(&plan.name);
+                }
+            }
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    Ok(Json(plans.snapshot()))
 }
 
 /// Twitch Extension EBS route'ları (Faz 2.4) — extension frontend'i Twitch
@@ -306,6 +327,12 @@ pub fn router(state: AppState) -> Router {
             "/api/relay/targets",
             put(crate::relay::put_targets).get(crate::relay::get_targets),
         )
+        // Gerçek overlay token'ı (Faz 1.14): panel canlı yayının OBS overlay
+        // URL'ini kopyalayabilsin diye — yayın kapalıyken active=false döner.
+        .route("/api/overlay/token", get(overlay::get_overlay_token))
+        // Plan + bu ayki kullanım özeti (Faz 1.14): billing sayfası statik
+        // placeholder yerine bunu okur.
+        .route("/api/usage/summary", get(crate::usage::get_summary))
         // Yerel STT politikası (2.6b): SDK/panel, plan izni + kota çarpanı +
         // donanım/watchdog eşiklerini + kullanıcının mod/benchmark durumunu
         // tek çağrıda okur (config-driven).
@@ -372,6 +399,34 @@ pub fn router(state: AppState) -> Router {
         // Planlar (1.11): fiyat/limit hard-coded değil, admin panelden değişir.
         .route("/api/plans", get(get_plans))
         .route("/admin/plans", put(put_plan))
+        // Kullanıcı yönetimi (1.14): liste + arama, detay, plan değiştirme.
+        .route("/admin/users", get(crate::users::admin_list_users))
+        .route("/admin/users/{id}", get(crate::users::admin_get_user))
+        .route(
+            "/admin/users/{id}/plan",
+            put(crate::users::admin_set_user_plan),
+        )
+        // Maliyet özeti (1.14): toplam kullanım saati × admin-ayarlı $/saat
+        // tahmini + plan gelirine göre "maliyet kurtarıyor mu" görünümü.
+        .route("/admin/costs/summary", get(crate::costs::get_summary))
+        // "Founding 5" kapalı beta: yayıncı platform/kanal bilgisiyle
+        // başvurur, admin inceleyip onaylar/iptal eder (bkz. `founding` modülü).
+        .route(
+            "/api/founding/application",
+            post(crate::founding::submit_application).get(crate::founding::get_my_application),
+        )
+        .route(
+            "/admin/founding/applications",
+            get(crate::founding::list_applications),
+        )
+        .route(
+            "/admin/founding/{user_id}/approve",
+            post(crate::founding::approve_application),
+        )
+        .route(
+            "/admin/founding/{user_id}/revoke",
+            post(crate::founding::revoke_application),
+        )
         // Loglama (1.12): merkezi log deposu araması, sadece admin.
         .route("/admin/logs", get(get_logs))
         // Secret yönetimi: admin panelden girilir, sadece maskeli okunur.

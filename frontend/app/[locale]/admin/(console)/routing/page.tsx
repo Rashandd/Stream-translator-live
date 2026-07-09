@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminDeeplLanguagesPanel } from "@/src/components/admin-deepl-languages-panel";
+import { AdminRoutingPanel } from "@/src/components/admin-routing-panel";
 import { Icon } from "@/src/components/icon";
 import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
-import { StatusPill } from "@/src/components/status-pill";
 import { getPublicConfig } from "@/src/lib/config";
-import { isLocale, locales, type Locale } from "@/src/i18n/routing";
+import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -33,46 +33,17 @@ export default async function AdminRoutingPage({ params }: Props) {
     <div className="space-y-6">
       <PageHeader subtitle={routing.subtitle} title={routing.title} />
 
-      <div className="space-y-4">
-        {routing.groups.map((group) => (
-          <section className="rounded-xl border border-border bg-white p-5 sm:p-6" key={group.key}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold text-ink">{group.label}</h2>
-              <code className="rounded-md bg-canvas px-2 py-1 font-mono text-xs text-muted">{group.configKey}</code>
-            </div>
-
-            <div className="mt-4 inline-flex flex-wrap gap-1 rounded-xl border border-border bg-canvas p-1">
-              {group.options.map((option) => {
-                const selectable = option.status === "enabled";
-                return (
-                  <button
-                    aria-pressed={option.active}
-                    className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                      option.active
-                        ? "bg-ink text-white"
-                        : selectable
-                          ? "text-text hover:bg-white"
-                          : "cursor-not-allowed text-faint"
-                    }`}
-                    disabled={!selectable}
-                    key={option.name}
-                    type="button"
-                  >
-                    {option.name}
-                    {!selectable ? (
-                      <StatusPill label={option.status} text={config.statusLabels[option.status as keyof typeof config.statusLabels]} />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-3 text-sm text-muted">
-              {group.fallbackLabel}: <span className="font-semibold text-ink">{group.fallback}</span>
-            </p>
-          </section>
-        ))}
-      </div>
+      <AdminRoutingPanel
+        labels={{
+          groups: routing.groups,
+          loading: routing.loading,
+          savingLabel: routing.savingLabel,
+          errors: routing.errors,
+          signInLabel: routing.signInLabel,
+        }}
+        loginHref={localizePath(locale, "/admin/login")}
+        statusLabels={config.statusLabels}
+      />
 
       <div className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
         <Icon className="mt-0.5 h-5 w-5 shrink-0 text-blue" name="Route" />

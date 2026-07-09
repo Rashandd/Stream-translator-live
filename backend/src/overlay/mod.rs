@@ -20,8 +20,11 @@ use std::sync::{Arc, Mutex};
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
+use axum::Json;
+use serde::Serialize;
 use tokio::sync::broadcast;
 
+use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::ws::protocol::ServerMessage;
 
@@ -176,6 +179,32 @@ impl Default for ActiveStreams {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// `GET /api/overlay/token` yanıtı.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct OverlayTokenResponse {
+    /// Şu an canlı bir yayın var mı — panel bunu placeholder/gerçek URL
+    /// arasında geçiş yapmak için kullanır.
+    pub active: bool,
+    /// Yalnız `active=true` iken dolu — OBS overlay URL'ine gömülecek token.
+    pub token: Option<String>,
+}
+
+/// `GET /api/overlay/token` (yayıncı) — panelin, canlı yayının gerçek
+/// overlay token'ını (`/o/{token}`) göstermesi için. Yayın kapalıyken
+/// `active=false` döner; `ws::handle_control` `stream_start`'ta token
+/// üretip `ActiveStreams`'e yazana kadar gerçek değer yoktur — panel bu
+/// süre boyunca placeholder gösterir.
+pub async fn get_overlay_token(
+    user: AuthUser,
+    State(active_streams): State<Arc<ActiveStreams>>,
+) -> Json<OverlayTokenResponse> {
+    let token = active_streams.get(&user.claims.sub);
+    Json(OverlayTokenResponse {
+        active: token.is_some(),
+        token,
+    })
 }
 
 /// `GET /overlay/{token}` — OBS Browser Source / dashboard önizleme için genel

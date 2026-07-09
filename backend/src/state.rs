@@ -11,6 +11,7 @@ use crate::billing::Billing;
 use crate::bindings::ChannelBindingStore;
 use crate::config::ServiceConfig;
 use crate::ext_twitch::ExtTwitch;
+use crate::founding::FoundingStore;
 use crate::gateway::Gateway;
 use crate::integrations::Integrations;
 use crate::logging::Logger;
@@ -18,6 +19,7 @@ use crate::overlay::{ActiveStreams, OverlayHub};
 use crate::pairing::{ClaimLimiter, PairingStore};
 use crate::plans::PlanRegistry;
 use crate::provider_check::ProviderTestStore;
+use crate::rate_limit::AuthLimiter;
 use crate::relay::RelayTargetStore;
 use crate::sdk_link::{SdkCommandQueue, SttSettingsStore, TtsSettingsStore};
 use crate::sdk_session::SdkSessionStore;
@@ -74,6 +76,8 @@ pub struct AppState {
     pub users: Arc<UserStore>,
     /// Login 2FA + şifre sıfırlama kodları (bellek içi, kısa ömürlü).
     pub twofactor: Arc<TwoFactorStore>,
+    /// `POST /api/auth/login` ve `/signup` brute-force koruması (per-IP, bellek içi).
+    pub auth_limiter: Arc<AuthLimiter>,
     /// Panel → SDK komut kuyruğu (2.6b; bellek içi, tek seferlik teslim).
     pub sdk_commands: Arc<SdkCommandQueue>,
     /// Kullanıcı başına STT modu + benchmark sonucu (`STT_SETTINGS_FILE`).
@@ -82,6 +86,8 @@ pub struct AppState {
     pub stream_settings: Arc<StreamSettingsStore>,
     /// Ses klonlama model kayıtları + admin onay durumu (Faz 2.1; `VOICE_MODELS_FILE`).
     pub voice_models: Arc<VoiceModelStore>,
+    /// "Founding 5" kapalı beta başvuruları + admin onay durumu (`FOUNDING_APPS_FILE`).
+    pub founding: Arc<FoundingStore>,
     /// Kullanıcı başına TTS modu + benchmark sonucu (Faz 2.2b; `TTS_SETTINGS_FILE`).
     pub tts_settings: Arc<TtsSettingsStore>,
     /// Ham ses örneği, AES-256 şifreli (Faz 2.2; `VOICE_SAMPLES_FILE`).
@@ -125,10 +131,12 @@ impl AppState {
             waitlist: Arc::new(WaitlistLimiter::new()),
             users: Arc::new(UserStore::in_memory()),
             twofactor: Arc::new(TwoFactorStore::new()),
+            auth_limiter: Arc::new(AuthLimiter::new()),
             sdk_commands: Arc::new(SdkCommandQueue::new()),
             stt_settings: Arc::new(SttSettingsStore::in_memory()),
             stream_settings: Arc::new(StreamSettingsStore::in_memory()),
             voice_models: Arc::new(VoiceModelStore::in_memory()),
+            founding: Arc::new(FoundingStore::in_memory()),
             tts_settings: Arc::new(TtsSettingsStore::in_memory()),
             voice_samples: Arc::new(VoiceSampleStore::in_memory()),
             stt_servers: Arc::new(SttServerStore::in_memory()),
@@ -300,6 +308,12 @@ impl FromRef<AppState> for Arc<StreamSettingsStore> {
 impl FromRef<AppState> for Arc<VoiceModelStore> {
     fn from_ref(state: &AppState) -> Self {
         state.voice_models.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<FoundingStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.founding.clone()
     }
 }
 

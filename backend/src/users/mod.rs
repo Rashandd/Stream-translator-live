@@ -22,15 +22,19 @@ use std::time::{Duration, Instant};
 
 use argon2::password_hash::{PasswordHash, SaltString};
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::extract::{Path as RoutePath, Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::authz::AdminUser;
 use crate::auth::jwt::Claims;
 use crate::crypto::Cipher;
-use crate::logging::LogLevel;
+use crate::logging::{LogLevel, Logger};
+use crate::plans::PlanRegistry;
+use crate::rate_limit::client_key;
 use crate::state::AppState;
+use std::sync::Arc;
 
 /// Yayıncı oturum süresi (saniye) — panel token'ı.
 const USER_TOKEN_TTL_SECS: i64 = 24 * 3600;
@@ -75,6 +79,8 @@ pub enum UserError {
     InvalidEmail,
     #[error("password must be at least {MIN_PASSWORD_LEN} characters")]
     WeakPassword,
+    #[error("user not found")]
+    NotFound,
     #[error("user store io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("user store crypto error: {0}")]
@@ -249,6 +255,47 @@ impl UserStore {
             .read()
             .ok()
             .and_then(|m| m.get(&email.trim().to_lowercase()).cloned())
+    }
+
+    /// Tüm kullanıcılar, e-postaya göre sıralı (admin liste ekranı için).
+    pub fn list(&self) -> Vec<UserRecord> {
+        let mut records: Vec<UserRecord> = self
+            .entries
+            .read()
+            .map(|m| m.values().cloned().collect())
+            .unwrap_or_default();
+        records.sort_by(|a, b| a.email.cmp(&b.email));
+        records
+    }
+
+    /// Id'ye göre tek kullanıcı (admin detay ekranı için) — `entries` e-posta
+    /// anahtarlı olduğundan tarama gerekir; kullanıcı sayısı Faz 1 ölçeğinde
+    /// bunu haklı çıkarır.
+    pub fn get_by_id(&self, id: &str) -> Option<UserRecord> {
+        self.entries.read().ok()?.values().find(|r| r.id == id).cloned()
+    }
+
+    /// Admin panelden bir kullanıcının planını değiştirir (restart gerekmez;
+    /// `set_password`/`mark_verified` ile aynı yaz-sonra-persist deseni).
+    pub fn set_plan_by_id(&self, id: &str, plan: &str) -> Result<UserRecord, UserError> {
+        let updated = {
+            let mut map = self
+                .entries
+                .write()
+                .map_err(|_| UserError::Internal("user lock poisoned".into()))?;
+            map.values_mut().find(|r| r.id == id).map(|record| {
+                record.plan = plan.to_string();
+                record.clone()
+            })
+        };
+        match updated {
+            Some(record) => {
+                self.save()?;
+                self.persist_db(record.clone());
+                Ok(record)
+            }
+            None => Err(UserError::NotFound),
+        }
     }
 
     /// E-postayı doğrulanmış işaretler (ilk başarılı e-posta 2FA'sı mailbox
@@ -580,8 +627,28 @@ pub struct OkResponse {
 /// sonra normal login akışını çağırır (2FA kararını login verir).
 pub async fn signup(
     State(app): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<SignupRequest>,
 ) -> Result<(StatusCode, Json<OkResponse>), (StatusCode, String)> {
+    let signup_limit: u32 = app
+        .service_config
+        .get("auth.signup.rate_limit_per_min")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(20);
+    if !app.auth_limiter.check_signup(&client_key(&headers), signup_limit) {
+        app.logger.log(
+            LogLevel::Warn,
+            "auth",
+            "signup rate limited",
+            None,
+            None,
+        );
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many signup attempts, try again later".to_string(),
+        ));
+    }
+
     if !req.legal_terms_accepted {
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -643,8 +710,22 @@ pub enum LoginResponse {
 /// Kimlik uyuşmazsa 401 — hangi alanın yanlış olduğu söylenmez.
 pub async fn login(
     State(app): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, (StatusCode, String)> {
+    let login_limit: u32 = app
+        .service_config
+        .get("auth.login.rate_limit_per_min")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10);
+    if !app.auth_limiter.check_login(&client_key(&headers), login_limit) {
+        app.logger.log(LogLevel::Warn, "auth", "login rate limited", None, None);
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many login attempts, try again later".to_string(),
+        ));
+    }
+
     // 1) Bootstrap admin (varsa).
     if let Some(admin) = app.bootstrap_admin.as_ref() {
         if admin.verify(&req.email, &req.password) {
@@ -924,6 +1005,113 @@ pub async fn reset_confirm(
     Ok(Json(OkResponse { ok: true }))
 }
 
+// ---------------------------------------------------------------------------
+// Admin kullanıcı yönetimi (Faz 1.14) — liste, detay, plan değiştirme.
+// Parola hash'i hiçbir admin yanıtında dönmez.
+// ---------------------------------------------------------------------------
+
+/// Admin liste/detay yanıtı — `UserRecord`'un parola içermeyen izdüşümü.
+#[derive(Debug, Serialize)]
+pub struct AdminUserSummary {
+    pub id: String,
+    pub email: String,
+    pub plan: String,
+    pub email_verified: bool,
+    pub created_at_ms: i64,
+    pub oauth_provider: Option<String>,
+}
+
+impl From<UserRecord> for AdminUserSummary {
+    fn from(record: UserRecord) -> Self {
+        AdminUserSummary {
+            id: record.id,
+            email: record.email,
+            plan: record.plan,
+            email_verified: record.email_verified,
+            created_at_ms: record.created_at_ms,
+            oauth_provider: record.oauth_provider,
+        }
+    }
+}
+
+/// `GET /admin/users` sorgu parametreleri.
+#[derive(Debug, Deserialize)]
+pub struct AdminUsersQuery {
+    /// E-postada alt dize araması (case-insensitive).
+    pub q: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+const ADMIN_USERS_DEFAULT_LIMIT: usize = 50;
+const ADMIN_USERS_MAX_LIMIT: usize = 200;
+
+/// `GET /admin/users` (sadece admin) — arama + basit sayfalama.
+pub async fn admin_list_users(
+    _admin: AdminUser,
+    State(users): State<Arc<UserStore>>,
+    Query(query): Query<AdminUsersQuery>,
+) -> Json<Vec<AdminUserSummary>> {
+    let mut records = users.list();
+    if let Some(needle) = query.q.as_deref().map(str::to_lowercase).filter(|q| !q.is_empty()) {
+        records.retain(|r| r.email.to_lowercase().contains(&needle));
+    }
+    let offset = query.offset.unwrap_or(0);
+    let limit = query.limit.unwrap_or(ADMIN_USERS_DEFAULT_LIMIT).min(ADMIN_USERS_MAX_LIMIT);
+    let page = records
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(AdminUserSummary::from)
+        .collect();
+    Json(page)
+}
+
+/// `GET /admin/users/{id}` (sadece admin).
+pub async fn admin_get_user(
+    _admin: AdminUser,
+    State(users): State<Arc<UserStore>>,
+    RoutePath(id): RoutePath<String>,
+) -> Result<Json<AdminUserSummary>, StatusCode> {
+    users
+        .get_by_id(&id)
+        .map(|r| Json(r.into()))
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
+/// `PUT /admin/users/{id}/plan` gövdesi.
+#[derive(Debug, Deserialize)]
+pub struct AdminSetPlanRequest {
+    pub plan: String,
+}
+
+/// `PUT /admin/users/{id}/plan` (sadece admin) — plan adı `PlanRegistry`'de
+/// kayıtlı olmalı, aksi halde 404 (yazım hatasıyla hayalet plan atanmasın).
+pub async fn admin_set_user_plan(
+    admin: AdminUser,
+    State(users): State<Arc<UserStore>>,
+    State(plans): State<Arc<PlanRegistry>>,
+    State(logger): State<Arc<Logger>>,
+    RoutePath(id): RoutePath<String>,
+    Json(req): Json<AdminSetPlanRequest>,
+) -> Result<Json<AdminUserSummary>, (StatusCode, String)> {
+    if plans.get(&req.plan).is_none() {
+        return Err((StatusCode::NOT_FOUND, format!("unknown plan '{}'", req.plan)));
+    }
+    let record = users.set_plan_by_id(&id, &req.plan).map_err(|err| match err {
+        UserError::NotFound => (StatusCode::NOT_FOUND, err.to_string()),
+        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+    })?;
+    logger.log(
+        LogLevel::Info,
+        "admin",
+        &format!("plan changed for {} -> {}", record.email, req.plan),
+        Some(&admin.claims.sub),
+        None,
+    );
+    Ok(Json(record.into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -946,6 +1134,35 @@ mod tests {
         assert!(store.verify_login("STREAMER@EXAMPLE.COM", "hunter2-strong").is_some());
         assert!(store.verify_login("streamer@example.com", "wrong").is_none());
         assert!(store.verify_login("nobody@example.com", "hunter2-strong").is_none());
+    }
+
+    #[test]
+    fn list_and_get_by_id_expose_seeded_users() {
+        let store = UserStore::in_memory();
+        let a = store.signup("a@example.com", "a-pass-1234", "free").unwrap();
+        let b = store.signup("b@example.com", "b-pass-1234", "starter").unwrap();
+
+        let listed = store.list();
+        assert_eq!(listed.len(), 2);
+        // E-postaya göre sıralı.
+        assert_eq!(listed[0].email, "a@example.com");
+        assert_eq!(listed[1].email, "b@example.com");
+
+        assert_eq!(store.get_by_id(&a.id).unwrap().email, "a@example.com");
+        assert_eq!(store.get_by_id(&b.id).unwrap().plan, "starter");
+        assert!(store.get_by_id("no-such-id").is_none());
+    }
+
+    #[test]
+    fn set_plan_by_id_updates_the_record_and_rejects_unknown_ids() {
+        let store = UserStore::in_memory();
+        let user = store.signup("plan-change@example.com", "strong-pass-1", "free").unwrap();
+
+        let updated = store.set_plan_by_id(&user.id, "pro").unwrap();
+        assert_eq!(updated.plan, "pro");
+        assert_eq!(store.get("plan-change@example.com").unwrap().plan, "pro");
+
+        assert!(matches!(store.set_plan_by_id("ghost-id", "pro"), Err(UserError::NotFound)));
     }
 
     #[test]

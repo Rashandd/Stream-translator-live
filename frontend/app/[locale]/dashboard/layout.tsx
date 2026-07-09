@@ -2,8 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
+import { AuthGuard } from "@/src/components/auth-guard";
 import { DashboardNav } from "@/src/components/dashboard-nav";
 import { Icon } from "@/src/components/icon";
+import { SignOutLink } from "@/src/components/sign-out-link";
 import { StatusStrip } from "@/src/components/status-strip";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -52,33 +54,35 @@ export default async function DashboardLayout({ children, params }: DashboardLay
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-ink">
               <Icon className="h-[18px] w-[18px]" name="Settings" />
             </span>
-            <Link
+            <SignOutLink
               className="inline-flex h-9 items-center justify-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
               href={localizePath(locale, "/login")}
-            >
-              {dashboard.topbar.signOutLabel}
-            </Link>
+              label={dashboard.topbar.signOutLabel}
+              tokenKind="user"
+            />
           </div>
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:flex lg:gap-8 lg:px-8">
-        <aside className="border-b border-hairline lg:border-b-0">
-          <DashboardNav
-            ariaLabel={dashboard.nav.ariaLabel}
-            groups={dashboard.nav.groups}
-            locale={locale}
-            statusLabels={config.statusLabels}
-          />
-        </aside>
+      <AuthGuard loginHref={localizePath(locale, "/login")} tokenKind="user">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:flex lg:gap-8 lg:px-8">
+          <aside className="border-b border-hairline lg:border-b-0">
+            <DashboardNav
+              ariaLabel={dashboard.nav.ariaLabel}
+              groups={dashboard.nav.groups}
+              locale={locale}
+              statusLabels={config.statusLabels}
+            />
+          </aside>
 
-        <main className="min-w-0 flex-1 py-6 lg:py-8">
-          <div className="mb-6">
-            <StatusStrip ariaLabel={dashboard.statusStrip.ariaLabel} items={dashboard.statusStrip.items} />
-          </div>
-          {children}
-        </main>
-      </div>
+          <main className="min-w-0 flex-1 py-6 lg:py-8">
+            <div className="mb-6">
+              <StatusStrip ariaLabel={dashboard.statusStrip.ariaLabel} items={dashboard.statusStrip.items} />
+            </div>
+            {children}
+          </main>
+        </div>
+      </AuthGuard>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CopyRow } from "@/src/components/copy-row";
+import { userFetch } from "@/src/lib/api";
 import {
   buildOverlayUrl,
   hexToRgba,
@@ -9,6 +10,13 @@ import {
   type OverlayBuilderState,
 } from "@/src/lib/overlay-builder-url";
 import { computeOverlayStyle } from "@/src/lib/overlay-style";
+
+/** `GET /api/overlay/token` yanıtı (backend `overlay::OverlayTokenResponse`). */
+type OverlayTokenState = { active: boolean; token: string | null };
+
+/** Yayın kapalıyken de panel taze kalsın diye — canlıya geçişi birkaç
+ * saniye içinde yakalar, `SdkDevicesPanel`'in heartbeat polling'iyle aynı desen. */
+const POLL_INTERVAL_MS = 10_000;
 
 type Target = { code: string; language: string; enabled: boolean };
 
@@ -54,10 +62,29 @@ export function CaptionOverlayBuilder({
   labels,
 }: Props) {
   const [state, setState] = useState<OverlayBuilderState>(OVERLAY_BUILDER_DEFAULTS);
+  const [overlayToken, setOverlayToken] = useState<OverlayTokenState | null>(null);
 
   function update<K extends keyof OverlayBuilderState>(key: K, value: OverlayBuilderState[K]) {
     setState((current) => ({ ...current, [key]: value }));
   }
+
+  const loadOverlayToken = useCallback(async () => {
+    try {
+      const res = await userFetch("/api/overlay/token");
+      if (!res.ok) {
+        return;
+      }
+      setOverlayToken((await res.json()) as OverlayTokenState);
+    } catch {
+      // Sessizce yut — placeholder şablon zaten güvenli bir varsayılan.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOverlayToken();
+    const interval = setInterval(() => void loadOverlayToken(), POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [loadOverlayToken]);
 
   const previewBg = hexToRgba(state.bgColor, state.bgOpacity);
   const style = useMemo(
@@ -72,9 +99,16 @@ export function CaptionOverlayBuilder({
     [state.font, state.size, state.color, previewBg, state.position],
   );
   const previewText = state.lang ? labels.previewTranslatedCaption : labels.previewSourceCaption;
+  const isLive = overlayToken?.active === true && !!overlayToken.token;
+  const resolvedTemplate = useMemo(() => {
+    if (isLive && overlayToken?.token && typeof window !== "undefined") {
+      return `${window.location.origin}/o/${overlayToken.token}`;
+    }
+    return overlayUrlTemplate;
+  }, [isLive, overlayToken, overlayUrlTemplate]);
   const overlayUrl = useMemo(
-    () => buildOverlayUrl(overlayUrlTemplate, state),
-    [overlayUrlTemplate, state],
+    () => buildOverlayUrl(resolvedTemplate, state),
+    [resolvedTemplate, state],
   );
 
   return (
@@ -209,7 +243,7 @@ export function CaptionOverlayBuilder({
       <div>
         <p className="mb-2 text-xs font-medium text-muted">{labels.urlLabel}</p>
         <CopyRow copyLabel={labels.copyLabel} value={overlayUrl} />
-        <p className="mt-2 text-xs leading-5 text-faint">{labels.tokenNote}</p>
+        {!isLive ? <p className="mt-2 text-xs leading-5 text-faint">{labels.tokenNote}</p> : null}
       </div>
     </div>
   );

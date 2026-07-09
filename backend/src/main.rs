@@ -13,6 +13,7 @@ use streamdubber_backend::{
     billing::Billing,
     bindings::{self, ChannelBindingStore},
     ext_twitch::ExtTwitch,
+    founding::FoundingStore,
     config::{Config, ServiceConfig},
     crypto, db,
     gateway::{
@@ -33,6 +34,7 @@ use streamdubber_backend::{
     pairing::{ClaimLimiter, PairingStore},
     plans::PlanRegistry,
     provider_check::ProviderTestStore,
+    rate_limit::AuthLimiter,
     relay::RelayTargetStore,
     sdk_link,
     sdk_session::SdkSessionStore,
@@ -207,6 +209,18 @@ async fn build_state(
             Ok(rows) => service_config.apply_db_rows(rows),
             Err(err) => {
                 tracing::warn!(%err, "service_config: DB'den yüklenemedi, varsayılanlar kullanılıyor")
+            }
+        }
+    }
+
+    // Plan kataloğu da aynı desende: kod-içi varsayılanlarla başlar, DB
+    // varsa önceki admin düzenlemeleri üzerine yazılır (restart-safe).
+    let plans = Arc::new(PlanRegistry::with_defaults());
+    if let Some(pool) = &db_pool {
+        match streamdubber_backend::plans::load_from_db(pool).await {
+            Ok(rows) => plans.apply_db_rows(rows),
+            Err(err) => {
+                tracing::warn!(%err, "plans: DB'den yüklenemedi, varsayılanlar kullanılıyor")
             }
         }
     }
@@ -434,6 +448,22 @@ async fn build_state(
         }
     };
 
+    // "Founding 5" kapalı beta başvuruları: FOUNDING_APPS_FILE verilirse
+    // düz JSON kalıcı (kanal linki secret değil); yoksa bellek içi.
+    let founding_apps_file = std::env::var("FOUNDING_APPS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
+    let founding = match founding_apps_file {
+        Some(path) => {
+            tracing::info!(%path, "founding application store: persistent JSON file");
+            Arc::new(FoundingStore::with_file(path)?)
+        }
+        None => {
+            tracing::warn!("FOUNDING_APPS_FILE not set — founding applications reset on restart");
+            Arc::new(FoundingStore::in_memory())
+        }
+    };
+
     // Yerel TTS modu + benchmark sonucu (Faz 2.2b): TTS_SETTINGS_FILE
     // verilirse düz JSON kalıcı (secret içermez); yoksa bellek içi.
     let tts_settings_file = std::env::var("TTS_SETTINGS_FILE")
@@ -539,7 +569,7 @@ async fn build_state(
         integrations,
         oauth_login,
         billing,
-        plans: Arc::new(PlanRegistry::with_defaults()),
+        plans,
         usage: Arc::new(usage),
         logger,
         secrets,
@@ -555,12 +585,14 @@ async fn build_state(
         waitlist: Arc::new(WaitlistLimiter::new()),
         users: Arc::new(users),
         twofactor: Arc::new(TwoFactorStore::new()),
+        auth_limiter: Arc::new(AuthLimiter::new()),
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
         stream_settings,
         stt_servers,
         stt_provisioner,
         voice_models,
+        founding,
         tts_settings,
         voice_samples,
     })

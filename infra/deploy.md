@@ -120,6 +120,7 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `RELAY_FILE` | `/data/relay.enc` — SDK relay hedefleri (stream key) şifreli |
 | `USERS_FILE` | `/data/users.enc` — yayıncı hesapları (1.4) şifreli kalıcı |
 | `SDK_SESSIONS_FILE` | `/data/sdk-sessions.enc` — eşleşmiş cihazların canlı presence kaydı (heartbeat secret) şifreli kalıcı |
+| `FOUNDING_APPS_FILE` | `/data/founding-apps.json` — founding beta başvuruları + onay durumu (düz JSON); boşsa onaylar restart'ta kaybolur |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
@@ -163,6 +164,26 @@ erişilir. Yönetilen DB'ye geçiş istenirse `DATABASE_URL`'i değiştirmek yet
 5. `stripe_price_id`'leri **Admin → Production Setup**'tan gir (Stripe
    Dashboard'da ürün/fiyat oluşturduktan sonra).
 6. Durumu **Admin → Production Setup** kartlarından doğrula (hepsi yeşil).
+
+### 4b. "Founding 5" kapalı beta operasyonu (Stripe öncesi ilk test)
+
+Stripe'sız, tek GPU STT worker'lı ilk test için akış:
+
+1. **Admin → Production Setup → Founding beta** kartından:
+   - `founding.gate.enabled` → **açık** (o andan itibaren onaysız kullanıcı
+     yayın başlatamaz — `founding_approval_pending` hatası alır; dashboard'ı
+     gezebilir, SDK'yı kurabilir, başvurusunu yapabilir).
+   - `promo.founding.enabled` → **açık** + mesajı düzenle (pricing sayfasında
+     fiyatların üstü çizilir, banner bu mesajı gösterir). Restart gerekmez.
+2. Yayıncı `/signup` ile hesap açar, dashboard ana sayfasındaki **Founding
+   beta access** kartından platform + kanal linkiyle başvurur.
+3. **Admin → Users → Founding beta applications** tablosundan başvuruları
+   incele, seçtiklerini **Approve** et — onay anında etkilidir (kullanıcının
+   yeniden login olması gerekmez), kullanıcı `founding` planının limitleriyle
+   (varsayılan: 50 saat/ay, 3 dil, watermark'sız — `PUT /admin/plans` ile
+   ayarlanır) ücretsiz yayın açar. **Revoke** de aynı şekilde anında keser.
+4. Beta bitince: `founding.gate.enabled` → kapalı, `promo.founding.enabled`
+   → kapalı. Onaylı founding kayıtları durur ama gate kapalıyken etkisizdir.
 
 ## 5. Vault (opsiyonel yol)
 

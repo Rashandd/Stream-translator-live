@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
-use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
 
 use streamdubber_backend::{
@@ -53,6 +54,24 @@ fn audio_frame(payload: &[u8]) -> Vec<u8> {
     buf.extend_from_slice(&len.to_be_bytes());
     buf.extend_from_slice(payload);
     buf
+}
+
+async fn http_get_with_token(addr: SocketAddr, path: &str, token: &str) -> (u16, String) {
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: t\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    let mut stream = TcpStream::connect(addr).await.expect("connect");
+    stream.write_all(request.as_bytes()).await.expect("write");
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await.expect("read");
+    let text = String::from_utf8_lossy(&buf).to_string();
+    let status: u16 = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("status line");
+    let body = text.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
+    (status, body)
 }
 
 type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
@@ -145,6 +164,51 @@ async fn late_overlay_subscriber_receives_snapshot_replay() {
     let (mut overlay_ws, _) = tokio_tungstenite::connect_async(overlay_url).await.expect("connect overlay");
     let replayed = next_json(&mut overlay_ws).await;
     assert_eq!(replayed, sdk_subtitle);
+}
+
+#[tokio::test]
+async fn get_overlay_token_reports_inactive_until_stream_starts_then_matches_the_real_token() {
+    let addr = spawn_server().await;
+    let token = valid_token();
+
+    // Yayın kapalıyken panel placeholder göstermeli.
+    let (status, body) = http_get_with_token(addr, "/api/overlay/token", &token).await;
+    assert_eq!(status, 200, "body: {body}");
+    let parsed: Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(parsed["active"], false);
+    assert!(parsed["token"].is_null());
+
+    // Yayın açılınca gerçek overlay_token'la eşleşmeli.
+    let sdk_url = format!("ws://{addr}/ws/stream");
+    let (mut sdk, _) = tokio_tungstenite::connect_async(sdk_url).await.expect("connect sdk");
+    send_json(&mut sdk, serde_json::json!({"type":"auth","token": token})).await;
+    let _ready = next_json(&mut sdk).await;
+    send_json(
+        &mut sdk,
+        serde_json::json!({
+            "type":"stream_start",
+            "session_id":"s1",
+            "source_lang":"tr",
+            "target_langs":["en"],
+            "audio_format":{"codec":"opus","sample_rate":16000,"channels":1}
+        }),
+    )
+    .await;
+    let ack = next_json(&mut sdk).await;
+    let overlay_token = ack["overlay_token"].as_str().expect("overlay_token").to_string();
+
+    let (status, body) = http_get_with_token(addr, "/api/overlay/token", &token).await;
+    assert_eq!(status, 200, "body: {body}");
+    let parsed: Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(parsed["active"], true);
+    assert_eq!(parsed["token"], overlay_token);
+}
+
+#[tokio::test]
+async fn get_overlay_token_requires_auth() {
+    let addr = spawn_server().await;
+    let (status, _) = http_get_with_token(addr, "/api/overlay/token", "not-a-real-token").await;
+    assert_eq!(status, 401);
 }
 
 #[tokio::test]

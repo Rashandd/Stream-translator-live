@@ -12,6 +12,10 @@
         "href": "/"
       },
       {
+        "label": "How it works",
+        "href": "/how-it-works"
+      },
+      {
         "label": "Solutions",
         "href": "/solutions"
       },
@@ -22,7 +26,7 @@
     ],
     "cta": {
       "label": "Start free",
-      "href": "/dashboard"
+      "href": "/signup"
     },
     "signIn": {
       "label": "Sign in",
@@ -39,6 +43,7 @@
         "title": "Product",
         "items": [
           { "label": "Overview", "href": "/" },
+          { "label": "How it works", "href": "/how-it-works" },
           { "label": "Solutions", "href": "/solutions" },
           { "label": "Pricing", "href": "/pricing" },
           { "label": "Security", "href": "/security" }
@@ -72,7 +77,7 @@
       "summary": "Strovak lets you pick the output for each platform: captions baked into your scene, native captions viewers switch on, YouTube multi-audio dubbing, or a separate dubbed channel per language on Twitch and Kick.",
       "primaryCta": {
         "label": "Start free",
-        "href": "/dashboard"
+        "href": "/signup"
       },
       "secondaryCta": {
         "label": "See plans & pricing",
@@ -304,11 +309,11 @@
       "title": "Go live in every language today.",
       "primary": {
         "label": "Start setup",
-        "href": "/dashboard"
+        "href": "/signup"
       },
       "secondary": {
         "label": "Talk to us",
-        "href": "/dashboard"
+        "href": "/signup"
       }
     }
   },
@@ -402,6 +407,38 @@
           "icon": "CreditCard"
         }
       ]
+    },
+    "founding": {
+      "title": "Founding beta access",
+      "subtitle": "Tell us where you stream — we're onboarding the first 5 testers by hand.",
+      "platformLabel": "Where do you stream?",
+      "platformOptions": {
+        "kick": "Kick",
+        "youtube": "YouTube",
+        "twitch": "Twitch",
+        "other": "Other"
+      },
+      "channelUrlLabel": "Channel link",
+      "channelUrlPlaceholder": "https://kick.com/yourname",
+      "messageLabel": "Anything else we should know? (optional)",
+      "messagePlaceholder": "Stream schedule, audience size, languages you'd translate into…",
+      "submitLabel": "Submit application",
+      "submittingLabel": "Submitting…",
+      "editLabel": "Edit application",
+      "statusLabels": {
+        "pending": "Application received",
+        "approved": "Approved — you're in!",
+        "revoked": "Access revoked"
+      },
+      "statusHints": {
+        "pending": "We're reviewing founding applications by hand. You can explore the dashboard now — streaming unlocks once we approve your account. You may need to sign out and back in after approval.",
+        "approved": "You're a founding tester — captions are free during the closed beta. Head to Go live to start streaming.",
+        "revoked": "Your founding access was revoked. Reach out if you think this is a mistake."
+      },
+      "errors": {
+        "network": "Couldn't reach the server — try again in a moment.",
+        "invalid": "Please enter a valid channel link."
+      }
     },
     "overview": {
       "title": "Overview",
@@ -919,6 +956,10 @@
         ]
       },
       "upgradeLabel": "Upgrade plan",
+      "upgradingLabel": "Redirecting to checkout…",
+      "topPlanLabel": "You're on the top plan",
+      "checkoutUnavailable": "Billing isn't fully configured yet — check back soon.",
+      "errorNetwork": "Couldn't reach the server. Try again.",
       "invoicesTitle": "Invoice history",
       "invoicesEmpty": "No invoices yet.",
       "invoices": []
@@ -997,6 +1038,20 @@
     "voice": {
       "title": "Voice cloning studio",
       "subtitle": "Clone your voice once — the desktop app speaks your translated captions in it. A human reviews every new voice before it goes live.",
+      "comingSoon": {
+        "title": "Voice dubbing — coming soon",
+        "summary": "The founding beta is captions-only so we can get live translation rock-solid on a single GPU worker first. Dubbed voice cloning is next — join the waitlist and we'll email you the moment it opens.",
+        "waitlist": {
+          "label": "Get notified when voice dubbing opens",
+          "emailPlaceholder": "you@example.com",
+          "submitLabel": "Join waitlist",
+          "loadingLabel": "Joining…",
+          "successMessage": "You're on the list — we'll email you when it's ready.",
+          "duplicateMessage": "You're already on the list.",
+          "invalidEmailMessage": "Enter a valid email address.",
+          "errorMessage": "Couldn't reach the server — try again in a moment."
+        }
+      },
       "processing": {
         "title": "Speech synthesis processing",
         "subtitle": "Choose where your cloned voice is synthesized. Captions and translations work the same either way.",
@@ -1111,9 +1166,13 @@
     },
     "billingHint": "per month",
     "ctaLabel": "Start free",
-    "ctaHref": "/dashboard",
+    "ctaHref": "/signup",
     "planCtaLabel": "Choose plan",
     "popularLabel": "Most popular",
+    "promo": {
+      "badge": "Founding beta",
+      "freeChipLabel": "Free for founding testers"
+    },
     "plans": [
       {
         "name": "Free",
@@ -1176,6 +1235,62 @@
       ]
     },
     "note": "Prices and limits shown here reflect the current plan catalog and may be updated — your dashboard always shows your live plan."
+  },
+  "howItWorks": {
+    "hero": {
+      "eyebrow": "How it works",
+      "title": "From download to live captions in four steps.",
+      "summary": "No plugin for your viewers, no re-streaming your gameplay to the cloud — just your microphone audio, translated in real time."
+    },
+    "steps": [
+      {
+        "title": "Download the desktop app",
+        "body": "Grab the Strovak desktop app for Windows (Mac/Linux support is on the roadmap). It runs alongside OBS or your streaming software of choice.",
+        "icon": "MonitorCog"
+      },
+      {
+        "title": "Pair it with a code",
+        "body": "Your dashboard shows a one-time 6-digit code. Type it into the app once — it stays paired for 30 days, no re-entering it every stream.",
+        "icon": "KeyRound"
+      },
+      {
+        "title": "Add the overlay to OBS",
+        "body": "Copy your overlay URL from the Captions page and add it as a Browser Source in OBS. It shows live translated captions on top of your scene.",
+        "icon": "Route"
+      },
+      {
+        "title": "Go live like you always do",
+        "body": "Stream to Twitch, Kick or YouTube as usual. The app sends only your mic audio to the cloud; everything else stays on your machine.",
+        "icon": "Radio"
+      }
+    ],
+    "privacyNote": "Your video, gameplay, and scene never leave your PC — only a small encrypted audio stream (roughly 50–128 Kbps) goes to the cloud for captioning and translation.",
+    "faqTitle": "Common questions",
+    "faq": [
+      {
+        "question": "Does my video ever get uploaded?",
+        "answer": "No. The desktop app only captures microphone audio. Your video is encoded and sent by your own streaming software, exactly like today — Strovak never receives it."
+      },
+      {
+        "question": "Do I need OBS specifically?",
+        "answer": "The overlay works as a browser source in any software that supports one (OBS, Streamlabs, vMix, etc). OBS is just the most common setup, so our instructions use it as the example."
+      },
+      {
+        "question": "What happens when I run out of monthly hours?",
+        "answer": "Captioning pauses until the next billing period or until you upgrade — see the Pricing page for each plan's included hours and overage rate."
+      },
+      {
+        "question": "Can I use my own cloned voice for dubbing?",
+        "answer": "Yes, on the Pro and Streamer plans. You record a short consented sample in the dashboard's Voice cloning studio, and it's reviewed before going live."
+      },
+      {
+        "question": "Which platforms can I stream to?",
+        "answer": "Twitch, YouTube and Kick are supported today, with per-platform captioning or dubbed-channel options — see the Distribution page in your dashboard."
+      }
+    ],
+    "ctaTitle": "Ready to set it up?",
+    "primaryCta": { "label": "Start free", "href": "/signup" },
+    "secondaryCta": { "label": "See plans & pricing", "href": "/pricing" }
   },
   "security": {
     "hero": {
@@ -1690,46 +1805,68 @@
     },
     "users": {
       "title": "Users",
-      "subtitle": "All broadcasters. Filter by plan, country, or status.",
-      "searchPlaceholder": "Search by email or name",
-      "filters": [
-        "All plans",
-        "Active only",
-        "All countries"
-      ],
-      "columns": [
-        "Broadcaster",
-        "Plan",
-        "Country",
-        "Status",
-        "Usage"
-      ],
+      "subtitle": "All broadcasters. Search by email and change a plan directly.",
+      "searchPlaceholder": "Search by email",
+      "columns": {
+        "broadcaster": "Broadcaster",
+        "plan": "Plan",
+        "verified": "Email",
+        "joined": "Joined"
+      },
+      "verifiedLabel": "Verified",
+      "pendingLabel": "Pending",
+      "saveLabel": "Save",
+      "savingLabel": "Saving…",
+      "loading": "Loading users…",
       "empty": "No users yet.",
-      "rows": [
-        {
-          "name": "ada@example.com",
-          "plan": "Free",
-          "country": "TR",
-          "status": "active",
-          "usage": "1.2h / 5h"
-        },
-        {
-          "name": "leo@example.com",
-          "plan": "Pro",
-          "country": "DE",
-          "status": "active",
-          "usage": "14h / 50h"
-        },
-        {
-          "name": "mira@example.com",
-          "plan": "Pro",
-          "country": "US",
-          "status": "suspended",
-          "usage": "0h / 50h"
-        }
-      ],
-      "actionsNote": "Open a user to change plan, add credit, or ban. Live data appears once the backend is connected.",
-      "manageLabel": "Manage"
+      "errors": {
+        "unauthorized": "Your admin session expired.",
+        "network": "Couldn't reach the server. Try again.",
+        "saveFailed": "Couldn't save that plan change."
+      },
+      "signInLabel": "Sign in again"
+    },
+    "founding": {
+      "title": "Founding beta applications",
+      "subtitle": "Review who applied and grant free access to the first testers.",
+      "columns": {
+        "broadcaster": "Broadcaster",
+        "platform": "Platform",
+        "channel": "Channel",
+        "status": "Status"
+      },
+      "statusLabels": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "revoked": "Revoked"
+      },
+      "approveLabel": "Approve",
+      "revokeLabel": "Revoke",
+      "savingLabel": "Saving…",
+      "loading": "Loading applications…",
+      "empty": "No applications yet.",
+      "errors": {
+        "unauthorized": "Your admin session expired.",
+        "network": "Couldn't reach the server. Try again."
+      },
+      "signInLabel": "Sign in again"
+    },
+    "promo": {
+      "title": "Founding beta promo",
+      "subtitle": "Controls the pricing page banner and the closed-beta streaming gate.",
+      "gateLabel": "Require founding approval to stream",
+      "gateHint": "When on, only approved founding testers (see Users tab) can start a stream — everyone else sees a pending-approval message.",
+      "enabledLabel": "Show promo banner on pricing page",
+      "messageLabel": "Banner message",
+      "saveLabel": "Save",
+      "savingLabel": "Saving…",
+      "saved": "Saved.",
+      "errors": {
+        "unauthorized": "Your admin session expired.",
+        "network": "Couldn't reach the server. Try again.",
+        "saveFailed": "Couldn't save — the value may be empty or the key is not managed."
+      },
+      "signInLabel": "Sign in again"
     },
     "infrastructure": {
       "title": "Infrastructure",
@@ -1801,78 +1938,54 @@
         {
           "key": "stt",
           "label": "Speech-to-text (STT)",
-          "configKey": "service_config.stt.provider",
+          "providerConfigKey": "stt.provider",
+          "fallbackConfigKey": "stt.fallback",
           "options": [
-            {
-              "name": "Deepgram",
-              "status": "enabled",
-              "active": true
-            },
-            {
-              "name": "faster-whisper",
-              "status": "coming_soon",
-              "active": false
-            },
-            {
-              "name": "Hybrid",
-              "status": "coming_soon",
-              "active": false
-            }
+            { "slug": "deepgram", "name": "Deepgram", "status": "enabled" },
+            { "slug": "assemblyai", "name": "AssemblyAI", "status": "enabled" },
+            { "slug": "faster-whisper", "name": "faster-whisper", "status": "coming_soon" },
+            { "slug": "hybrid", "name": "Hybrid", "status": "coming_soon" }
           ],
           "fallbackLabel": "Fallback",
-          "fallback": "AssemblyAI"
+          "fallbackNone": "None"
         },
         {
           "key": "translation",
           "label": "Translation",
-          "configKey": "service_config.translation.provider",
+          "providerConfigKey": "translate.provider",
+          "fallbackConfigKey": "translate.fallback",
           "options": [
-            {
-              "name": "DeepL",
-              "status": "enabled",
-              "active": true
-            },
-            {
-              "name": "HY-MT1.5",
-              "status": "coming_soon",
-              "active": false
-            },
-            {
-              "name": "Hybrid",
-              "status": "coming_soon",
-              "active": false
-            }
+            { "slug": "deepl", "name": "DeepL", "status": "enabled" },
+            { "slug": "google", "name": "Google Translate", "status": "enabled" },
+            { "slug": "hy-mt1.5", "name": "HY-MT1.5", "status": "coming_soon" },
+            { "slug": "hybrid", "name": "Hybrid", "status": "coming_soon" }
           ],
           "fallbackLabel": "Fallback",
-          "fallback": "Google Translate"
+          "fallbackNone": "None"
         },
         {
           "key": "tts",
           "label": "Text-to-speech (TTS)",
-          "configKey": "service_config.tts.provider",
+          "providerConfigKey": "tts.provider",
+          "fallbackConfigKey": "tts.fallback",
           "options": [
-            {
-              "name": "ElevenLabs",
-              "status": "enabled",
-              "active": true
-            },
-            {
-              "name": "Cartesia",
-              "status": "coming_soon",
-              "active": false
-            },
-            {
-              "name": "XTTS-v2",
-              "status": "coming_soon",
-              "active": false
-            }
+            { "slug": "elevenlabs", "name": "ElevenLabs", "status": "enabled" },
+            { "slug": "cartesia", "name": "Cartesia", "status": "coming_soon" },
+            { "slug": "xtts-v2", "name": "XTTS-v2", "status": "coming_soon" }
           ],
           "fallbackLabel": "Fallback",
-          "fallback": "Cartesia"
+          "fallbackNone": "None"
         }
       ],
       "fallbackRuleLabel": "Auto fallback rule",
       "fallbackRule": "When the primary provider is busy or errors, traffic shifts to the fallback automatically.",
+      "loading": "Loading…",
+      "savingLabel": "Saving…",
+      "errors": {
+        "unauthorized": "Your admin session expired.",
+        "network": "Couldn't reach the server. Try again."
+      },
+      "signInLabel": "Sign in again",
       "deeplLanguages": {
         "title": "DeepL target languages",
         "subtitle": "Choose which languages are offered to broadcasters platform-wide. Each plan still caps how many a broadcaster can pick at once.",
@@ -1993,34 +2106,21 @@
     },
     "costs": {
       "title": "Costs",
-      "subtitle": "A basic monthly estimate of provider spend.",
-      "metrics": [
-        {
-          "label": "STT spend",
-          "value": "$0",
-          "hint": "Deepgram, this month",
-          "icon": "Languages"
-        },
-        {
-          "label": "Translation spend",
-          "value": "$0",
-          "hint": "DeepL, this month",
-          "icon": "Route"
-        },
-        {
-          "label": "TTS spend",
-          "value": "$0",
-          "hint": "ElevenLabs, this month",
-          "icon": "AudioLines"
-        },
-        {
-          "label": "Infra",
-          "value": "$0",
-          "hint": "Railway, this month",
-          "icon": "MonitorCog"
-        }
-      ],
-      "note": "Estimates are read from provider usage once billing integrations are connected."
+      "subtitle": "Estimated self-hosted STT/translation spend this period vs. plan revenue.",
+      "usageLabel": "Usage this period",
+      "costLabel": "Estimated cost",
+      "costHint": "STT + translation",
+      "revenueLabel": "Estimated revenue",
+      "revenueHint": "Sum of current plan prices",
+      "usersLabel": "Broadcasters",
+      "usersHint": "Total accounts",
+      "loading": "Loading…",
+      "errors": {
+        "unauthorized": "Your admin session expired.",
+        "network": "Couldn't reach the server. Try again."
+      },
+      "signInLabel": "Sign in again",
+      "note": "Cost is an estimate: total usage hours × the $/hour rates set in Config (cost.stt.usd_per_hour, cost.translate.usd_per_hour) — it doesn't yet split spend per provider. Revenue is a live snapshot of what's billed today, not a period total."
     },
     "logs": {
       "title": "Logs",

@@ -32,6 +32,7 @@ base64.workspace = true
 aes-gcm.workspace = true
 getrandom.workspace = true
 tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
 
 # Windows WASAPI cihaz I/O (1.3) — yalnız Windows build'ine girer.
 [target.'cfg(target_os = "windows")'.dependencies]

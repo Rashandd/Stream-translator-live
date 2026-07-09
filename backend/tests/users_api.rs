@@ -479,6 +479,65 @@ async fn password_reset_flow_rotates_password() {
     assert_eq!(json(&body)["two_factor_required"], true);
 }
 
+#[tokio::test]
+async fn login_is_rate_limited_after_too_many_attempts_from_the_same_client() {
+    let server = spawn_server(None, None).await;
+
+    // Varsayılan limit dakikada 10 (auth.login.rate_limit_per_min) — bu test
+    // istemcisi header basmadığından hepsi aynı "unknown" anahtarına düşer.
+    for _ in 0..10 {
+        let (status, _) = http(
+            server.addr,
+            &post_json(
+                "/api/auth/login",
+                r#"{"email":"nobody@example.com","password":"wrong"}"#,
+            ),
+        )
+        .await;
+        assert_eq!(status, 401);
+    }
+
+    let (status, body) = http(
+        server.addr,
+        &post_json(
+            "/api/auth/login",
+            r#"{"email":"nobody@example.com","password":"wrong"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 429, "body: {body}");
+}
+
+#[tokio::test]
+async fn signup_is_rate_limited_after_too_many_attempts_from_the_same_client() {
+    let server = spawn_server(None, None).await;
+
+    // Varsayılan limit dakikada 20 (auth.signup.rate_limit_per_min). Her
+    // istek zorunlu koşulu (legal_terms_accepted) atlayıp 422 alır ama yine
+    // de limitten sayılır — limiter kontrolü doğrulamadan önce çalışır.
+    for _ in 0..20 {
+        let (status, _) = http(
+            server.addr,
+            &post_json(
+                "/api/auth/signup",
+                r#"{"email":"whoever@example.com","password":"strong-pass-1"}"#,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    let (status, body) = http(
+        server.addr,
+        &post_json(
+            "/api/auth/signup",
+            r#"{"email":"whoever@example.com","password":"strong-pass-1"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 429, "body: {body}");
+}
+
 /// Gerçek Postgres'e karşı users write-behind doğrulaması.
 /// Koşmak için: `TEST_DATABASE_URL=postgres://... cargo test -- --ignored users_persist`
 #[tokio::test]

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { MetricCard, PageHeader } from "@/src/components/dashboard-ui";
+import { AdminCostsPanel } from "@/src/components/admin-costs-panel";
+import { PageHeader } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
-import { isLocale, locales, type Locale } from "@/src/i18n/routing";
+import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
 type Props = { params: Promise<{ locale: string }> };
 
@@ -29,11 +30,23 @@ export default async function AdminCostsPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader subtitle={costs.subtitle} title={costs.title} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {costs.metrics.map((metric) => (
-          <MetricCard hint={metric.hint} icon={metric.icon} key={metric.label} label={metric.label} value={metric.value} />
-        ))}
-      </div>
+
+      <AdminCostsPanel
+        labels={{
+          usageLabel: costs.usageLabel,
+          costLabel: costs.costLabel,
+          costHint: costs.costHint,
+          revenueLabel: costs.revenueLabel,
+          revenueHint: costs.revenueHint,
+          usersLabel: costs.usersLabel,
+          usersHint: costs.usersHint,
+          loading: costs.loading,
+          errors: costs.errors,
+          signInLabel: costs.signInLabel,
+        }}
+        loginHref={localizePath(locale, "/admin/login")}
+      />
+
       <p className="text-sm leading-6 text-muted">{costs.note}</p>
     </div>
   );

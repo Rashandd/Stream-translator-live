@@ -43,7 +43,7 @@ impl PlanRegistry {
             PlanDefinition {
                 name: "starter".into(),
                 price_cents: 999,
-                monthly_hours: 20,
+                monthly_hours: 30,
                 max_languages: 3,
                 max_platforms: 3,
                 has_watermark: false,
@@ -52,7 +52,7 @@ impl PlanRegistry {
             PlanDefinition {
                 name: "pro".into(),
                 price_cents: 2499,
-                monthly_hours: 40,
+                monthly_hours: 80,
                 max_languages: 10,
                 max_platforms: -1,
                 has_watermark: false,
@@ -60,12 +60,27 @@ impl PlanRegistry {
             },
             PlanDefinition {
                 name: "streamer".into(),
-                price_cents: 4999,
-                monthly_hours: 100,
+                price_cents: 9999,
+                monthly_hours: 200,
                 max_languages: -1,
                 max_platforms: -1,
                 has_watermark: false,
                 has_voice_clone: true,
+            },
+            // "Founding 5" kapalı beta (Faz 1 ilk test): admin onayladığı
+            // kullanıcılara `ws::mod::effective_plan` üzerinden atanır —
+            // `PlanRegistry`'de normal bir plan gibi durur (admin panelden
+            // `PUT /admin/plans` ile ayarlanabilir), ama `PlanRegistry::get`
+            // dışında hiçbir yerde manuel atanmaz. İlk test STT-only
+            // olduğundan `has_voice_clone: false`.
+            PlanDefinition {
+                name: "founding".into(),
+                price_cents: 0,
+                monthly_hours: 50,
+                max_languages: 3,
+                max_platforms: 3,
+                has_watermark: false,
+                has_voice_clone: false,
             },
         ];
         let map = defaults.into_iter().map(|p| (p.name.clone(), p)).collect();
@@ -83,6 +98,23 @@ impl PlanRegistry {
     pub fn set(&self, plan: PlanDefinition) {
         if let Ok(mut map) = self.plans.write() {
             map.insert(plan.name.clone(), plan);
+        }
+    }
+
+    /// Bir planı siler, önceki tanımı döner (DB yazımı başarısız olduğunda
+    /// yeni eklenen planı geri almak için). Bilinmeyen plan adı `None`.
+    pub fn remove(&self, name: &str) -> Option<PlanDefinition> {
+        self.plans.write().ok()?.remove(name)
+    }
+
+    /// `plans` tablosundan okunan tanımları varsayılanların üzerine yazar
+    /// (başlangıçta, admin'in önceki oturumlarda kaydettiği planları belleğe
+    /// yüklemek için — `ServiceConfig::apply_db_rows` ile aynı desen).
+    pub fn apply_db_rows(&self, rows: Vec<PlanDefinition>) {
+        if let Ok(mut map) = self.plans.write() {
+            for plan in rows {
+                map.insert(plan.name.clone(), plan);
+            }
         }
     }
 
@@ -104,20 +136,123 @@ impl Default for PlanRegistry {
     }
 }
 
+/// `plans` tablosu INTEGER (i32) kolonlar kullanır; aralık dışı bir admin
+/// girdisi sessizce kırpılmak yerine açık hata döner.
+fn to_db_int(value: i64, field: &str) -> Result<i32, sqlx::Error> {
+    i32::try_from(value)
+        .map_err(|_| sqlx::Error::Protocol(format!("plan alanı INTEGER aralığı dışında: {field}={value}")))
+}
+
+/// Aktif planları `plans` tablosundan okur (başlangıçta, admin'in önceki
+/// oturumlarda kaydettiği tanımları belleğe yüklemek için).
+pub async fn load_from_db(pool: &sqlx::PgPool) -> Result<Vec<PlanDefinition>, sqlx::Error> {
+    use sqlx::Row;
+    let rows = sqlx::query(
+        "SELECT name, price_cents, monthly_hours, max_languages, max_platforms, \
+                has_watermark, has_voice_clone \
+         FROM plans WHERE is_active",
+    )
+    .fetch_all(pool)
+    .await?;
+    rows.into_iter()
+        .map(|row| {
+            Ok(PlanDefinition {
+                name: row.try_get("name")?,
+                price_cents: i64::from(row.try_get::<i32, _>("price_cents")?),
+                monthly_hours: i64::from(row.try_get::<i32, _>("monthly_hours")?),
+                max_languages: i64::from(row.try_get::<i32, _>("max_languages")?),
+                max_platforms: i64::from(row.try_get::<i32, _>("max_platforms")?),
+                has_watermark: row.try_get("has_watermark")?,
+                has_voice_clone: row.try_get("has_voice_clone")?,
+            })
+        })
+        .collect()
+}
+
+/// Bir planı `plans` tablosuna yazar (upsert) — admin panelden
+/// `PUT /admin/plans` çağrıldığında bellek içi değerle birlikte kalıcı hale
+/// gelir, restart'ta kaybolmaz (`config::persist_to_db` ile aynı desen).
+pub async fn persist_to_db(pool: &sqlx::PgPool, plan: &PlanDefinition) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO plans (name, price_cents, monthly_hours, max_languages, max_platforms, \
+                            has_watermark, has_voice_clone) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT (name) DO UPDATE SET \
+            price_cents = EXCLUDED.price_cents, \
+            monthly_hours = EXCLUDED.monthly_hours, \
+            max_languages = EXCLUDED.max_languages, \
+            max_platforms = EXCLUDED.max_platforms, \
+            has_watermark = EXCLUDED.has_watermark, \
+            has_voice_clone = EXCLUDED.has_voice_clone, \
+            updated_at = NOW()",
+    )
+    .bind(&plan.name)
+    .bind(to_db_int(plan.price_cents, "price_cents")?)
+    .bind(to_db_int(plan.monthly_hours, "monthly_hours")?)
+    .bind(to_db_int(plan.max_languages, "max_languages")?)
+    .bind(to_db_int(plan.max_platforms, "max_platforms")?)
+    .bind(plan.has_watermark)
+    .bind(plan.has_voice_clone)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn seeds_four_plans() {
+    fn seeds_five_plans() {
         let reg = PlanRegistry::with_defaults();
-        assert_eq!(reg.snapshot().len(), 4);
+        assert_eq!(reg.snapshot().len(), 5);
         let free = reg.get("free").unwrap();
         assert_eq!(free.monthly_hours, 5);
         assert!(free.has_watermark);
+        let starter = reg.get("starter").unwrap();
+        assert_eq!(starter.price_cents, 999);
+        assert_eq!(starter.monthly_hours, 30);
         let pro = reg.get("pro").unwrap();
         assert!(pro.has_voice_clone);
         assert_eq!(pro.max_platforms, -1);
+        assert_eq!(pro.monthly_hours, 80);
+        let streamer = reg.get("streamer").unwrap();
+        assert_eq!(streamer.price_cents, 9999);
+        assert_eq!(streamer.monthly_hours, 200);
+        let founding = reg.get("founding").unwrap();
+        assert_eq!(founding.price_cents, 0);
+        assert_eq!(founding.monthly_hours, 50);
+        assert!(!founding.has_watermark);
+        assert!(!founding.has_voice_clone);
+    }
+
+    #[test]
+    fn apply_db_rows_overrides_defaults() {
+        let reg = PlanRegistry::with_defaults();
+        reg.apply_db_rows(vec![PlanDefinition {
+            name: "starter".into(),
+            price_cents: 1299,
+            monthly_hours: 35,
+            max_languages: 3,
+            max_platforms: 3,
+            has_watermark: false,
+            has_voice_clone: false,
+        }]);
+        let starter = reg.get("starter").unwrap();
+        assert_eq!(starter.price_cents, 1299);
+        assert_eq!(starter.monthly_hours, 35);
+        // Diğer planlar varsayılanda kalır.
+        assert_eq!(reg.get("free").unwrap().monthly_hours, 5);
+        assert_eq!(reg.snapshot().len(), 5);
+    }
+
+    #[test]
+    fn remove_returns_previous_and_deletes() {
+        let reg = PlanRegistry::with_defaults();
+        let removed = reg.remove("free").unwrap();
+        assert_eq!(removed.monthly_hours, 5);
+        assert!(reg.get("free").is_none());
+        assert!(reg.remove("ghost").is_none());
     }
 
     #[test]

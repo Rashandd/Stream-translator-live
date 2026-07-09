@@ -106,6 +106,7 @@ async fn reports_expected_checks_and_providers() {
         "admin_login",
         "secrets",
         "mock_fallback",
+        "tls",
         "redirect_base",
         "stripe_prices",
         "logs",
@@ -117,6 +118,10 @@ async fn reports_expected_checks_and_providers() {
     // Bootstrap admin skeleton'da yok → bu kontrol "bad" olmalı.
     let admin_login = checks.iter().find(|c| c["id"] == "admin_login").unwrap();
     assert_eq!(admin_login["tone"], "bad");
+
+    // Test ortamında TLS_CERT_PATH/TLS_KEY_PATH yok → "bad" olmalı.
+    let tls = checks.iter().find(|c| c["id"] == "tls").unwrap();
+    assert_eq!(tls["tone"], "bad");
 
     let providers = parsed["providers"].as_array().expect("providers array");
     let names: Vec<&str> = providers.iter().map(|p| p["name"].as_str().unwrap()).collect();

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FoundingApplicationPanel } from "@/src/components/founding-application-panel";
 import { Icon } from "@/src/components/icon";
 import { MetricCard, PageHeader, SectionCard } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
@@ -30,11 +31,13 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
 
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
-  const { overview } = config.dashboard;
+  const { overview, founding } = config.dashboard;
 
   return (
     <div className="space-y-6">
       <PageHeader subtitle={overview.subtitle} title={overview.title} />
+
+      <FoundingApplicationPanel labels={founding} />
 
       <SectionCard subtitle={overview.howItWorks.subtitle} title={overview.howItWorks.title}>
         <ol className="grid gap-4 sm:grid-cols-3">

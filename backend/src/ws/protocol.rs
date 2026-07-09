@@ -166,6 +166,9 @@ pub enum ErrorCode {
     TooManyTargetLanguages = 4008,
     /// `target_langs` içinde admin'in kapattığı/katalogda olmayan bir kod var (Faz 2.0).
     UnsupportedTargetLanguage = 4009,
+    /// "Founding 5" kapalı beta: `founding.gate.enabled=true` iken admin
+    /// henüz onaylamadı (bkz. `founding` modülü) — yayın başlatılamaz.
+    FoundingApprovalPending = 4010,
     InternalError = 5000,
 }
 

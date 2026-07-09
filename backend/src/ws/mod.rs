@@ -191,14 +191,28 @@ fn monthly_hours_for(state: &AppState, plan: &str) -> i64 {
         .unwrap_or(-1)
 }
 
+/// JWT `claims.plan` 24 saat stale kalabilir (token yenilenene kadar) —
+/// admin bir kullanıcıyı "founding" beta'ya onayladığında bu anında
+/// yansımalı, re-login beklenmemeli. Bu yüzden plan limitleri için
+/// `claims.plan` yerine bu fonksiyon kullanılır: onaylı founding
+/// başvurusu varsa `founding` planı, yoksa claim'deki plan.
+fn effective_plan(state: &AppState, claims: &Claims) -> String {
+    if state.founding.is_approved(&claims.sub) {
+        "founding".to_string()
+    } else {
+        claims.plan.clone()
+    }
+}
+
 /// Doğrulanmış claim'lerden, gerçek kullanım durumuna göre `session_ready` kurar.
 fn session_ready(claims: &Claims, state: &AppState) -> ServerMessage {
-    let monthly_hours = monthly_hours_for(state, &claims.plan);
+    let plan = effective_plan(state, claims);
+    let monthly_hours = monthly_hours_for(state, &plan);
     let status = state.usage.status(&claims.sub, monthly_hours);
     ServerMessage::SessionReady {
         session_id: claims.sub.clone(),
         user_id: claims.sub.clone(),
-        plan: claims.plan.clone(),
+        plan,
         remaining_seconds: status.remaining_seconds,
     }
 }
@@ -221,6 +235,30 @@ fn handle_control(
             stt_source,
             tts_source,
         } => {
+            // "Founding 5" kapalı beta kapısı (Faz 1 ilk test): açıksa ve
+            // kullanıcı admin değilse, onaylı bir founding başvurusu şart —
+            // canlı okunur (`is_approved`), JWT yenilenmesini beklemez.
+            let founding_gate_enabled = state
+                .service_config
+                .get("founding.gate.enabled")
+                .as_deref()
+                == Some("true");
+            if founding_gate_enabled
+                && claims.role != "admin"
+                && !state.founding.is_approved(&claims.sub)
+            {
+                state.logger.log(
+                    LogLevel::Warn,
+                    "ws",
+                    "stream_start rejected: founding approval pending",
+                    Some(&claims.sub),
+                    Some(&session_id),
+                );
+                return Some(ServerMessage::error(
+                    ErrorCode::FoundingApprovalPending,
+                    "founding_approval_pending",
+                ));
+            }
             if audio_format.codec != "opus" && audio_format.codec != "pcm_s16le" {
                 state.logger.log(
                     LogLevel::Warn,
@@ -234,13 +272,16 @@ fn handle_control(
                     "unsupported_codec",
                 ));
             }
+            // Onaylı founding testerlar için limitler `claims.plan` yerine
+            // canlı okunan `effective_plan`'dan gelir (bkz. yukarıdaki not).
+            let plan = effective_plan(state, claims);
             // DeepL hedef dil matrisi (Faz 2.0): plan başına azami hedef dil
             // sayısı (`PlanRegistry.max_languages`, -1 = sınırsız) + admin'in
             // açtığı katalog alt kümesi (`translate.deepl.enabled_targets`).
             // Panel zaten `PUT /api/translate/languages`'ta aynı kuralları
             // uygular — burası SDK doğrudan eski/elle kurulmuş bir
             // `target_langs` gönderirse diye sunucu tarafı ikinci savunma.
-            let max_languages = state.plans.get(&claims.plan).map(|p| p.max_languages).unwrap_or(1);
+            let max_languages = state.plans.get(&plan).map(|p| p.max_languages).unwrap_or(1);
             if max_languages >= 0 && target_langs.len() as i64 > max_languages {
                 state.logger.log(
                     LogLevel::Warn,
@@ -248,7 +289,7 @@ fn handle_control(
                     &format!(
                         "stream_start rejected: {} target languages exceeds plan {} limit of {}",
                         target_langs.len(),
-                        claims.plan,
+                        plan,
                         max_languages
                     ),
                     Some(&claims.sub),
@@ -287,13 +328,13 @@ fn handle_control(
                     .service_config
                     .get("stt.local.plans")
                     .unwrap_or_default();
-                if !plan_allowed(&plans_csv, &claims.plan) {
+                if !plan_allowed(&plans_csv, &plan) {
                     state.logger.log(
                         LogLevel::Warn,
                         "ws",
                         &format!(
                             "stream_start rejected: plan {} not in stt.local.plans",
-                            claims.plan
+                            plan
                         ),
                         Some(&claims.sub),
                         Some(&session_id),
@@ -305,7 +346,7 @@ fn handle_control(
                 }
             }
             let overlay_token = uuid::Uuid::new_v4().simple().to_string();
-            let monthly_hours = monthly_hours_for(state, &claims.plan);
+            let monthly_hours = monthly_hours_for(state, &plan);
             state.logger.log(
                 LogLevel::Info,
                 "ws",
@@ -698,5 +739,92 @@ mod tests {
         assert!(session.is_some());
         control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &claims(), &mut session);
         assert!(session.is_none());
+    }
+
+    // ── "Founding 5" kapalı beta kapısı ───────────────────────────────────
+
+    use crate::founding::FoundingStatus;
+
+    const START_JSON: &str = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+
+    #[test]
+    fn gate_disabled_by_default_allows_unapproved_user() {
+        // Seed varsayılanı: founding.gate.enabled = "false".
+        let st = state();
+        let mut session = None;
+        let reply = control(START_JSON, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+    }
+
+    #[test]
+    fn gate_enabled_rejects_unapproved_user() {
+        let st = state();
+        st.service_config.set("founding.gate.enabled", "true");
+        let mut session = None;
+        let reply = control(START_JSON, &st, &claims(), &mut session);
+        match reply {
+            Some(ServerMessage::Error { code, message, .. }) => {
+                assert_eq!(code, 4010);
+                assert_eq!(message, "founding_approval_pending");
+            }
+            other => panic!("beklenmeyen yanıt: {other:?}"),
+        }
+        assert!(session.is_none());
+    }
+
+    #[test]
+    fn gate_enabled_allows_approved_user_and_grants_founding_plan_limits() {
+        let st = state();
+        st.service_config.set("founding.gate.enabled", "true");
+        st.founding.upsert_application(
+            "u-1",
+            "u1@example.com",
+            crate::founding::FoundingPlatform::Kick,
+            "https://kick.com/u1",
+            "",
+        );
+        st.founding.set_status("u-1", FoundingStatus::Approved);
+
+        let mut session = None;
+        // free plan tek dille sınırlı ama founding planı max_languages=3 —
+        // 2 hedef dil onaylı founding kullanıcısı için kabul edilmeli.
+        let json = r#"{"type":"stream_start","session_id":"s1","source_lang":"tr","target_langs":["en","de"],"audio_format":{"codec":"opus","sample_rate":16000,"channels":1}}"#;
+        let reply = control(json, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+    }
+
+    #[test]
+    fn gate_enabled_allows_admin_role_without_approval() {
+        let st = state();
+        st.service_config.set("founding.gate.enabled", "true");
+        let mut admin_claims = claims();
+        admin_claims.role = "admin".into();
+        let mut session = None;
+        let reply = control(START_JSON, &st, &admin_claims, &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+    }
+
+    #[test]
+    fn revoking_approval_takes_effect_immediately_without_new_token() {
+        let st = state();
+        st.service_config.set("founding.gate.enabled", "true");
+        st.founding.upsert_application(
+            "u-1",
+            "u1@example.com",
+            crate::founding::FoundingPlatform::Kick,
+            "https://kick.com/u1",
+            "",
+        );
+        st.founding.set_status("u-1", FoundingStatus::Approved);
+
+        let mut session = None;
+        let reply = control(START_JSON, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::StreamAck { .. })));
+        control(r#"{"type":"stream_stop","session_id":"s1"}"#, &st, &claims(), &mut session);
+
+        // Aynı claims (aynı "eski" JWT) — admin iptal etti, canlı store hemen yansır.
+        st.founding.set_status("u-1", FoundingStatus::Revoked);
+        let reply = control(START_JSON, &st, &claims(), &mut session);
+        assert!(matches!(reply, Some(ServerMessage::Error { code: 4010, .. })));
     }
 }

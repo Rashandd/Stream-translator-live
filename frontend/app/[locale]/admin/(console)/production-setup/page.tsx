@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminProductionSetupPanel } from "@/src/components/admin-production-setup-panel";
+import { AdminPromoPanel } from "@/src/components/admin-promo-panel";
 import { PageHeader } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
@@ -25,11 +26,13 @@ export default async function AdminProductionSetupPage({ params }: Props) {
   }
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
-  const { productionSetup } = config.admin;
+  const { productionSetup, promo } = config.admin;
 
   return (
     <div className="space-y-6">
       <PageHeader subtitle={productionSetup.subtitle} title={productionSetup.title} />
+
+      <AdminPromoPanel labels={promo} loginHref={localizePath(locale, "/admin/login")} />
 
       <AdminProductionSetupPanel
         labels={{

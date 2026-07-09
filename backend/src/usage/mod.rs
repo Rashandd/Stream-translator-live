@@ -18,10 +18,15 @@ use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
+use axum::extract::State;
+use axum::Json;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+
+use crate::auth::authz::AuthUser;
+use crate::plans::PlanRegistry;
 
 /// Bir kullanıcının bir dönemdeki kullanım durumu.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -107,7 +112,9 @@ impl UsageTracker {
         self.file_path.as_deref()
     }
 
-    fn current_period() -> String {
+    /// Geçerli dönem anahtarı (`"YYYY-MM"`, UTC) — `GET /api/usage/summary`
+    /// yanıtında hangi ayın gösterildiğini bildirmek için de kullanılır.
+    pub fn current_period() -> String {
         Utc::now().format("%Y-%m").to_string()
     }
 
@@ -120,6 +127,22 @@ impl UsageTracker {
     /// Geçerli kullanım (kayıt eklemeden) — `session_ready` anında gösterim için.
     pub fn status(&self, user_id: &str, monthly_hours: i64) -> UsageStatus {
         self.record(user_id, 0.0, monthly_hours)
+    }
+
+    /// Bu dönemde (geçerli ay) tüm kullanıcıların toplam kullanım saniyesi —
+    /// admin maliyet özeti için (bkz. `costs::get_summary`). Önceki aylardan
+    /// kalmış, henüz bu dönemde dokunulmamış kayıtlar sayılmaz.
+    pub fn total_seconds_this_period(&self) -> i64 {
+        let period = Self::current_period();
+        self.users
+            .lock()
+            .map(|map| {
+                map.values()
+                    .filter(|u| u.period == period)
+                    .map(|u| u.used_seconds)
+                    .sum()
+            })
+            .unwrap_or(0)
     }
 
     /// Test edilebilir çekirdek: `period` enjekte edilir.
@@ -245,6 +268,44 @@ impl Default for UsageTracker {
     }
 }
 
+/// `GET /api/usage/summary` yanıtı — billing sayfasının plan + kullanım
+/// kartlarını doldurur (kredi birimi henüz canlı olmadığından saat/saniye
+/// cinsindendir, bkz. `PlanDefinition::monthly_hours`).
+#[derive(Debug, Serialize, PartialEq)]
+pub struct UsageSummaryResponse {
+    pub plan: String,
+    pub price_cents: i64,
+    pub period: String,
+    pub used_seconds: i64,
+    /// `-1` = sınırsız (plan `monthly_hours = -1`).
+    pub monthly_hours: i64,
+    pub remaining_seconds: i64,
+    pub limit_reached: bool,
+}
+
+/// `GET /api/usage/summary` (yayıncı) — mevcut plan + bu ayki kullanımı tek
+/// çağrıda döner; dashboard `billing` sayfası statik placeholder yerine
+/// bunu okur.
+pub async fn get_summary(
+    user: AuthUser,
+    State(usage): State<Arc<UsageTracker>>,
+    State(plans): State<Arc<PlanRegistry>>,
+) -> Json<UsageSummaryResponse> {
+    let plan_def = plans.get(&user.claims.plan);
+    let monthly_hours = plan_def.as_ref().map(|p| p.monthly_hours).unwrap_or(0);
+    let price_cents = plan_def.as_ref().map(|p| p.price_cents).unwrap_or(0);
+    let status = usage.status(&user.claims.sub, monthly_hours);
+    Json(UsageSummaryResponse {
+        plan: user.claims.plan.clone(),
+        price_cents,
+        period: UsageTracker::current_period(),
+        used_seconds: status.used_seconds,
+        monthly_hours,
+        remaining_seconds: status.remaining_seconds,
+        limit_reached: status.limit_reached,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,6 +342,16 @@ mod tests {
         let status = tracker.record_for_period("u1", 1_000_000.0, -1, "2026-07");
         assert_eq!(status.remaining_seconds, -1);
         assert!(!status.limit_reached);
+    }
+
+    #[test]
+    fn total_seconds_this_period_sums_across_users_but_ignores_stale_periods() {
+        let tracker = UsageTracker::new();
+        tracker.record("u1", 100.0, 5);
+        tracker.record("u2", 250.0, 5);
+        // Geçmiş bir döneme ait kayıt toplama katılmamalı.
+        tracker.record_for_period("u3", 9_999.0, 5, "2020-01");
+        assert_eq!(tracker.total_seconds_this_period(), 350);
     }
 
     #[test]

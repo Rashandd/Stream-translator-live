@@ -203,6 +203,32 @@ impl ServiceConfig {
             ("auth.email_2fa", "auto"),
             // Signup'ta atanan plan — admin panelden değiştirilebilir.
             ("auth.default_plan", "free"),
+            // Login/signup brute-force koruması (Faz 1.13): istemci (IP)
+            // başına dakikada izin verilen deneme sayısı — pairing::ClaimLimiter
+            // ile aynı sabit-pencere deseni (bkz. `rate_limit::RateLimiter`).
+            // Şifre denemeleri argon2 maliyetiyle zaten yavaşlar; bu limit
+            // dağıtık/çoklu-kimlik brute-force'u önler. Restart gerekmez.
+            ("auth.login.rate_limit_per_min", "10"),
+            ("auth.signup.rate_limit_per_min", "20"),
+            // "Founding 5" kapalı beta (Faz 1 ilk test — sadece STT altyazı,
+            // tek GPU worker): kapalıyken (varsayılan) herkes normal plan
+            // limitleriyle yayın açabilir; admin betayı başlatırken "true"
+            // yapar — o andan sonra `ws::mod` StreamStart'ta onaylı bir
+            // founding başvurusu (bkz. `founding` modülü) şart koşar.
+            ("founding.gate.enabled", "false"),
+            // Pricing sayfasında fiyatların üstünü çizip gösterilecek admin-
+            // düzenlenebilir promosyon mesajı (`GET /config` public'ten okunur).
+            ("promo.founding.enabled", "false"),
+            (
+                "promo.founding.message",
+                "Founding testers stream free during the closed beta. Prices below apply after launch.",
+            ),
+            // Admin maliyet özeti (Faz 1.14): kullanım saati başına tahmini
+            // $ maliyeti — self-hosted GPU STT + DeepL için roadmap'teki
+            // kalibrasyon tahminleri (docs/audio-pipeline.md). Admin panelden
+            // gerçek Vast.ai/Hetzner $/saat rakamlarıyla güncellenir.
+            ("cost.stt.usd_per_hour", "0.05"),
+            ("cost.translate.usd_per_hour", "0.04"),
             // Legal doküman HTML içerikleri. Boşsa frontend statik fallback
             // metinlerini gösterir; admin panelden doldurulunca public
             // /legal/{slug} sayfaları bu HTML'i render eder.

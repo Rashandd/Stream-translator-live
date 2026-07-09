@@ -147,6 +147,31 @@ pub async fn get_setup_status(
         },
     });
 
+    let tls_configured = persist_env_configured("TLS_CERT_PATH") && persist_env_configured("TLS_KEY_PATH");
+    let mtls_configured = persist_env_configured("TLS_CLIENT_CA_PATH");
+    checks.push(if !tls_configured {
+        SetupCheck {
+            id: "tls",
+            label: "TLS".to_string(),
+            tone: Tone::Bad,
+            detail: "TLS_CERT_PATH/TLS_KEY_PATH yapılandırılmamış — backend düz HTTP dinliyor. Bir reverse proxy TLS 1.3 terminasyonu yapmıyorsa ayarlayın.".to_string(),
+        }
+    } else if !mtls_configured {
+        SetupCheck {
+            id: "tls",
+            label: "TLS".to_string(),
+            tone: Tone::Warn,
+            detail: "TLS aktif ama TLS_CLIENT_CA_PATH (mTLS) yok — SDK istemci sertifikası doğrulanmıyor, sadece sunucu kimliği.".to_string(),
+        }
+    } else {
+        SetupCheck {
+            id: "tls",
+            label: "TLS".to_string(),
+            tone: Tone::Ok,
+            detail: "TLS 1.3 + mTLS (istemci sertifika doğrulaması) aktif.".to_string(),
+        }
+    });
+
     let redirect_base = cfg.get("integration.redirect_base").unwrap_or_default();
     checks.push(SetupCheck {
         id: "redirect_base",

@@ -47,6 +47,12 @@ describe("public navigation and links", () => {
     expect(en.nav.cta.href).toBeTruthy();
   });
 
+  it("the primary marketing CTAs send a new visitor to create an account, not into the dashboard demo", () => {
+    expect(en.nav.cta.href).toBe("/signup");
+    expect(en.home.hero.primaryCta.href).toBe("/signup");
+    expect(en.pricing.ctaHref).toBe("/signup");
+  });
+
   it("pricing is reachable from the public nav", () => {
     const items = en.nav.items.map((item) => item.href);
     expect(items).toContain("/pricing");
