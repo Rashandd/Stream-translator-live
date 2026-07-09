@@ -1056,7 +1056,9 @@
         "sourceLanguagesLabel": "Languages you'll read samples in (choose at least two)",
         "sourceLanguagePlaceholder": "Choose a language",
         "noSourceLanguageError": "Choose a source language first.",
-        "notEnoughSourceLanguagesError": "Choose at least two source languages for this mode."
+        "notEnoughSourceLanguagesError": "Choose at least two source languages for this mode.",
+        "consentLabel": "This is my own voice. I agree to StreamDubber cloning it to speak my translated captions, and I understand cloning someone else's voice without their permission isn't allowed.",
+        "noConsentError": "Confirm this is your own voice before creating a voice model."
       },
       "modelsTitle": "Your voice models",
       "modelsEmpty": "No voice models yet — create one above.",
@@ -1102,7 +1104,7 @@
         "price": "$0",
         "summary": "Try live captions on your next stream.",
         "features": [
-          "Live captions in 1 language",
+          "Live captions in every language",
           "5 hours a month",
           "Strovak watermark on captions",
           "Community support"
@@ -1114,8 +1116,8 @@
         "price": "$9.99",
         "summary": "For streamers going multilingual.",
         "features": [
-          "Captions in 3 languages",
-          "20 hours a month",
+          "Live captions in every language",
+          "30 hours a month, then $0.30 per extra hour",
           "Up to 3 platforms",
           "No watermark"
         ],
@@ -1124,24 +1126,24 @@
       {
         "name": "Pro",
         "price": "$24.99",
-        "summary": "Captions plus voice features as they roll out.",
+        "summary": "Captions plus a dubbed voice for your stream.",
         "features": [
-          "Captions in 10 languages",
-          "40 hours a month",
-          "All platforms",
-          "Voice dubbing (as it launches)"
+          "Captions in every language",
+          "Dubbed voice cloning (rolling out)",
+          "80 hours a month",
+          "All platforms"
         ],
         "popular": false
       },
       {
         "name": "Streamer",
-        "price": "$49.99",
-        "summary": "Everything, for full-time broadcasters.",
+        "price": "$99.99",
+        "summary": "Everything, including your own cloned voice.",
         "features": [
-          "Unlimited languages",
-          "100 hours a month",
-          "All platforms",
-          "Priority support"
+          "Captions in every language",
+          "Clone your own original voice for dubbing",
+          "200 hours a month",
+          "All platforms · priority support"
         ],
         "popular": false
       }
@@ -1149,10 +1151,11 @@
     "onDevice": {
       "badge": "Experimental",
       "title": "Stretch your hours with on-device processing",
-      "summary": "Streamers with a capable NVIDIA GPU can run speech-to-text on their own machine. Minutes processed on your device count at a reduced rate against your quota, so the same plan lasts longer — and your voice never leaves your PC.",
+      "summary": "Streamers with a capable NVIDIA GPU can run speech-to-text — and, on Pro and Streamer, voice dubbing — on their own machine instead of our cloud. Minutes processed on your device count at a reduced rate against your quota, so the same plan lasts longer, and your voice never leaves your PC.",
       "points": [
-        "Available on every plan — enable it from the Languages & captions page in your dashboard",
+        "Available on every plan for captions, and on Pro/Streamer for voice dubbing — enable it from the Languages & captions or Voice cloning studio page in your dashboard",
         "Requires an NVIDIA GPU (RTX 3060 or better recommended) and a passed hardware test",
+        "On-device dubbing doesn't count against your plan hours at all — only cloud-synthesized dubbing does",
         "If your hardware falls behind mid-stream we switch to cloud automatically without interrupting your broadcast; those minutes count at the normal rate"
       ]
     },

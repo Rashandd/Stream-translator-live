@@ -36,6 +36,14 @@ describe("voice cloning studio + admin approval queue (Faz 2.1)", () => {
     expect(studioSource).toContain("source_languages: sourceLangs");
   });
 
+  it("studio requires and sends voice-clone consent (backend voice_models::VoiceConsent)", () => {
+    expect(studioSource).toContain("consent_text_version: CONSENT_TEXT_VERSION");
+    expect(studioSource).toContain("is_own_voice: ownVoiceConsent");
+    expect(studioSource).toContain("labels.form.noConsentError");
+    expect(voice.form.consentLabel).toBeTruthy();
+    expect(voice.form.noConsentError).toBeTruthy();
+  });
+
   it("admin panel talks to the real queue + approve/reject/assign endpoints", () => {
     expect(adminPanelSource).toContain('adminFetch("/admin/voice/models")');
     expect(adminPanelSource).toContain("/admin/voice/models/${id}/${action}");
