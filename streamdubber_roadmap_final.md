@@ -216,7 +216,9 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **PlayHT** | API | ⭐⭐⭐⭐ | ~$200/ay | ~500ms | Ucuz API |
 | **XTTS-v2 (Coqui)** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~600ms | Faz 3 geçiş |
 | **StyleTTS2** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~400ms | Faz 3 araştırma |
-https://github.com/kyutai-labs/pocket-tts
+| **Pocket-TTS (Kyutai)** | Local **CPU** (GPU gerekmez) | ⭐⭐⭐⭐ | ~$0 (CPU'da çalışır) | ~200ms | Faz 3 — ucuz dublör + zero-shot klonlama, ama sadece 6 dil (en/fr/de/pt/it/es) |
+
+> Pocket-TTS: 100M param, MIT lisans, [github.com/kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts) (6.7k star, aktif proje). Zero-shot ses klonlamayı da destekliyor (düz wav dosyası, eğitim gerekmez) — hem "dublör ses" hem "orijinal ses klonlama" için aday, GPU'suz. Kısıtı: sadece 6 dilde dublaj sunuyor; geniş dil kapsamı gereken durumlarda XTTS-v2/StyleTTS2 (GPU'lu, daha çok dil) ile hibrit fallback gerekir.
 
 ### Multistream / RTMP
 
