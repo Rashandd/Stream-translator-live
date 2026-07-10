@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BrandLogo } from "@/src/components/brand-logo";
 import { MobileMenu } from "@/src/components/mobile-menu";
 import { ThemeToggle } from "@/src/components/theme-toggle";
 import type { PublicConfig } from "@/src/lib/config";
@@ -16,12 +16,11 @@ export function SiteHeader({ config, locale }: SiteHeaderProps) {
       <div className="flex w-full items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-10 lg:gap-16">
         <Link className="flex min-w-0 shrink-0 items-center" href={localizePath(locale, "/")}>
-          <Image
-            alt={config.brand.name}
+          <BrandLogo
             className="h-14 w-auto object-contain sm:h-20 lg:h-24"
+            config={config}
             height={545}
             priority
-            src={config.brand.logoAsset}
             width={2253}
           />
         </Link>

@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { AuthGuard } from "@/src/components/auth-guard";
+import { BrandLogo } from "@/src/components/brand-logo";
 import { DashboardNav } from "@/src/components/dashboard-nav";
 import { SignOutLink } from "@/src/components/sign-out-link";
 import { StatusStrip } from "@/src/components/status-strip";
@@ -36,12 +36,11 @@ export default async function AdminLayout({ children, params }: AdminLayoutProps
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <Link className="flex shrink-0 items-center" href={localizePath(locale, "/")}>
-              <Image
-                alt={config.brand.name}
+              <BrandLogo
                 className="h-12 w-auto object-contain sm:h-14"
+                config={config}
                 height={545}
                 priority
-                src={config.brand.logoAsset}
                 width={2253}
               />
             </Link>

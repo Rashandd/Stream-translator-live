@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BrandLogo } from "@/src/components/brand-logo";
 import type { PublicConfig } from "@/src/lib/config";
 import { localizePath, type Locale } from "@/src/i18n/routing";
 
@@ -17,11 +17,10 @@ export function SiteFooter({ config, locale }: SiteFooterProps) {
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
             <Link className="flex items-center" href={localizePath(locale, "/")}>
-              <Image
-                alt={config.brand.name}
+              <BrandLogo
                 className="h-10 w-auto object-contain"
+                config={config}
                 height={545}
-                src={config.brand.logoAsset}
                 width={2253}
               />
             </Link>

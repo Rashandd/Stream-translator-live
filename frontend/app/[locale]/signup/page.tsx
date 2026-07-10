@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BrandLogo } from "@/src/components/brand-logo";
 import { OAuthButtons } from "@/src/components/oauth-buttons";
 import { SignupForm } from "@/src/components/signup-form";
 import { getPublicConfig } from "@/src/lib/config";
@@ -38,12 +38,11 @@ export default async function SignupPage({ params }: Props) {
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-md">
         <Link className="mb-8 flex justify-center" href={localizePath(locale, "/")}>
-          <Image
-            alt={config.brand.name}
+          <BrandLogo
             className="h-14 w-auto object-contain"
+            config={config}
             height={545}
             priority
-            src={config.brand.logoAsset}
             width={2253}
           />
         </Link>
