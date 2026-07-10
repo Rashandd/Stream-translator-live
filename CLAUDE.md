@@ -166,7 +166,7 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | Docker yapısı, env var listesi | `docs/docker-config.md` |
 | WebSocket protokol (SDK ↔ Backend mesaj formatları) | `docs/websocket-protocol.md` |
 | PostgreSQL şeması (tüm tablolar, migration stratejisi) | `docs/schema.md` |
-| Statik altyazı uçtan uca hazırlık planı (GPU worker → YouTube CC / Twitch ext / Kick overlay) | `docs/static-captions-plan.md` |
+| Backend hardening + statik altyazı birleşik plan (Postgres/Redis/mTLS sertleştirme + GPU worker → YouTube CC / Twitch ext / Kick overlay) | `docs/backend-hardening-captions-plan.md` |
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
