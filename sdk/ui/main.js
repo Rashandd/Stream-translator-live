@@ -7,6 +7,9 @@ const pairForm = document.getElementById("pair-form");
 const pairSubmit = document.getElementById("pair-submit");
 const pairError = document.getElementById("pair-error");
 const unpairBtn = document.getElementById("unpair-btn");
+const updateBanner = document.getElementById("update-banner");
+const updateMessage = document.getElementById("update-message");
+const updateRestartBtn = document.getElementById("update-restart-btn");
 
 function render(status) {
   if (status.paired) {
@@ -33,6 +36,52 @@ async function refreshStatus() {
   const status = await invoke("get_status");
   render(status);
 }
+
+/** Renders the `update-status` events emitted by `main::check_for_update`. */
+function renderUpdateBanner(status) {
+  updateRestartBtn.hidden = true;
+  updateBanner.classList.remove("error");
+  switch (status.state) {
+    case "checking":
+      updateMessage.textContent = "Checking for updates…";
+      updateBanner.hidden = false;
+      break;
+    case "up_to_date":
+      updateBanner.hidden = true;
+      break;
+    case "available":
+      updateMessage.textContent = `Update v${status.version} available, downloading…`;
+      updateBanner.hidden = false;
+      break;
+    case "downloading":
+      updateMessage.textContent = "Downloading update…";
+      updateBanner.hidden = false;
+      break;
+    case "ready":
+      updateMessage.textContent = "Update ready — restart to apply.";
+      updateRestartBtn.hidden = false;
+      updateBanner.hidden = false;
+      break;
+    case "failed":
+      updateMessage.textContent = `Update check failed: ${status.message}`;
+      updateBanner.classList.add("error");
+      updateBanner.hidden = false;
+      break;
+    default:
+      updateBanner.hidden = true;
+  }
+}
+
+updateRestartBtn.addEventListener("click", async () => {
+  updateRestartBtn.disabled = true;
+  try {
+    await invoke("restart_app");
+  } finally {
+    updateRestartBtn.disabled = false;
+  }
+});
+
+listen("update-status", (event) => renderUpdateBanner(event.payload));
 
 function showError(message) {
   pairError.textContent = message;

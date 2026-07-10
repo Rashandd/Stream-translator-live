@@ -93,3 +93,30 @@ button.secondary {
 .status-grid dd {
   margin: 0;
 }
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, #2563eb 12%, transparent);
+  font-size: 13px;
+}
+
+.update-banner p {
+  margin: 0;
+}
+
+.update-banner.error {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+}
+
+.update-banner button {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 12px;
+}

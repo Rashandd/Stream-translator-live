@@ -44,7 +44,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://releases.strovak.com/sdk/{{target}}/{{arch}}/{{current_version}}"
+        "https://github.com/Rashandd/Stream-translator-live/releases/latest/download/latest.json"
       ],
       "pubkey": ""
     }

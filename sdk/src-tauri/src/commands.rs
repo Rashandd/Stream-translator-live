@@ -174,3 +174,12 @@ pub async fn submit_pairing_code(
 pub fn unpair(state: State<AppState>) -> Result<(), String> {
     state.store.clear().map_err(|e| e.to_string())
 }
+
+/// `restart_app` — user-triggered restart after an update finished
+/// downloading (`update-status` reached `Ready`, see `main::check_for_update`).
+/// The updater deliberately never restarts on its own so an active stream
+/// isn't killed; this is the broadcaster picking the moment themselves.
+#[tauri::command]
+pub fn restart_app(app: AppHandle) {
+    app.restart();
+}
