@@ -89,17 +89,52 @@ pub async fn exchange_code(
     code: &str,
     redirect_uri: &str,
 ) -> Result<TokenResponse, OAuthError> {
-    let params = [
-        ("grant_type", "authorization_code"),
-        ("code", code),
-        ("redirect_uri", redirect_uri),
-        ("client_id", client_id),
-        ("client_secret", client_secret),
-    ];
+    token_request(
+        http,
+        &provider.token_url,
+        &[
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("redirect_uri", redirect_uri),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+        ],
+    )
+    .await
+}
 
+/// refresh-token değişimi: kayıtlı `refresh_token` → yeni access token.
+/// Çoğu sağlayıcı (Google dahil) refresh yanıtında yeni bir `refresh_token`
+/// döndürmez — çağıran, `TokenResponse::refresh_token: None` durumunda
+/// eskisini korumalıdır (bkz. `token_store::TokenVault::store_refreshed`).
+pub async fn refresh_access_token(
+    http: &reqwest::Client,
+    provider: &OAuthProvider,
+    client_id: &str,
+    client_secret: &str,
+    refresh_token: &str,
+) -> Result<TokenResponse, OAuthError> {
+    token_request(
+        http,
+        &provider.token_url,
+        &[
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+        ],
+    )
+    .await
+}
+
+async fn token_request(
+    http: &reqwest::Client,
+    token_url: &str,
+    params: &[(&str, &str)],
+) -> Result<TokenResponse, OAuthError> {
     let resp = http
-        .post(&provider.token_url)
-        .form(&params)
+        .post(token_url)
+        .form(params)
         .send()
         .await
         .map_err(|e| OAuthError::Exchange(e.to_string()))?;
@@ -285,6 +320,56 @@ mod tests {
         p.token_url = token_url;
         let http = reqwest::Client::new();
         let err = exchange_code(&http, &p, "cid", "wrong", "code-1", "https://app/cb")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, OAuthError::Exchange(_)));
+    }
+
+    /// Refresh uç noktasını taklit eder: `grant_type=refresh_token` bekler,
+    /// Google'ın tipik davranışını taklit ederek yeni `refresh_token` DÖNMEZ.
+    async fn spawn_refresh_mock() -> String {
+        async fn token(Form(form): Form<Map<String, String>>) -> (StatusCode, Json<serde_json::Value>) {
+            if form.get("grant_type").map(String::as_str) != Some("refresh_token")
+                || form.get("refresh_token").map(String::as_str) != Some("rt-old")
+            {
+                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid_grant" })));
+            }
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "access_token": "at-new", "expires_in": 3600, "token_type": "Bearer"
+                })),
+            )
+        }
+        let app = Router::new().route("/oauth/token", post(token));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        format!("http://{addr}/oauth/token")
+    }
+
+    #[tokio::test]
+    async fn refresh_returns_new_access_token_without_new_refresh_token() {
+        let token_url = spawn_refresh_mock().await;
+        let mut p = provider();
+        p.token_url = token_url;
+        let http = reqwest::Client::new();
+        let tok = refresh_access_token(&http, &p, "cid", "sec-1", "rt-old")
+            .await
+            .unwrap();
+        assert_eq!(tok.access_token, "at-new");
+        assert_eq!(tok.refresh_token, None);
+    }
+
+    #[tokio::test]
+    async fn refresh_errors_on_bad_refresh_token() {
+        let token_url = spawn_refresh_mock().await;
+        let mut p = provider();
+        p.token_url = token_url;
+        let http = reqwest::Client::new();
+        let err = refresh_access_token(&http, &p, "cid", "sec-1", "rt-wrong")
             .await
             .unwrap_err();
         assert!(matches!(err, OAuthError::Exchange(_)));

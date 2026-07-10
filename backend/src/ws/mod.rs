@@ -238,11 +238,7 @@ fn handle_control(
             // "Founding 5" kapalı beta kapısı (Faz 1 ilk test): açıksa ve
             // kullanıcı admin değilse, onaylı bir founding başvurusu şart —
             // canlı okunur (`is_approved`), JWT yenilenmesini beklemez.
-            let founding_gate_enabled = state
-                .service_config
-                .get("founding.gate.enabled")
-                .as_deref()
-                == Some("true");
+            let founding_gate_enabled = crate::founding::gate_enabled(&state.service_config);
             if founding_gate_enabled
                 && claims.role != "admin"
                 && !state.founding.is_approved(&claims.sub)

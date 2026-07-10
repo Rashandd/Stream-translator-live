@@ -143,6 +143,9 @@ impl ServiceConfig {
             // planda açık + callback redirect tabanı. Admin panelden değiştirilebilir.
             ("integration.streamlabs.plans", "pro"),
             ("integration.youtube.plans", "free,pro"),
+            // Kimlik-doğrulama amaçlı (founding-5 kanal doğrulaması) — ücretli
+            // bir özellik değil, her plan bağlayabilmeli.
+            ("integration.twitch.plans", "free,pro"),
             (
                 "integration.redirect_base",
                 "http://localhost:8080/api/integrations",

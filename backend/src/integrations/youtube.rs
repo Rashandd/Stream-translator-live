@@ -6,10 +6,13 @@
 //! ardından düz UTF-8 metin bu URL'e POST edilir (sıralama için `seq` query
 //! param). Bkz. YouTube Data API — "Transcribing video with captions".
 //!
-//! NOT: Google'ın offline refresh token akışı authorize isteğine
-//! `access_type=offline&prompt=consent` eklenmesini gerektirir; paylaşılan
-//! `integrations::oauth` çekirdeği bunu henüz desteklemiyor (diğer
-//! sağlayıcılarla ortak akış). Canlı entegrasyon öncesi follow-up.
+//! Google'ın offline refresh token akışı hem authorize adımında
+//! (`access_type=offline&prompt=consent` — bkz. `integrations::default_providers`)
+//! hem de token yenilemede (`integrations::Integrations::get_fresh_access_token`,
+//! `oauth::refresh_access_token`) artık destekleniyor. Bu modülün kendisi
+//! (caption push HTTP çağrıları) henüz gerçek yayın döngüsüne bağlanmadı —
+//! çağıran taraf eklendiğinde `get_fresh_access_token()` ile taze bir access
+//! token alıp buraya geçmeli, kalıcı depodan doğrudan okumamalı.
 
 use async_trait::async_trait;
 

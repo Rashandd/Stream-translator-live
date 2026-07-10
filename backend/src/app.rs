@@ -304,6 +304,10 @@ pub fn router(state: AppState) -> Router {
             "/api/integrations/{provider}/callback",
             get(integrations::callback),
         )
+        .route(
+            "/api/integrations/{provider}",
+            axum::routing::delete(integrations::disconnect),
+        )
         // Admin doğrulama bağlantısı (V11): plan-gate atlanır, operatör kendi
         // bootstrap hesabıyla sağlayıcının OAuth akışını uçtan uca test eder.
         .route(
@@ -415,6 +419,7 @@ pub fn router(state: AppState) -> Router {
             "/api/founding/application",
             post(crate::founding::submit_application).get(crate::founding::get_my_application),
         )
+        .route("/api/founding/gate", get(crate::founding::gate_status))
         .route(
             "/admin/founding/applications",
             get(crate::founding::list_applications),

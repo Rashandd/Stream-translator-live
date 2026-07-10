@@ -94,6 +94,34 @@ impl TokenVault {
         self.save()
     }
 
+    /// Bir refresh-token değişiminin sonucunu saklar. Sağlayıcı yeni bir
+    /// `refresh_token` döndürmediyse (Google'ın tipik davranışı) eskisini
+    /// korur — aksi halde düz `store()` çağrısı sessizce eldeki refresh
+    /// token'ı `None`'a düşürür ve bir sonraki yenileme imkansızlaşır.
+    pub fn store_refreshed(
+        &self,
+        user_id: &str,
+        provider: &str,
+        new_token: &TokenResponse,
+    ) -> Result<(), TokenStoreError> {
+        let previous_refresh = self.get(user_id, provider).and_then(|t| t.refresh_token);
+        let stored = StoredToken {
+            access_token: new_token.access_token.clone(),
+            refresh_token: new_token.refresh_token.clone().or(previous_refresh),
+            expires_at: new_token
+                .expires_in
+                .map(|secs| chrono::Utc::now().timestamp() + secs as i64),
+        };
+        {
+            let mut map = self
+                .entries
+                .write()
+                .map_err(|_| TokenStoreError::Crypto("token store lock poisoned".into()))?;
+            map.insert(entry_key(user_id, provider), stored);
+        }
+        self.save()
+    }
+
     /// Kayıtlı token (varsa). Çağıran süresini `expires_at` ile denetler.
     pub fn get(&self, user_id: &str, provider: &str) -> Option<StoredToken> {
         self.entries
@@ -185,6 +213,43 @@ mod tests {
         assert!(vault.remove("u1", "streamlabs").unwrap());
         assert!(!vault.connected("u1", "streamlabs"));
         assert!(!vault.remove("u1", "streamlabs").unwrap());
+    }
+
+    #[test]
+    fn store_refreshed_keeps_old_refresh_token_when_response_omits_it() {
+        let vault = TokenVault::in_memory();
+        vault.store("u1", "youtube", &token("at-1")).unwrap();
+        let original_refresh = vault.get("u1", "youtube").unwrap().refresh_token;
+        assert!(original_refresh.is_some());
+
+        let refreshed = TokenResponse {
+            access_token: "at-2".into(),
+            refresh_token: None,
+            expires_in: Some(3600),
+            token_type: Some("Bearer".into()),
+        };
+        vault.store_refreshed("u1", "youtube", &refreshed).unwrap();
+
+        let stored = vault.get("u1", "youtube").unwrap();
+        assert_eq!(stored.access_token, "at-2");
+        assert_eq!(stored.refresh_token, original_refresh);
+    }
+
+    #[test]
+    fn store_refreshed_replaces_refresh_token_when_response_includes_it() {
+        let vault = TokenVault::in_memory();
+        vault.store("u1", "youtube", &token("at-1")).unwrap();
+
+        let refreshed = TokenResponse {
+            access_token: "at-2".into(),
+            refresh_token: Some("brand-new-refresh".into()),
+            expires_in: Some(3600),
+            token_type: Some("Bearer".into()),
+        };
+        vault.store_refreshed("u1", "youtube", &refreshed).unwrap();
+
+        let stored = vault.get("u1", "youtube").unwrap();
+        assert_eq!(stored.refresh_token.as_deref(), Some("brand-new-refresh"));
     }
 
     #[test]

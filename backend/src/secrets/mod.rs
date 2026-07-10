@@ -51,6 +51,14 @@ pub mod names {
     pub const TWITCH_CLIENT_ID: &str = "TWITCH_CLIENT_ID";
     pub const TWITCH_CLIENT_SECRET: &str = "TWITCH_CLIENT_SECRET";
 
+    // Twitch ile hesap "bağlama" (integrations::connect, founding-5 kanal
+    // doğrulaması) — login TWITCH_CLIENT_ID'den BİLİNÇLİ olarak ayrı: login
+    // minimal user:read:email ister, connect ise kanal kimliğini okur. Aynı
+    // client'ı paylaşmak login consent ekranını gereksiz genişletir (bkz.
+    // GOOGLE_LOGIN_CLIENT_ID / YOUTUBE_CLIENT_ID ayrımındaki aynı gerekçe).
+    pub const TWITCH_CONNECT_CLIENT_ID: &str = "TWITCH_CONNECT_CLIENT_ID";
+    pub const TWITCH_CONNECT_CLIENT_SECRET: &str = "TWITCH_CONNECT_CLIENT_SECRET";
+
     // Stripe (Faz 1.11). Secret key sunucu-taraflı API çağrıları için;
     // webhook secret imza doğrulaması için. Koda asla gömülmez.
     pub const STRIPE_SECRET_KEY: &str = "STRIPE_SECRET_KEY";
