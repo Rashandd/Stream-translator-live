@@ -958,7 +958,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] Broadcaster config sayfası + dashboard kartı  <!-- Claude 2026-07-04: extension/config.html (6 haneli kodla bağlama, yalnız public değerler Twitch config service'e) + /dashboard/platforms kartı. Kart CANLI: adminFetch ile kod üretme/binding/unlink (V11 emsali — admin bootstrap oturumu; 1.4 user backend'i gelince yalnız token kaynağı değişir) -->
 - [ ] Twitch console kaydı + Hosted Test (CSP/wss doğrulaması, mobile, slow network)  <!-- ext.strovak.com DNS + Twitch developer console insan adımları; bkz. infra/deploy.md §7 -->
 - [ ] Twitch review başvurusu (erken başla — 2–4 hafta)  <!-- Hosted Test bitmeden gönderilmez; walkthrough + changelog + test hesapları (plan A5) -->
-- [ ] BYO API Key modu (yayıncı kendi çeviri key'ini girerek free plan'da çoklu dil çeviri açabilir) — henüz faza atanmadı, detaylı tasarım aşağıda "Rakip Analizi — BYO API Key (ultimatecc.net)" bölümünde
+- [ ] İzleyici overlay özelleştirme (sürükle-bırak konum, font/arka plan rengi, opaklık) — henüz faza atanmadı, detaylı tasarım aşağıda "Rakip Analizi — İzleyici Overlay Özelleştirme (ultimatecc.net)" bölümünde
 
 #### 2.5 Chrome Extension — Kick ve Evrensel
 - [ ] Manifest V3
@@ -1288,40 +1288,41 @@ Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RT
 
 ---
 
-## Rakip Analizi — BYO API Key (ultimatecc.net)
+## Rakip Analizi — İzleyici Overlay Özelleştirme (ultimatecc.net)
 
 > Kaynak: ultimatecc.net + guide.ultimatecc.net + github.com/UltimateCC/extension (GPLv3, açık kaynak Twitch Extension), 2026-07-10 itibarıyla. Bu bölüm sadece analiz + uygulama planıdır — Faz 1 kapsamına girmez, hemen kodlanmaz; bkz. 2.4'teki referans satırı.
 
 ### Rakip Ne Sunuyor
-- UltimateCC iki modda çalışıyor: **(1) Ücretsiz** — temel altyazı (STT), yayıncıya hiçbir maliyet yansımıyor. **(2) Kendi API key'in** — yayıncı kendi çeviri servisi API key'ini girerse gerçek zamanlı çeviri (çoklu dil) açılıyor.
-- Backend/EBS kaynağı kapalı (org'da sadece `extension` ve `guide` repoları public); hangi sağlayıcıların (Google Cloud Translation / DeepL / Azure Translator gibi) desteklendiği ve key'in tam olarak hangi panelden/nasıl girildiği dokümantasyondan doğrulanamadı. Aşağıdaki tasarım bilinen genel BYOK deseni + bizim mevcut mimarimize göre kurgulandı — UltimateCC'nin birebir kopyası değil.
-- Motivasyon açık: çeviri (translation API) maliyeti STT'ye göre görece düşük ama sıfır değil; ücretsiz kullanıcıyı ücretsiz tutup çeviri maliyetini "kullanıcı öder" modeline kaydırıyorlar — kendi COGS'larını sıfıra indiren bir free-tier büyütme taktiği.
+- Altyazı kutusu Twitch player üzerinde **serbestçe sürüklenip yeniden boyutlandırılabiliyor**; konum kilitlenebiliyor ve tek tuşla resetlenebiliyor.
+- Yazı rengi, yazı boyutu ve font tipi ayrı ayrı seçilebiliyor.
+- Arka plan rengi ve **opaklığı** bağımsız ayarlanabiliyor.
+- Tüm bu tercihler izleyici bazlı, anonim (backend'e gitmiyor) — sadece Twitch player üstündeki bir bileşen.
 
 ### Bizim Ürünle Farkı
-Bugün StreamDubber'da sağlayıcı seçimi tamamen **global/admin seviyesinde**: `backend/src/config.rs::ServiceConfig` tek bir `HashMap<String,String>` — `translate.provider=deepl`, `translate.fallback=google` (CLAUDE.md'deki `config::get("stt.provider")` deseni). Per-kullanıcı veya per-kanal bir override yok. Çeviri maliyeti her zaman bize (`backend/src/secrets::ManagedSecrets`'teki `DEEPL_KEY`/`GOOGLE_TRANSLATE_KEY`) ait. Free plan izleyicilere çoklu dil çeviri açmak istersek faturası bize çıkar — bugün bunu sadece plan gating'le kısıtlıyoruz.
+`extension/js/shared.js::DEFAULT_PREFS = { lang: null, size: "m", visible: true }` — bugün sadece dil, 3 kademeli boyut (S/M/L, `cycleSize`) ve göster/gizle tercihi var; hepsi `loadPrefs`/`savePrefs` ile anonim `localStorage`'da tutuluyor (backend'e hiç gitmiyor — CLAUDE.md'nin "izleyici tercihi anonim" ilkesiyle zaten uyumlu). Konum sabit (CSS `#sd-root { position: relative }`, `#sd-caption` alt-sabit `position: absolute`), sürükleme/yeniden boyutlandırma yok; renk/font/arka plan opaklığı tamamen sabit CSS (`extension/css/extension.css`), kullanıcı değiştiremiyor.
 
 ### Nasıl Yapılabilir — Mevcut Mimariyle Örtüşme
+Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), JWT'ye veya WS protokolüne dokunmuyor. Sadece `extension/` paketi (bundler'sız ES modules) genişletiliyor:
 
 | İhtiyaç | Mevcut StreamDubber'da karşılığı |
 |---|---|
-| Kanal-bazlı şifreli key saklama | `backend/src/stt_servers/mod.rs::SttServerStore` deseni birebir uyarlanabilir: `Cipher` (`backend/src/crypto.rs`, AES-256-GCM, `encrypt_str`/`decrypt_str`) ile şifrele, alanı `#[serde(skip_serializing)]` işaretle — `ssh_private_key_encrypted`/`api_token_encrypted` ile aynı desen, hiçbir JSON yanıtında düz metin dönmez |
-| Kanal-bazlı ayar deposu | `backend/src/bindings/mod.rs::ChannelBinding` bugün sadece `{user_id, platform, channel_id}` — key alanı yok. Yeni bir kardeş store gerekir (örn. `ChannelProviderKeyStore`, `channel_id` anahtarlı, `SttServerStore` şablonunda) — `ChannelBinding`'e alan eklemek yerine ayrı store tercih edilmeli (aynı `relay`/`voice_models`/`sdk_link` deseni: her domain kendi store'unu tutar) |
-| Sağlayıcıyı runtime'da anahtarla değiştirme | `backend/src/gateway/translate.rs::TranslateProvider` trait'i zaten `SecretRef` ile inşa ediliyor (`SecretRef::fixed(value)` bugün de mevcut — sabit bir key ile provider kurmak zaten mümkün). Trait değişikliği gerekmiyor; sadece kurulum noktasında (`ext_twitch` caption pipeline'ının provider seçtiği yer) global `ManagedSecrets` yerine kanal-bazlı `ChannelProviderKeyStore`'dan çözülen bir `SecretRef` kullanılmalı |
-| Global config'i bozmadan opsiyonel geçersiz kılma | `ServiceConfig` değişmeden kalır (admin varsayılanı hâlâ geçerli) — BYOK sadece `ext_twitch` caption akışında, kanalın kendi key'i varsa `ManagedSecrets` yerine onu tercih eden bir if/else katmanı |
+| Yeni tercihleri sakla | `shared.js::DEFAULT_PREFS`'e `pos: {x,y}`, `locked: bool`, `textColor`, `bgColor`, `bgOpacity`, `font` alanları eklenir; `loadPrefs`/`savePrefs` zaten jenerik (parse + clamp deseni `clampSize` ile aynı) — her yeni alan için bir `clampX` fonksiyonu yeterli |
+| Sürükle/boyutlandır etkileşimi | `viewer.js`'teki `el.size.addEventListener("click", ...)` (satır ~254) ile aynı desen: `#sd-caption` üzerine `pointerdown/pointermove/pointerup` ekle, player sınırları içinde clamp et (Twitch Extension Helper `Twitch.ext` viewport bilgisiyle veya basitçe `#sd-root` boyutuna göre `%` clamp) |
+| Renk/font/opaklık seçimi | Var olan boyut butonu (`el.size`, `#sd-size`) yanına küçük bir "ayarlar" popover — `viewer.html`'e birkaç `<input type="color">`/`<select>` + CSS custom property (`--sd-text-color`, `--sd-bg-color`, `--sd-bg-opacity`) olarak `#sd-caption`'a uygulanır (`extension.css`'teki `data-size`/`data-visible` selector deseniyle aynı: `#sd-root[style]` yerine inline CSS custom property tercih edilir) |
+| Kilit/reset | Boyut butonuyla aynı sırada iki yeni ikon: kilitle (sürüklemeyi devre dışı bırakır, `prefs.locked`) ve resetle (`prefs.pos`/`textColor`/`bgColor`/`bgOpacity`'yi `DEFAULT_PREFS`'e döndürür) |
 
-**Sonuç:** Trait/protokol seviyesinde büyük bir refactor gerekmiyor — `SecretRef` zaten "sabit key" kurgusunu destekliyor. Asıl iş: (1) yeni şifreli kanal-key store'u, (2) broadcaster config sayfasına (`extension/config.html`) key giriş formu + admin API, (3) `ext_twitch` pipeline'ında per-kanal `SecretRef` çözümleme.
+**Sonuç:** Backend/protokol değişikliği yok, plan gating gerekmiyor (izleyici tarafı, ücretsiz bir erişilebilirlik iyileştirmesi) — sadece `extension/` paketinde CSS custom property + birkaç yeni event listener + genişletilmiş `prefs` şeması.
 
 ### Uygulama Planı (Görevler — henüz hiçbir faza atanmadı)
-- [ ] `ChannelProviderKeyStore` (backend/src/ext_twitch veya yeni modül) — `SttServerStore` şablonunda, `channel_id` anahtarlı, `Cipher` ile AES-256-GCM şifreli, `#[serde(skip_serializing)]` alan
-- [ ] `PUT/DELETE /api/ext_twitch/channel-key` (broadcaster oturumu) — key kaydet/sil; response'ta asla düz metin dönmez (sadece "kayıtlı: evet/hayır" + son 4 karakter mask, `SecretRef::mask` deseniyle aynı)
-- [ ] Broadcaster config sayfası (`extension/config.html`) — sağlayıcı seçimi (DeepL/Google) + key input formu; "Ücretsiz: sadece kaynak dil altyazı. Kendi key'inle: çoklu dil çeviri" mesajı
-- [ ] `ext_twitch` caption pipeline'ında provider seçimi: kanalın kendi key'i varsa `TranslateProvider`'ı ondan kur, yoksa mevcut plan-gated `ManagedSecrets` akışına düş (mevcut fallback zincirine ek katman, `config::get`/`SecretRef` deseniyle uyumlu)
-- [ ] Kota/kullanım ayrımı: BYOK ile yapılan çeviri `UsageTracker`'a hiç yazılmamalı (yayıncının kendi faturası, bizim maliyetimiz değil) — plan limitlerinden muaf
-- [ ] Admin toggle: `ext.twitch.byok_enabled` (config-driven, varsayılan kapalı — CLAUDE.md "hiçbir şey hard-coded olmaz" kuralına uygun)
-- [ ] Güvenlik: key'in Twitch config service'ine (public/çevrimiçi) hiç gitmemesi — sadece backend'e POST edilmeli (`extension/config.html`'in bugünkü "yalnız public değerler Twitch config service'e" ilkesiyle aynı)
-- [ ] ToS/hukuk notu: yayıncının girdiği key'in kullanım sorumluluğu (rate limit, fatura) kendisine ait olduğu broadcaster config sayfasında açıkça belirtilmeli
+- [ ] `shared.js::DEFAULT_PREFS` genişlet: `pos`, `locked`, `textColor`, `bgColor`, `bgOpacity`, `font` + her biri için clamp/validate fonksiyonu (`clampSize` deseninde)
+- [ ] `viewer.js`'e sürükle-bırak: `#sd-caption` üzerinde pointer event'leriyle konumlandırma, `#sd-root` sınırları içinde clamp, `locked=true` iken devre dışı
+- [ ] Yeniden boyutlandırma tutamacı (opsiyonel — mevcut S/M/L kademesi yerine/yanında serbest boyut)
+- [ ] `viewer.html` + `extension.css`'e ayarlar popover'ı: renk seçici (yazı/arka plan), opaklık slider'ı, font-family `<select>` (Twitch iframe'de yüklenebilecek güvenli/websafe font listesiyle sınırlı)
+- [ ] Kilitle/Resetle butonları (mevcut `el.size` buton grubuna eklenir, aynı stil)
+- [ ] `extension/tests/shared.test.mjs`'e yeni clamp fonksiyonları için birim testleri (mevcut `clampSize` testleriyle aynı desen)
+- [ ] Broadcaster tarafında hiçbir şey değişmiyor — bu tamamen izleyici tercihidir, `ext_twitch`/config.html'e dokunmuyor
 
-> Bu özellik Faz 1/2'nin mevcut Twitch Extension işine ek, opsiyonel bir katman — mevcut EBS/JWT/binding altyapısını bozmaz. Hangi faza alınacağı (Faz 2 sonu / Faz 4 büyüme) kullanıcı kararı bekliyor.
+> Bu özellik izleyici tarafı, backend'den bağımsız, düşük riskli bir UX iyileştirmesi — mevcut `extension/` paketine ek, hiçbir mevcut davranışı bozmaz. Hangi faza alınacağı (Faz 2 içinde mi, ayrı mı) kullanıcı kararı bekliyor.
 
 ---
 
