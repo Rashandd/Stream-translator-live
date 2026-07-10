@@ -1,7 +1,6 @@
 # StreamDubber — Ürün Yol Haritası v4.0
 
 **Website:** strovak.com
-**Aktif faz:** Faz 2 (10 Temmuz 2026)
 
 ## Proje Özeti
 
@@ -50,21 +49,15 @@ AŞAMA 3 — Tek Paket
 
 ### Multistream Dağıtım Seçenekleri
 
-StreamDubber yerel SDK relay'iyle düşük maliyetli multistream sunar; yayıncı
-isterse Streamlabs kullanabilir veya Faz 2'de yalnız seçili dublaj hedefi için
-opt-in cloud mux açabilir. Video rotası seçilen moda bağlıdır. Tüm yayını
-buluttan dağıtan full cloud multistream hâlâ Faz 3 premium kapsamındadır.
+StreamDubber kendi SDK relay'iyle multistream sunar; yayıncı isterse ayrıca Streamlabs gibi mevcut bir servisi de bağlayabilir. Asıl fark: video yayıncının kendi internetinden dağıtılır, senin Gbit sunucuna gerek kalmaz.
 
 | Yöntem | Nasıl çalışır | Öncelik | Senin maliyetin |
 |---|---|---|---|
-| **SDK gömülü RTMP relay** | Yayıncının kendi interneti N platforma gönderir | Yerel varsayılan | Strovak video ingest/egress'i yok |
+| **SDK gömülü RTMP relay** | Yayıncının kendi interneti N platforma gönderir | Faz 1 — birincil | Sıfır (video buluta çıkmaz) |
 | **Streamlabs** | Yayıncı kendi Streamlabs hesabını bağlar (OAuth), isteğe bağlı | Faz 1 — opsiyonel | Sıfır (yayıncının aboneliği) |
-| **Cloud dub mux** | Yalnız seçilen dublaj hedefi bulutta mux edilir | Faz 2 — opt-in | Seçili hedefin bandwidth/CPU maliyeti |
-| **Full cloud multistream** | Tüm seçili yayın buluta çıkar ve dağıtılır | Faz 3 — premium | Gbit sunucu (~$65/ay+) |
+| **Bulut multistream** | Video buluta çıkar, bulut dağıtır | Premium — opsiyonel | Gbit sunucu (~$65/ay) |
 
-> SDK relay yerel varsayılandır. Faz 2 cloud mux feature flag, plan/readiness
-> kontrolü ve sürümlü açık onayla yalnız seçili dublaj hedefini işler.
-> MediaMTX/full cloud multistream Faz 3'e kadar aktif edilmez.
+> SDK'nın kendi RTMP relay'i Faz 1'de gelir ve asıl dağıtım yöntemidir. Streamlabs bağlantısı, zaten o servisi kullanan yayıncılar için opsiyonel bir alternatiftir. Bulut multistream sadece interneti zayıf yayıncılar için premium opsiyon.
 
 ### Entegrasyon Mantığı — İki Çalışma Modu
 
@@ -75,26 +68,16 @@ StreamDubber'ın işleme katmanı (STT + çeviri + ses klonlama) her zaman arada
 Yayıncı PC (SDK) → AES-256 → bulut işleme (sadece ses) → klonlanmış ses + altyazı → SDK
 SDK içinde gömülü RTMP relay → yayıncının kendi internetinden → N platforma dağıtım
 ```
-SDK'nın içinde bir RTMP relay var. Bu yerel modda yayıncının kendi interneti N
-platforma gönderir ve Strovak video ingest/egress'i kullanılmaz.
+SDK'nın içinde bir RTMP relay var. Yayıncının kendi interneti N platforma gönderir. **Senin Gbit sunucuya ihtiyacın kalmaz** — video hiç buluta uğramaz.
 
 **Mod A' — Mevcut Servis Pass-Through (Faz 1, opsiyonel — Streamlabs)**
 ```
 Yayıncı PC (SDK) → AES-256 → bulut işleme (sadece ses) → klonlanmış ses + altyazı → SDK
 SDK → video + ses birleştir → yayıncının Streamlabs hesabı → platformlar
 ```
-Yayıncı zaten Streamlabs kullanıyorsa hesabını bağlayabilir. Video Streamlabs
-rotasını, caption/translation verisi seçilen AI işleme hattını kullanır.
+Yayıncı zaten Streamlabs kullanıyorsa hesabını bağlayabilir. Video hiç buluta çıkmaz; sadece ses gidip gelir.
 
-**Mod B — Seçili Hedef Cloud Dub Mux (Faz 2, opt-in)**
-```
-Yayıncı PC (SDK) → seçilen dublaj hedefi için RTMPS video uplink
-StreamDubber media worker → klonlanmış sesle mux → yalnız seçilen hedef
-```
-Bu yol explicit consent + feature flag + plan/readiness kontrolü gerektirir.
-Orijinal dil hesabı ve diğer yerel hedeflerin rotası değişmez.
-
-**Mod C — Full Cloud Multistream (Faz 3, premium)**
+**Mod C — Bulut Multistream (opsiyonel, premium)**
 ```
 Yayıncı PC (SDK) → video + ses buluta → bulutta birleştir + dağıt → platformlar
 ```
@@ -109,9 +92,7 @@ Yayıncının interneti zayıfsa veya ikili yayın için upload yetmiyorsa bulut
 | Video + ses birleştirme | Yayıncı PC (Mod A/A') | lokal |
 | Multistream dağıtım | Yayıncı interneti (Mod A/A') | video: 6 Mbps/platform |
 
-**Kritik avantaj:** Mod A/A' Strovak video ingest/egress'i oluşturmaz. Faz 2
-cloud mux maliyeti yalnız opt-in seçili hedefle sınırlıdır; full cloud kapasitesi
-Faz 3'e ertelenir.
+**Kritik avantaj:** Mod A ve A''de video hiç buluta çıkmaz. Sadece ses (çok küçük) gidip gelir. Bu yüzden Gbit RTMP sunucusu gerekmez; sadece GPU sunucu (ses klonlama için) yeterli.
 
 ### Yayıncıya Sunum — Dashboard Akışı
 
@@ -144,12 +125,11 @@ Dağıtım yöntemini seç:
 ║    ├── Video + ses birleştirme — lokal                       ║
 ║    ├── Gömülü RTMP relay (Mod A) — lokal multistream         ║
 ║    ├── OBS / stream key yönetimi — lokal                     ║
-║    ├── TLS 1.3 AI WebSocket (ses/transcript)                 ║
-║    └── Opt-in RTMPS uplink (yalnız seçilen dub hedefi)       ║
+║    └── AES-256: sadece SES'i buluta gönderir                 ║
 ║                                                              ║
-║  Video rotası seçilen moda bağlı ─────┐                       ║
+║  Video burada kalır, buluta ÇIKMAZ ──┐                       ║
 ╚══════════════════════════╤═══════════│══════════════════════╝
-                 TLS 1.3│ (ses, ~50-128 Kbps)
+              AES-256 şifreli│ (sadece ses, ~50-128 Kbps)
                             ▼          │
 ╔══════════ STREAMDUBBER BULUT (ağır AI) ═══════╗      │
 ║                                                ║      │
@@ -164,8 +144,7 @@ Dağıtım yöntemini seç:
         ┌──────────── DAĞITIM (yayıncı interneti) ───────┘
         │  Mod A: SDK gömülü RTMP relay (kendi internet, birincil)
         │  Mod A': Yayıncının Streamlabs hesabı (opsiyonel)
-        │  Faz 2: seçili hedef cloud dub mux (opt-in)
-        │  Mod C: full cloud multistream (Faz 3, premium)
+        │  Mod C: Bulut multistream (premium, opsiyonel)
         └────────────────┬───────────────┘
                         ▼
             YouTube + Twitch + Kick
@@ -175,10 +154,9 @@ Dağıtım yöntemini seç:
 
 **İşlem dağılımı (hibrit, temelde çok platformlu):**
 - **Lokalde (yayıncı PC):** ses yakalama, VAD, gürültü temizleme, video+ses birleştirme, RTMP relay (Mod A), OBS yönetimi
-- **Bulutta:** STT, çeviri, ses klonlama ve opt-in seçili hedef için cloud mux
+- **Bulutta:** sadece STT, çeviri, ses klonlama — ağır AI işleri, GPU gerektirir
 - **Web panel:** tüm kontrol — SDK'ya komut gönderir
-- **Video rotası mode-dependent:** Mod A/A' yayıncı rotasıdır; cloud mux yalnız
-  açıkça seçilen hedefi işler; full cloud multistream Faz 3'tür
+- **Video hiç buluta çıkmaz** (Mod A/A') → Gbit sunucu gerekmez, sadece GPU sunucu yeterli
 
 ---
 
@@ -198,7 +176,7 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **STT** | Deepgram API | faster-whisper (local) | API → local geçiş, maliyet %92 ↓ |
 | **Çeviri** | DeepL API | HY-MT1.5 (local) + DeepL fallback | Yaygın diller local, nadir diller API |
 | **TTS / Ses klonlama** | ElevenLabs API | XTTS-v2 (local) + ElevenLabs premium | Kalite → maliyet dengesi |
-| **Multistream** | SDK gömülü RTMP relay (yayıncı interneti) | + cloud mux / bulut multistream | Yerel düşük maliyet + ihtiyaç halinde opt-in cloud kapasitesi |
+| **Multistream** | SDK gömülü RTMP relay (yayıncı interneti) | + bulut multistream (premium) | Video buluta çıkmaz, Gbit sunucu gerekmez |
 | **Altyapı** | BAsic Vps (MVP) | Hetzner GPU + Cloudflare edge | Geliştirme → üretim ölçeği |
 | **Ödeme** | Stripe | (aynı) | Standart |
 | **Twitch izleyici** | — | Twitch Extension (React) | İzleyici dil seçimi |
@@ -244,19 +222,16 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 
 ### Multistream / RTMP
 
-Asıl strateji: yerel SDK relay düşük maliyetli varsayılandır; seçili Faz 2
-dublaj hedefi opt-in cloud mux kullanabilir. Full cloud multistream Faz 3'tür.
+Asıl strateji: dağıtım yayıncının kendi internetinden (SDK relay) yapılır, senin sunucun video taşımaz.
 
 | Seçenek | Nerede çalışır | Senin maliyetin | Faz |
 |---|---|---|---|
 | **SDK gömülü RTMP relay** | Yayıncı PC (kendi internet) | Sıfır | Faz 1 — birincil |
 | **Streamlabs (yayıncının)** | Yayıncının kendi aboneliği | Sıfır | Faz 1 — opsiyonel |
-| **Cloud dub mux** | Seçili hedef için media worker | hedef bitrate/CPU | Faz 2 — opt-in |
-| **Bulut multistream (MediaMTX)** | Senin Gbit sunucun | ~$65/ay (Hetzner 1Gbps) | Faz 3 premium |
+| **Bulut multistream (MediaMTX)** | Senin Gbit sunucun | ~$65/ay (Hetzner 1Gbps) | Premium opsiyon |
 | **SRS / Nginx-RTMP** | Senin sunucun (alternatif) | ~$40/ay | Bulut modu yedeği |
 
-> SDK relay Strovak video ingest/egress'i kullanmaz. Cloud mux seçili Faz 2
-> hedefiyle sınırlıdır; full cloud multistream Faz 3 premium seçeneğidir.
+> SDK relay sayesinde video hiç buluta çıkmaz. Bulut multistream sadece interneti zayıf yayıncılar için premium opsiyon olarak kalır.
 
 ### Altyapı
 
@@ -299,10 +274,9 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 - Stream key ve platform konfigürasyonu (lokal, şifreli saklanır)
 
 **Bulutla ilişki:**
-- SDK AI WebSocket istemcisi ses/transcript taşır (çok küçük, ~50-128 Kbps)
+- SDK sadece sesi şifreli buluta yollar (çok küçük, ~50-128 Kbps)
 - Bulut klonlanmış ses + altyazıyı geri yollar
-- Opt-in cloud mux video için ayrı RTMPS media-ingest yolu kullanır
-- Full cloud multistream Faz 3'e kadar aktif edilmez
+- Video hiç buluta çıkmaz → Gbit sunucu gereksiz
 
 **Web panel ile ilişki:**
 - SDK web panele bağlanır (yayıncı hesabıyla eşleşir)
@@ -320,11 +294,10 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 - [ ] Derlenmiş binary (tersine mühendislik zorluğu)
 
 ### Avantajları
-- **Maliyet:** Yerel relay Strovak video egress'i oluşturmaz; VAD boş sesi
-  engelleyerek STT maliyetini %30-40 düşürür
+- **Maliyet:** Video buluta çıkmaz + VAD boş sesi engeller → hem Gbit sunucu gereksiz hem STT maliyeti %30-40 ↓
 - **Latency:** Ön-işleme ve birleştirme lokalde
 - **Bağımsızlık:** Multistream yayıncının kendi internetinden, dış servise bağımlılık yok
-- **Gizlilik:** Yerel relay ve opt-in cloud yollarının veri sınırı kullanıcıya açıkça gösterilir
+- **Gizlilik:** Ham ses ve video yayıncı makinesinde, buluta sadece şifreli ses gider
 
 ---
 
@@ -891,13 +864,6 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 
 ### Görevler
 
-#### 2.0a Frontend Faz 2 Güvenlik ve Ürün Sözleşmesi
-- [x] Mode-dependent video routing sözleşmesini dokümanlara ve public copy'ye
-  uygula; mutlak “video buluta çıkmaz” vaadini kaldır, Faz 2 seçili hedef cloud
-  mux ile Faz 3 full cloud multistream sınırını testle koru
-  <!-- Codex 2026-07-10: docs/frontend-phase2-plan.md + dictionary regression testleri;
-  local relay varsayılanı, opt-in seçili hedef cloud mux ve Phase 3 MediaMTX sınırı. -->
-
 #### 2.0 Çeviri — DeepL Dil Matrisi Genişletme
 > 1.8'de DeepL TR→EN/ES/DE/FR ile sınırlı başlatıldı. Faz 2'de DeepL'in desteklediği tüm diller açılır — çeviri tarafında local (HY-MT1.5) hâlâ Faz 3'te kalır, Faz 2'de tek sağlayıcı DeepL'dir ama kapsamı tam.
 - [x] DeepL'in desteklediği tüm hedef dilleri (100+) `gateway::deepl` dil listesine ekle — hard-coded 4 dil yerine DeepL API'nin `/v2/languages` uç noktasından çekilen veya config'e seed edilen tam liste <!-- Claude 2026-07-06: `gateway::deepl::translate()` zaten Faz 1.8'den beri rastgele target kabul ediyordu (hard-code yoktu) — asıl eksik, hangi kodların GERÇEKTEN sunulacağını bilen katalogdu. backend/src/translate_languages.rs: 29 dilli statik katalog (kod+ad+formality desteği; DeepL "100+" iddiası abartılı — canlı key yokken /v2/languages yerine seed, periyodik doğrulama notu koda eklendi). config `translate.deepl.enabled_targets` (seed: tam katalog) admin'in daraltabileceği alt küme. -->
@@ -1102,8 +1068,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 
 ## Tahmini Maliyet Evrimi (1000 kullanıcı/ay)
 
-> Not: Yerel SDK relay/Streamlabs modlarının Strovak video maliyeti yoktur.
-> Faz 2 opt-in cloud mux maliyeti yalnız seçili dublaj hedefi için ayrıca ölçülür.
+> Not: Multistream maliyeti senin tablonda yok — video yayıncının kendi internetinden dağıtılır (SDK relay) veya yayıncı kendi Streamlabs aboneliğini kullanır. Sen sadece sesi işliyorsun.
 
 ### Faz 1 — Full API (sadece altyazı)
 
@@ -1145,7 +1110,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 ```
 ## Bant Genişliği — Kimde, Ne Kadar?
 
-**AI/control plane (yerel relay oturumları):**
+**Senin sunucunda (sadece ses):**
 ```
 1 yayıncı sesi = ~50-128 Kbps (çok küçük)
 1000 eşzamanlı yayıncı = ~128 Mbps
@@ -1160,15 +1125,14 @@ Tek platform 1080p = ~6 Mbps upload
 → Yayıncıya "≥25 Mbps upload öneriyoruz" denir
 ```
 
-**Cloud video yolları:**
+**Premium bulut multistream (opsiyonel):**
 ```
-Faz 2 cloud mux = yalnız seçili dublaj hedefi, opt-in
-Faz 3 full cloud multistream = tüm seçili yayın, premium
-Her ikisi için kapasite video bitrate/egress'e göre ayrıca boyutlandırılır
+Sadece interneti zayıf yayıncılar için
+Bu durumda video buluta çıkar → Hetzner Gbit (~$65/ay)
+Bu yayıncılardan premium ücret alınır
 ```
 
-**Kritik fark:** Yerel rotalarda Gbit RTMP maliyeti yoktur; cloud media
-maliyeti yalnız kullanıcı bu modu açıkça seçtiğinde oluşur.
+**Kritik fark:** Video yayıncının kendi internetinden gittiği için senin Gbit RTMP sunucusu maliyetin yok. Sadece GPU sunucu (ses klonlama) gerekiyor.
 
 ---
 
@@ -1183,8 +1147,7 @@ maliyeti yalnız kullanıcı bu modu açıkça seçtiğinde oluşur.
 - Admin hibrit kontrol her fazda birlikte geliştirilmeli.
 - SDK temelden çok platformlu (Tauri+Rust) yazılır; Windows önce çıkar, Mac/Linux ses adaptörü hazır bekler, sonradan zorlanmadan aktive edilir.
 - Video yayıncının kendi internetinden dağıtılır (SDK relay) → senin Gbit sunucu maliyetin yok.
-- Yerel relayde AI hattına yalnız ses/transcript gider; cloud mux seçilirse
-  yalnız seçili dublaj hedefinin videosu ayrı media hattına gider.
+- Buluta sadece ses gider (~50-128 Kbps); video lokal kalır.
 - VAD lokalde olduğu için boş ses buluta gitmez → STT maliyeti ~%30–40 düşer.
 - Ses klonlama buluttadır; yayıncının güçlü GPU'su olması gerekmez.
 - AES-256 ses akışı ve Vault key yönetimi Faz 1'de kurulmalı, sonraya bırakılmamalı.
