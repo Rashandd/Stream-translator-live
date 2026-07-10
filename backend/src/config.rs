@@ -269,13 +269,21 @@ impl ServiceConfig {
 
     /// Bir anahtarın değerini okur.
     pub fn get(&self, key: &str) -> Option<String> {
-        self.values.read().ok().and_then(|m| m.get(key).cloned())
+        self.values.read().ok().and_then(|m| {
+            m.get(key)
+                .map(|value| crate::legal::sanitize_config_value(key, value))
+        })
     }
 
     /// Bir anahtarı günceller (admin toggle). Restart gerekmez.
     pub fn set(&self, key: impl Into<String>, value: impl Into<String>) {
+        let key = key.into();
+        let value = value.into();
         if let Ok(mut m) = self.values.write() {
-            m.insert(key.into(), value.into());
+            m.insert(
+                key.clone(),
+                crate::legal::sanitize_config_value(&key, &value),
+            );
         }
     }
 
@@ -284,9 +292,13 @@ impl ServiceConfig {
     /// Admin API'sinin gelişigüzel anahtar enjekte etmesini engeller —
     /// şema seed ile sabittir. Anahtar yoksa `false` döner, hiçbir şey yazılmaz.
     pub fn set_existing(&self, key: &str, value: impl Into<String>) -> bool {
+        let value = value.into();
         match self.values.write() {
             Ok(mut m) if m.contains_key(key) => {
-                m.insert(key.to_string(), value.into());
+                m.insert(
+                    key.to_string(),
+                    crate::legal::sanitize_config_value(key, &value),
+                );
                 true
             }
             _ => false,
@@ -297,7 +309,13 @@ impl ServiceConfig {
     pub fn snapshot(&self) -> BTreeMap<String, String> {
         self.values
             .read()
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .map(|m| {
+                m.iter()
+                    .map(|(key, value)| {
+                        (key.clone(), crate::legal::sanitize_config_value(key, value))
+                    })
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -324,12 +342,13 @@ pub async fn load_from_db(pool: &sqlx::PgPool) -> Result<Vec<(String, String)>, 
 /// `PUT /admin/config` çağrıldığında bellek içi değerle birlikte kalıcı hale
 /// gelir, restart'ta kaybolmaz.
 pub async fn persist_to_db(pool: &sqlx::PgPool, key: &str, value: &str) -> Result<(), sqlx::Error> {
+    let value = crate::legal::sanitize_config_value(key, value);
     sqlx::query(
         "INSERT INTO service_config (key, value) VALUES ($1, $2) \
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
     )
     .bind(key)
-    .bind(value)
+    .bind(&value)
     .execute(pool)
     .await?;
     Ok(())
@@ -398,8 +417,29 @@ mod tests {
     #[test]
     fn apply_db_rows_overrides_known_keys() {
         let cfg = ServiceConfig::with_defaults();
-        cfg.apply_db_rows(vec![("legal.terms.html".to_string(), "<h1>Terms</h1>".to_string())]);
-        assert_eq!(cfg.get("legal.terms.html").as_deref(), Some("<h1>Terms</h1>"));
+        cfg.apply_db_rows(vec![(
+            "legal.terms.html".to_string(),
+            "<h1>Terms</h1>".to_string(),
+        )]);
+        assert_eq!(
+            cfg.get("legal.terms.html").as_deref(),
+            Some("<h1>Terms</h1>")
+        );
+    }
+
+    #[test]
+    fn apply_db_rows_sanitizes_legacy_legal_html() {
+        let cfg = ServiceConfig::with_defaults();
+        cfg.apply_db_rows(vec![(
+            "legal.privacy.html".to_string(),
+            "<h2>Privacy</h2><img src=x onerror=alert(1)><style>body{display:none}</style>"
+                .to_string(),
+        )]);
+
+        assert_eq!(
+            cfg.get("legal.privacy.html").as_deref(),
+            Some("<h2>Privacy</h2>")
+        );
     }
 
     #[test]

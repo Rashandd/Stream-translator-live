@@ -39,6 +39,7 @@ lettre.workspace = true
 hmac.workspace = true
 sha2.workspace = true
 hex.workspace = true
+ammonia = "4"
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true

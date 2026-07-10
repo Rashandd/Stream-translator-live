@@ -15,6 +15,7 @@ pub mod ext_twitch;
 pub mod founding;
 pub mod gateway;
 pub mod integrations;
+pub mod legal;
 pub mod logging;
 pub mod mail;
 pub mod overlay;

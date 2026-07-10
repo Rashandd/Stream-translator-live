@@ -37,7 +37,9 @@ async fn spawn_server_with_db(db: Option<sqlx::PgPool>) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
     tokio::spawn(async move {
-        axum::serve(listener, app::router(state)).await.expect("serve");
+        axum::serve(listener, app::router(state))
+            .await
+            .expect("serve");
     });
     addr
 }
@@ -89,8 +91,14 @@ async fn public_get_returns_seeded_config() {
     let addr = spawn_server().await;
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
-    assert!(body.contains("\"stt.provider\":\"deepgram\""), "body: {body}");
-    assert!(body.contains("\"dist.cloud.plans\":\"pro\""), "body: {body}");
+    assert!(
+        body.contains("\"stt.provider\":\"deepgram\""),
+        "body: {body}"
+    );
+    assert!(
+        body.contains("\"dist.cloud.plans\":\"pro\""),
+        "body: {body}"
+    );
 }
 
 #[tokio::test]
@@ -99,7 +107,10 @@ async fn admin_update_is_visible_to_readers() {
 
     let (status, body) = http(
         addr,
-        &put_config(Some(&token("admin")), r#"{"key":"stt.provider","value":"whisper"}"#),
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"stt.provider","value":"whisper"}"#,
+        ),
     )
     .await;
     assert_eq!(status, 200, "body: {body}");
@@ -107,7 +118,10 @@ async fn admin_update_is_visible_to_readers() {
     // Aynı süreç içinde okuma anında yeni değeri görür.
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
-    assert!(body.contains("\"stt.provider\":\"whisper\""), "body: {body}");
+    assert!(
+        body.contains("\"stt.provider\":\"whisper\""),
+        "body: {body}"
+    );
 }
 
 #[tokio::test]
@@ -132,14 +146,68 @@ async fn legal_html_config_is_admin_editable() {
 }
 
 #[tokio::test]
+async fn legal_html_config_strips_executable_markup_but_keeps_allowlisted_content() {
+    let addr = spawn_server().await;
+
+    let html = concat!(
+        "<h1>Safe terms</h1>",
+        "<script>alert(1)</script>",
+        "<p onmouseover=alert(2)>Read <strong>carefully</strong>.</p>",
+        "<a href=\"javascript:alert(3)\">unsafe</a>",
+        "<a href=\"https://strovak.com/legal\" title=\"Legal\">safe link</a>",
+        "<svg><a xlink:href=\"javascript:alert(4)\">svg</a></svg>",
+    );
+    let payload = format!(
+        r#"{{"key":"legal.terms.html","value":{}}}"#,
+        serde_json::to_string(html).expect("html json")
+    );
+    let (status, body) = http(addr, &put_config(Some(&token("admin")), &payload)).await;
+    assert_eq!(status, 200, "body: {body}");
+
+    let config: serde_json::Value = serde_json::from_str(&body).expect("config json");
+    let sanitized = config["legal.terms.html"].as_str().expect("legal html");
+    assert!(
+        sanitized.contains("<h1>Safe terms</h1>"),
+        "html: {sanitized}"
+    );
+    assert!(
+        sanitized.contains("<strong>carefully</strong>"),
+        "html: {sanitized}"
+    );
+    assert!(
+        sanitized.contains("https://strovak.com/legal"),
+        "html: {sanitized}"
+    );
+    for forbidden in [
+        "<script",
+        "alert(1)",
+        "onmouseover",
+        "javascript:",
+        "<svg",
+        "xlink:",
+    ] {
+        assert!(
+            !sanitized.to_ascii_lowercase().contains(forbidden),
+            "html: {sanitized}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn company_details_are_admin_editable_and_default_empty() {
     let addr = spawn_server().await;
 
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
     assert!(body.contains("\"company.legal_name\":\"\""), "body: {body}");
-    assert!(body.contains("\"company.registration_number\":\"\""), "body: {body}");
-    assert!(body.contains("\"company.registered_address\":\"\""), "body: {body}");
+    assert!(
+        body.contains("\"company.registration_number\":\"\""),
+        "body: {body}"
+    );
+    assert!(
+        body.contains("\"company.registered_address\":\"\""),
+        "body: {body}"
+    );
 
     let (status, body) = http(
         addr,
@@ -153,7 +221,10 @@ async fn company_details_are_admin_editable_and_default_empty() {
 
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
-    assert!(body.contains("\"company.legal_name\":\"Strovak\""), "body: {body}");
+    assert!(
+        body.contains("\"company.legal_name\":\"Strovak\""),
+        "body: {body}"
+    );
 }
 
 /// Gerçek Postgres ile: admin yazımı `service_config` tablosuna da işlenir ve
@@ -164,8 +235,12 @@ async fn company_details_are_admin_editable_and_default_empty() {
 #[ignore = "requires TEST_DATABASE_URL with a migrated database"]
 async fn legal_config_persists_to_db_and_survives_restart() {
     let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL");
-    let pool = streamdubber_backend::db::connect(&url).await.expect("connect");
-    streamdubber_backend::db::run_migrations(&pool).await.expect("migrations");
+    let pool = streamdubber_backend::db::connect(&url)
+        .await
+        .expect("connect");
+    streamdubber_backend::db::run_migrations(&pool)
+        .await
+        .expect("migrations");
 
     let addr = spawn_server_with_db(Some(pool.clone())).await;
 
@@ -189,7 +264,11 @@ async fn legal_config_persists_to_db_and_survives_restart() {
 #[tokio::test]
 async fn write_requires_auth() {
     let addr = spawn_server().await;
-    let (status, _) = http(addr, &put_config(None, r#"{"key":"stt.provider","value":"x"}"#)).await;
+    let (status, _) = http(
+        addr,
+        &put_config(None, r#"{"key":"stt.provider","value":"x"}"#),
+    )
+    .await;
     assert_eq!(status, 401);
 }
 
@@ -198,7 +277,10 @@ async fn broadcaster_cannot_write() {
     let addr = spawn_server().await;
     let (status, _) = http(
         addr,
-        &put_config(Some(&token("broadcaster")), r#"{"key":"stt.provider","value":"x"}"#),
+        &put_config(
+            Some(&token("broadcaster")),
+            r#"{"key":"stt.provider","value":"x"}"#,
+        ),
     )
     .await;
     assert_eq!(status, 403);
@@ -209,7 +291,10 @@ async fn unknown_key_is_rejected() {
     let addr = spawn_server().await;
     let (status, _) = http(
         addr,
-        &put_config(Some(&token("admin")), r#"{"key":"attacker.key","value":"x"}"#),
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"attacker.key","value":"x"}"#,
+        ),
     )
     .await;
     assert_eq!(status, 404);
