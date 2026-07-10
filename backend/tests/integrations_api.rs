@@ -1,9 +1,9 @@
 //! OAuth entegrasyon uçlarının admin/broadcaster ayrımı (V11).
 //!
 //! Sözleşme: broadcaster akışı (`GET /api/integrations/{provider}/authorize`)
-//! plan erişimini uygular; admin doğrulama akışı
-//! (`GET /admin/integrations/{provider}/authorize`) bunu atlar — operatör
-//! kendi bootstrap hesabıyla (plan="streamer") bağlantıyı test edebilmeli.
+//! OAuth sağlayıcı yapılandırılmışsa plan ayrımı yapmadan authorize URL üretir.
+//! Admin doğrulama akışı aynı şekilde operatörün kendi hesabıyla bağlantıyı
+//! test edebilmesini sağlar.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -145,9 +145,8 @@ fn request(method: &str, path: &str, token: Option<&str>) -> String {
 }
 
 #[tokio::test]
-async fn broadcaster_authorize_respects_plan_gate() {
+async fn broadcaster_authorize_ignores_plan_gate_when_oauth_is_configured() {
     let addr = spawn_server().await;
-    // integration.streamlabs.plans = "pro" (seed varsayılanı) — "starter" reddedilir.
     let (status, body) = http(
         addr,
         &request(
@@ -157,7 +156,8 @@ async fn broadcaster_authorize_respects_plan_gate() {
         ),
     )
     .await;
-    assert_eq!(status, 403, "body: {body}");
+    assert_eq!(status, 200, "body: {body}");
+    assert!(body.contains("authorize_url"));
 }
 
 #[tokio::test]
@@ -177,10 +177,8 @@ async fn broadcaster_authorize_succeeds_within_plan() {
 }
 
 #[tokio::test]
-async fn admin_authorize_bypasses_plan_gate() {
+async fn admin_authorize_can_verify_configured_oauth() {
     let addr = spawn_server().await;
-    // Bootstrap admin claim'i plan="streamer" — streamlabs "pro" listesinde
-    // değil, ama admin yolu bunu atlamalı.
     let (status, body) = http(
         addr,
         &request(

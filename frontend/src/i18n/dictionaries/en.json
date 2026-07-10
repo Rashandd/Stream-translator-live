@@ -449,7 +449,7 @@
       },
       "methodSelection": {
         "methodsTitle": "Distribution method",
-        "methodsSubtitle": "Choose how your video reaches platforms. Phase 1 defaults to the desktop SDK relay; Streamlabs is optional when your plan and OAuth connection allow it.",
+        "methodsSubtitle": "Choose how your video reaches platforms. Phase 1 defaults to the desktop SDK relay; Streamlabs is optional when its OAuth connection is active.",
         "defaultMethodId": "sdk-relay",
         "recommendedLabel": "Recommended",
         "selectedLabel": "Selected",
@@ -458,14 +458,12 @@
         "connectingLabel": "Connecting...",
         "testLabel": "Test connection",
         "testingLabel": "Testing...",
-        "planAccessLabel": "Enabled plans",
         "loadingLabel": "Loading integrations...",
         "states": {
           "ready": "Ready",
           "loading": "Loading",
           "unknown": "Unavailable",
           "not_configured": "Not configured",
-          "plan_locked": "Plan locked",
           "available": "Available",
           "connected": "Connected"
         },
@@ -501,7 +499,7 @@
             "icon": "Route",
             "bullets": [
               "Requires Streamlabs OAuth setup",
-              "Plan access is controlled by admin config",
+              "Available whenever OAuth is configured",
               "Connection test uses the stored encrypted token"
             ]
           }
@@ -2197,15 +2195,6 @@
       "stripeTitle": "Stripe plan price IDs",
       "stripeSubtitle": "Maps each paid plan to a Stripe Price ID created in your Stripe Dashboard.",
       "stripeFreeNote": "Free plan — no Stripe price required.",
-      "planAccessTitle": "Integration plan access",
-      "planAccessSubtitle": "Toggle which subscription plans can start each OAuth integration. Changes write to integration.<provider>.plans and apply without a restart.",
-      "planAccessColumns": [
-        "Provider",
-        "Plans",
-        "Saved value"
-      ],
-      "noPlanAccessProviders": "No OAuth providers are registered.",
-      "planAccessHint": "OAuth provider",
       "saveLabel": "Save",
       "savingLabel": "Saving...",
       "savedLabel": "Saved",

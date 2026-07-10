@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { adminFetch } from "@/src/lib/api";
 import { Icon } from "@/src/components/icon";
 import { SectionCard } from "@/src/components/dashboard-ui";
-import { parsePlanCsv, serializePlanCsv } from "@/src/lib/distribution";
 
 type Tone = "ok" | "warn" | "bad";
 
@@ -56,11 +55,6 @@ type Labels = {
   stripeTitle: string;
   stripeSubtitle: string;
   stripeFreeNote: string;
-  planAccessTitle: string;
-  planAccessSubtitle: string;
-  planAccessColumns: string[];
-  noPlanAccessProviders: string;
-  planAccessHint: string;
   saveLabel: string;
   savingLabel: string;
   savedLabel: string;
@@ -95,10 +89,6 @@ function Pill({ tone, text }: { tone: Tone; text: string }) {
 export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [plans, setPlans] = useState<PlanDefinition[] | null>(null);
-  const [runtimeConfig, setRuntimeConfig] = useState<Record<string, string>>({});
-  const [planDrafts, setPlanDrafts] = useState<Record<string, Set<string>>>({});
-  const [planBusy, setPlanBusy] = useState<string | null>(null);
-  const [planSaved, setPlanSaved] = useState<string | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [priceBusy, setPriceBusy] = useState<string | null>(null);
   const [priceSaved, setPriceSaved] = useState<string | null>(null);
@@ -114,7 +104,6 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
         adminFetch("/admin/setup/status"),
         adminFetch("/api/plans"),
       ]);
-      const configResp = await adminFetch("/config");
       if (statusResp.status === 401 || statusResp.status === 403) {
         setUnauthorized(true);
         setStatus({ checks: [], providers: [] });
@@ -128,21 +117,8 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
       setError(null);
       const loadedStatus = (await statusResp.json()) as SetupStatus;
       const loadedPlans = plansResp.ok ? ((await plansResp.json()) as PlanDefinition[]) : [];
-      const loadedConfig = configResp.ok ? ((await configResp.json()) as Record<string, string>) : {};
       setStatus(loadedStatus);
       setPlans(loadedPlans);
-      setRuntimeConfig(loadedConfig);
-      setPlanDrafts((current) => {
-        const next = { ...current };
-        for (const provider of loadedStatus.providers.filter((item) => item.kind === "oauth")) {
-          if (!next[provider.name]) {
-            next[provider.name] = new Set(
-              parsePlanCsv(loadedConfig[`integration.${provider.name}.plans`] ?? ""),
-            );
-          }
-        }
-        return next;
-      });
     } catch {
       setError(labels.errors.network);
       setStatus({ checks: [], providers: [] });
@@ -223,50 +199,6 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
       setError(labels.errors.network);
     } finally {
       setPriceBusy(null);
-    }
-  }
-
-  function toggleProviderPlan(provider: string, plan: string) {
-    setPlanSaved(null);
-    setPlanDrafts((current) => {
-      const next = new Set(current[provider] ?? []);
-      if (next.has(plan)) {
-        next.delete(plan);
-      } else {
-        next.add(plan);
-      }
-      return { ...current, [provider]: next };
-    });
-  }
-
-  async function saveProviderPlans(provider: string) {
-    const selected = planDrafts[provider] ?? new Set<string>();
-    setPlanBusy(provider);
-    setPlanSaved(null);
-    try {
-      const response = await adminFetch("/admin/config", {
-        method: "PUT",
-        body: JSON.stringify({
-          key: `integration.${provider}.plans`,
-          value: serializePlanCsv(selected),
-        }),
-      });
-      if (response.status === 401 || response.status === 403) {
-        setUnauthorized(true);
-        return;
-      }
-      if (!response.ok) {
-        setError(labels.errors.saveFailed);
-        return;
-      }
-      const updated = (await response.json()) as Record<string, string>;
-      setRuntimeConfig(updated);
-      setPlanSaved(provider);
-      await load();
-    } catch {
-      setError(labels.errors.network);
-    } finally {
-      setPlanBusy(null);
     }
   }
 
@@ -399,72 +331,6 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
             </table>
           </div>
         </div>
-      </SectionCard>
-
-      <SectionCard subtitle={labels.planAccessSubtitle} title={labels.planAccessTitle}>
-        {status.providers.filter((provider) => provider.kind === "oauth").length === 0 ? (
-          <p className="text-sm text-muted">{labels.noPlanAccessProviders}</p>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="grid grid-cols-[minmax(120px,1fr)_minmax(220px,2fr)_auto] gap-3 border-b border-hairline bg-canvas px-4 py-3 text-xs font-semibold uppercase tracking-wide text-faint max-md:hidden">
-              {labels.planAccessColumns.map((column) => (
-                <span key={column}>{column}</span>
-              ))}
-            </div>
-            <div className="divide-y divide-hairline">
-              {status.providers
-                .filter((provider) => provider.kind === "oauth")
-                .map((provider) => {
-                  const selectedPlans = planDrafts[provider.name] ?? new Set<string>();
-                  const savedValue = runtimeConfig[`integration.${provider.name}.plans`] ?? "";
-                  return (
-                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(120px,1fr)_minmax(220px,2fr)_auto] md:items-center" key={provider.name}>
-                      <div>
-                        <p className="font-mono text-xs font-semibold text-ink">{provider.name}</p>
-                        <p className="mt-1 text-xs text-muted">{labels.planAccessHint}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {(plans ?? []).map((plan) => {
-                          const checked = selectedPlans.has(plan.name);
-                          return (
-                            <label
-                              className={`inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                                checked
-                                  ? "border-blue/40 bg-blue/10 text-ink"
-                                  : "border-border bg-white text-muted"
-                              }`}
-                              key={`${provider.name}-${plan.name}`}
-                            >
-                              <input
-                                checked={checked}
-                                className="sr-only"
-                                onChange={() => toggleProviderPlan(provider.name, plan.name)}
-                                type="checkbox"
-                              />
-                              <Icon className="h-3.5 w-3.5" name={checked ? "CheckCircle2" : "Circle"} />
-                              {plan.name}
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                        <span className="font-mono text-xs text-muted">{savedValue || "-"}</span>
-                        <button
-                          className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
-                          disabled={planBusy === provider.name}
-                          onClick={() => void saveProviderPlans(provider.name)}
-                          type="button"
-                        >
-                          {planBusy === provider.name ? labels.savingLabel : labels.saveLabel}
-                        </button>
-                        {planSaved === provider.name ? <Pill text={labels.savedLabel} tone="ok" /> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
       </SectionCard>
 
       <SectionCard subtitle={labels.stripeSubtitle} title={labels.stripeTitle}>

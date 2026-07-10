@@ -139,13 +139,8 @@ impl ServiceConfig {
             // Admin panel bunları değiştirir; yayıncı paneli okuyup kilitler.
             ("dist.service.plans", "free,pro"),
             ("dist.cloud.plans", "pro"),
-            // Multistream OAuth (1.6, opsiyonel Streamlabs bağlantısı): hangi
-            // planda açık + callback redirect tabanı. Admin panelden değiştirilebilir.
-            ("integration.streamlabs.plans", "pro"),
-            ("integration.youtube.plans", "free,pro"),
-            // Kimlik-doğrulama amaçlı (founding-5 kanal doğrulaması) — ücretli
-            // bir özellik değil, her plan bağlayabilmeli.
-            ("integration.twitch.plans", "free,pro"),
+            // Multistream OAuth (1.6, opsiyonel bağlantılar): sağlayıcı
+            // kimlikleri yapılandırılmışsa her yayıncı planı bağlanabilir.
             (
                 "integration.redirect_base",
                 "http://localhost:8080/api/integrations",

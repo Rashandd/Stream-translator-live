@@ -66,8 +66,6 @@ pub enum OAuthError {
     NotConfigured(String),
     #[error("invalid or expired state")]
     InvalidState,
-    #[error("plan '{plan}' is not allowed for {provider}")]
-    PlanNotAllowed { provider: String, plan: String },
     #[error("token exchange failed: {0}")]
     Exchange(String),
 }

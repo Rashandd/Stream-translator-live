@@ -5,9 +5,8 @@
 //! isterse ayrıca kendi Streamlabs hesabını OAuth ile bağlayabilir (Mod A').
 //! YouTube bağlantısı ise native closed-caption gönderimi içindir (bkz.
 //! [`youtube`] modülü). `client_id`/`client_secret` `SecretStore`'dan
-//! (env/Vault) gelir — koda gömülü değil. Hangi planda sağlayıcının açık
-//! olduğu `ServiceConfig`'ten (`integration.<provider>.plans`) okunur;
-//! hard-coded değildir.
+//! (env/Vault) gelir — koda gömülü değil. Bir OAuth sağlayıcı yapılandırılmışsa
+//! yayıncı planından bağımsız bağlanabilir.
 //!
 //! Bu modül OAuth **akışını** (authorize → callback → token değişimi) sağlar.
 //! Alınan token'ın AES ile şifrelenip DB'ye (`platform_accounts`) yazılması ve
@@ -269,26 +268,23 @@ impl Integrations {
     pub async fn begin(
         &self,
         user_id: &str,
-        plan: &str,
+        _plan: &str,
         provider_name: &str,
         cfg: &ServiceConfig,
     ) -> Result<String, OAuthError> {
-        self.begin_inner(user_id, provider_name, cfg, Some(plan))
-            .await
+        self.begin_inner(user_id, provider_name, cfg).await
     }
 
-    /// Admin doğrulama bağlantısı: plan erişim kontrolünü atlar. Faz 1'de
-    /// broadcaster kullanıcı sistemi henüz yok — admin, kendi bootstrap
-    /// hesabıyla (plan="streamer") bir sağlayıcının OAuth akışının uçtan
-    /// uca çalıştığını doğrulamak için bağlanabilir. `Production Setup`
-    /// sayfasındaki "Connect" aksiyonu bunu kullanır.
+    /// Admin doğrulama bağlantısı. Production Setup sayfasındaki "Connect"
+    /// aksiyonu operatörün kendi hesabıyla OAuth sağlayıcısının uçtan uca
+    /// çalıştığını doğrulaması için bunu kullanır.
     pub async fn begin_admin(
         &self,
         user_id: &str,
         provider_name: &str,
         cfg: &ServiceConfig,
     ) -> Result<String, OAuthError> {
-        self.begin_inner(user_id, provider_name, cfg, None).await
+        self.begin_inner(user_id, provider_name, cfg).await
     }
 
     async fn begin_inner(
@@ -296,7 +292,6 @@ impl Integrations {
         user_id: &str,
         provider_name: &str,
         cfg: &ServiceConfig,
-        plan_check: Option<&str>,
     ) -> Result<String, OAuthError> {
         let creds = self
             .providers
@@ -308,18 +303,6 @@ impl Integrations {
             .resolve()
             .await
             .ok_or_else(|| OAuthError::NotConfigured(provider_name.to_string()))?;
-
-        if let Some(plan) = plan_check {
-            let plans = cfg
-                .get(&format!("integration.{provider_name}.plans"))
-                .unwrap_or_default();
-            if !oauth::plan_allowed(&plans, plan) {
-                return Err(OAuthError::PlanNotAllowed {
-                    provider: provider_name.to_string(),
-                    plan: plan.to_string(),
-                });
-            }
-        }
 
         let base = cfg
             .get("integration.redirect_base")
@@ -527,7 +510,6 @@ fn oauth_status(err: &OAuthError) -> StatusCode {
         OAuthError::UnknownProvider(_) => StatusCode::NOT_FOUND,
         OAuthError::NotConfigured(_) => StatusCode::SERVICE_UNAVAILABLE,
         OAuthError::InvalidState => StatusCode::BAD_REQUEST,
-        OAuthError::PlanNotAllowed { .. } => StatusCode::FORBIDDEN,
         OAuthError::Exchange(_) => StatusCode::BAD_GATEWAY,
     }
 }
@@ -546,29 +528,20 @@ fn connection_check_status(err: &ConnectionCheckError) -> StatusCode {
 pub struct ProviderStatus {
     pub name: String,
     pub configured: bool,
-    pub plans: String,
-    pub enabled_for_plan: bool,
     /// Bu yayıncının kayıtlı (persist edilmiş) token'ı var mı?
     pub connected: bool,
 }
 
-/// `GET /api/integrations` — sağlayıcı listesi + plan erişimi (yayıncı).
+/// `GET /api/integrations` — sağlayıcı listesi + bağlantı durumu (yayıncı).
 pub async fn list(
     user: AuthUser,
     State(integ): State<Arc<Integrations>>,
-    State(cfg): State<Arc<ServiceConfig>>,
 ) -> Json<Vec<ProviderStatus>> {
-    let plan = &user.claims.plan;
     let mut items = Vec::new();
     for name in integ.provider_names() {
-        let plans = cfg
-            .get(&format!("integration.{name}.plans"))
-            .unwrap_or_default();
         items.push(ProviderStatus {
             configured: integ.is_configured(&name).await,
-            enabled_for_plan: oauth::plan_allowed(&plans, plan),
             connected: integ.tokens.connected(&user.claims.sub, &name),
-            plans,
             name,
         });
     }
@@ -599,7 +572,6 @@ pub async fn authorize(
 
 /// `GET /admin/integrations/{provider}/authorize` (sadece admin).
 ///
-/// Yayıncı akışındaki plan/erişim kontrolünü atlar (bkz. [`Integrations::begin_admin`]).
 /// Production Setup sayfasındaki "Connect" aksiyonu operatörün kendi
 /// bootstrap admin hesabıyla bir OAuth sağlayıcısının uçtan uca çalıştığını
 /// doğrulaması için bunu çağırır.
@@ -1011,15 +983,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn begin_rejects_plan_without_access() {
+    async fn begin_allows_any_plan_when_provider_is_configured() {
         let integ = integrations_with("http://unused", true);
         let cfg = cfg();
-        // integration.streamlabs.plans = "pro" → "starter" reddedilir.
-        let err = integ
+        let url = integ
             .begin("u", "starter", "streamlabs", &cfg)
             .await
-            .unwrap_err();
-        assert!(matches!(err, OAuthError::PlanNotAllowed { .. }));
+            .expect("configured OAuth is available to every plan");
+        assert!(url.contains("client_id=cid"));
     }
 
     #[tokio::test]
@@ -1072,16 +1043,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn begin_admin_skips_plan_check() {
+    async fn begin_admin_uses_same_configured_oauth_rule() {
         let integ = integrations_with("http://unused", true);
         let cfg = cfg();
-        // integration.streamlabs.plans = "pro" — broadcaster "starter" ile
-        // reddedilirdi (bkz. begin_rejects_plan_without_access); admin bunu
-        // atlar çünkü sadece bağlantıyı doğrulamak istiyor.
         let url = integ
             .begin_admin("admin-bootstrap", "streamlabs", &cfg)
             .await
-            .expect("admin bypasses plan gate");
+            .expect("admin can verify configured OAuth");
         assert!(url.contains("client_id=cid"));
     }
 

@@ -6,7 +6,6 @@ import { userFetch } from "@/src/lib/api";
 import {
   findIntegration,
   integrationUiState,
-  parsePlanCsv,
   type IntegrationStatus,
   type IntegrationUiState,
 } from "@/src/lib/distribution";
@@ -37,7 +36,6 @@ type Labels = {
   connectingLabel: string;
   testLabel: string;
   testingLabel: string;
-  planAccessLabel: string;
   loadingLabel: string;
   states: Record<IntegrationUiState | "ready", string>;
   uploadWarning: {
@@ -63,7 +61,6 @@ const stateTone: Record<IntegrationUiState | "ready", string> = {
   available: "border-blue/25 bg-blue/10 text-ink",
   loading: "border-border bg-canvas text-muted",
   not_configured: "border-warning/25 bg-warning/10 text-ink",
-  plan_locked: "border-warning/25 bg-warning/10 text-ink",
   unknown: "border-danger/25 bg-danger/10 text-ink",
 };
 
@@ -197,11 +194,9 @@ export function DistributionMethodPanel({ labels }: Props) {
           const providerStatus = method.provider ? integrationByProvider.get(method.provider) ?? null : null;
           const uiState = isSdk ? "ready" : integrationUiState(providerStatus, loading);
           const selectedMethod = selected === method.id;
-          const planList = providerStatus ? parsePlanCsv(providerStatus.plans) : [];
           const canConnect =
             method.provider &&
             providerStatus?.configured &&
-            providerStatus.enabled_for_plan &&
             !providerStatus.connected;
           const canTest = method.provider && providerStatus?.connected;
           const testResult = method.provider ? testResults[method.provider] : null;
@@ -241,15 +236,6 @@ export function DistributionMethodPanel({ labels }: Props) {
                   </li>
                 ))}
               </ul>
-
-              {method.provider ? (
-                <div className="mt-4 rounded-lg border border-hairline bg-canvas px-3 py-2">
-                  <p className="text-xs font-semibold text-muted">{labels.planAccessLabel}</p>
-                  <p className="mt-1 font-mono text-xs text-ink">
-                    {planList.length > 0 ? planList.join(", ") : labels.states.unknown}
-                  </p>
-                </div>
-              ) : null}
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <button
