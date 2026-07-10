@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BrandMark, brandForPlatform } from "@/src/components/brand-mark";
 import { Icon } from "@/src/components/icon";
 import { PageHeader } from "@/src/components/dashboard-ui";
+import { PlatformAccountsPanel } from "@/src/components/platform-accounts-panel";
 import { TwitchExtensionLink } from "@/src/components/twitch-extension-link";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, locales, type Locale } from "@/src/i18n/routing";
@@ -34,67 +34,7 @@ export default async function PlatformsPage({ params }: Props) {
     <div className="space-y-6">
       <PageHeader subtitle={platforms.subtitle} title={platforms.title} />
 
-      <div className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
-        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-blue" name="LockKeyhole" />
-        <p className="text-sm leading-6 text-muted">{platforms.oauthNotice}</p>
-      </div>
-
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {platforms.accounts.map((account) => {
-          const brand = brandForPlatform(account.provider);
-
-          return (
-            <li className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5" key={account.name}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
-                    {brand ? (
-                      <BrandMark brand={brand} className="h-5 w-5" />
-                    ) : (
-                      <Icon className="h-5 w-5" name={account.icon} />
-                    )}
-                  </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{account.name}</p>
-                  <p className="truncate text-sm text-muted">{account.detail}</p>
-                </div>
-              </div>
-              <span
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                  account.connected ? "border-success/25 bg-success/10 text-ink" : "border-border bg-canvas text-muted"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${account.connected ? "bg-success" : "bg-faint"}`} />
-                {account.connected ? platforms.connectedLabel : platforms.notConnectedLabel}
-              </span>
-            </div>
-
-            <div className="rounded-lg border border-hairline bg-canvas px-3 py-2">
-              <p className="text-xs font-medium text-muted">{platforms.scopesLabel}</p>
-              <p className="mt-0.5 text-sm text-ink">{account.connected && account.account ? account.account : account.scopes}</p>
-            </div>
-
-            <button
-              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
-                account.connected
-                  ? "border border-border bg-white text-ink hover:border-danger hover:text-danger"
-                  : "bg-ink text-white hover:bg-text"
-              }`}
-              type="button"
-            >
-              {account.connected ? (
-                platforms.disconnectLabel
-              ) : (
-                <>
-                  <Icon className="h-4 w-4" name="Plus" />
-                  {platforms.connectLabel}
-                </>
-              )}
-            </button>
-            </li>
-          );
-        })}
-      </ul>
+      <PlatformAccountsPanel labels={platforms} />
 
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5">
         <div className="flex items-start justify-between gap-3">

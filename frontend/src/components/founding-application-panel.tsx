@@ -12,6 +12,7 @@ type Application = {
   channel_url: string;
   message: string;
   status: Status;
+  auto_created_via_oauth: boolean;
 };
 
 type Labels = {
@@ -28,6 +29,11 @@ type Labels = {
   editLabel: string;
   statusLabels: Record<Status, string>;
   statusHints: Record<Status, string>;
+  connectCta: string;
+  connectYoutubeLabel: string;
+  connectTwitchLabel: string;
+  manualFallbackLabel: string;
+  autoVerifiedBadge: string;
   errors: {
     network: string;
     invalid: string;
@@ -40,11 +46,13 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [application, setApplication] = useState<Application | null>(null);
   const [editing, setEditing] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
   const [platform, setPlatform] = useState<Platform>("kick");
   const [channelUrl, setChannelUrl] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectBusy, setConnectBusy] = useState<"youtube" | "twitch" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +81,24 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
       cancelled = true;
     };
   }, []);
+
+  async function connect(provider: "youtube" | "twitch") {
+    setConnectBusy(provider);
+    setError(null);
+    try {
+      const res = await userFetch(`/api/integrations/${provider}/authorize`);
+      if (!res.ok) {
+        setError(labels.errors.network);
+        return;
+      }
+      const data = (await res.json()) as { authorize_url: string };
+      window.location.href = data.authorize_url;
+    } catch {
+      setError(labels.errors.network);
+    } finally {
+      setConnectBusy(null);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -124,6 +150,11 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
           >
             {labels.statusLabels[application.status]}
           </span>
+          {application.auto_created_via_oauth ? (
+            <span className="rounded-full bg-blue/10 px-2.5 py-0.5 text-xs font-semibold text-blue">
+              {labels.autoVerifiedBadge}
+            </span>
+          ) : null}
           <p className="text-sm text-muted">{labels.platformOptions[application.platform]}</p>
           <a
             className="text-sm text-blue underline"
@@ -141,6 +172,40 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
           type="button"
         >
           {labels.editLabel}
+        </button>
+      </SectionCard>
+    );
+  }
+
+  if (loadState === "none" && !showManualForm) {
+    return (
+      <SectionCard subtitle={labels.subtitle} title={labels.title}>
+        <p className="text-sm leading-6 text-muted">{labels.connectCta}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+            disabled={connectBusy === "youtube"}
+            onClick={() => void connect("youtube")}
+            type="button"
+          >
+            {labels.connectYoutubeLabel}
+          </button>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+            disabled={connectBusy === "twitch"}
+            onClick={() => void connect("twitch")}
+            type="button"
+          >
+            {labels.connectTwitchLabel}
+          </button>
+        </div>
+        {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
+        <button
+          className="mt-4 text-xs font-medium text-muted underline"
+          onClick={() => setShowManualForm(true)}
+          type="button"
+        >
+          {labels.manualFallbackLabel}
         </button>
       </SectionCard>
     );

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/src/components/icon";
-import { CopyRow } from "@/src/components/copy-row";
-import { PageHeader, SectionCard } from "@/src/components/dashboard-ui";
+import { GoLivePanel } from "@/src/components/go-live-panel";
+import { PageHeader } from "@/src/components/dashboard-ui";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -30,8 +30,6 @@ export default async function GoLivePage({ params }: Props) {
   const { goLive } = config.dashboard;
   const isCloud = goLive.activeMode === "cloud";
   const mode = isCloud ? goLive.modes.cloud : goLive.modes.relay;
-  const live = mode;
-  const ready = mode.steps.every((step) => step.done);
 
   return (
     <div className="space-y-6">
@@ -55,76 +53,17 @@ export default async function GoLivePage({ params }: Props) {
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
-        <SectionCard title={goLive.stepsTitle}>
-          <ol className="space-y-4">
-            {mode.steps.map((step, index) => (
-              <li className="flex gap-4" key={step.title}>
-                <span
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                    step.done ? "bg-success text-white" : "bg-canvas text-ink"
-                  }`}
-                >
-                  {step.done ? <Icon className="h-4 w-4" name="CheckCircle2" /> : index + 1}
-                </span>
-                <div className="min-w-0 pt-0.5">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                    <Icon className="h-4 w-4 text-blue" name={step.icon} />
-                    {step.title}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-muted">{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </SectionCard>
-
-        <div className="space-y-6">
-          <SectionCard title={goLive.startTitle}>
-            <p className="text-xs font-medium text-muted">{live.connectLabel}</p>
-            <div className="mt-1 space-y-2">
-              <CopyRow copyLabel={goLive.copyLabel} value={live.connectValue} />
-              {isCloud ? <CopyRow copyLabel={goLive.copyLabel} value={goLive.modes.cloud.streamKey} /> : null}
-            </div>
-
-            <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-hairline bg-canvas p-3">
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-blue" name="Video" />
-              <p className="text-sm leading-6 text-muted">{live.videoNote}</p>
-            </div>
-
-            {isCloud ? (
-              <div className="mt-5">
-                <p className="mb-2 text-xs font-medium text-muted">{goLive.targetsLabel}</p>
-                <ul className="space-y-2">
-                  {goLive.targets.map((target) => (
-                    <li className="flex items-center justify-between rounded-lg border border-hairline bg-canvas px-4 py-2.5" key={target.name}>
-                      <span className="text-sm font-semibold text-ink">{target.name}</span>
-                      <span
-                        className={`inline-flex h-6 w-11 items-center rounded-full px-0.5 ${target.enabled ? "justify-end bg-success" : "justify-start bg-border"}`}
-                      >
-                        <span className="h-5 w-5 rounded-full bg-white" />
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            <button
-              aria-disabled={!ready}
-              className={`mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition ${
-                ready ? "bg-ink hover:bg-text" : "cursor-not-allowed bg-faint"
-              }`}
-              disabled={!ready}
-              type="button"
-            >
-              <Icon className="h-4 w-4" name="Play" />
-              {live.startLabel}
-            </button>
-            <p className="mt-3 text-sm leading-6 text-muted">{live.startNote}</p>
-          </SectionCard>
-        </div>
-      </div>
+      <GoLivePanel
+        isCloud={isCloud}
+        labels={{
+          stepsTitle: goLive.stepsTitle,
+          startTitle: goLive.startTitle,
+          targetsLabel: goLive.targetsLabel,
+          targets: goLive.targets,
+          copyLabel: goLive.copyLabel,
+        }}
+        mode={mode}
+      />
     </div>
   );
 }

@@ -341,11 +341,6 @@
               "icon": "Route"
             },
             {
-              "label": "Platforms",
-              "href": "/dashboard/platforms",
-              "icon": "Share2"
-            },
-            {
               "label": "Languages & captions",
               "href": "/dashboard/captions",
               "icon": "Subtitles"
@@ -365,6 +360,11 @@
         {
           "label": "Account",
           "items": [
+            {
+              "label": "Platforms",
+              "href": "/dashboard/platforms",
+              "icon": "Share2"
+            },
             {
               "label": "Desktop app",
               "href": "/dashboard/sdk",
@@ -435,6 +435,11 @@
         "approved": "You're a founding tester — captions are free during the closed beta. Head to Go live to start streaming.",
         "revoked": "Your founding access was revoked. Reach out if you think this is a mistake."
       },
+      "connectCta": "Connect your YouTube or Twitch channel and we'll submit your founding application automatically — no form to fill in.",
+      "connectYoutubeLabel": "Connect YouTube",
+      "connectTwitchLabel": "Connect Twitch",
+      "manualFallbackLabel": "Stream on Kick, or prefer to fill in a form instead?",
+      "autoVerifiedBadge": "Verified via OAuth",
       "errors": {
         "network": "Couldn't reach the server — try again in a moment.",
         "invalid": "Please enter a valid channel link."
@@ -628,55 +633,47 @@
       "subtitle": "Connect the destinations your captions and audio are delivered to.",
       "oauthNotice": "Connecting opens the platform's own secure sign-in. Strovak never sees your password — only an access token, stored encrypted. The token exchange completes on our server.",
       "connectLabel": "Connect",
+      "connectingLabel": "Connecting…",
       "disconnectLabel": "Disconnect",
+      "disconnectingLabel": "Disconnecting…",
       "connectedLabel": "Connected",
       "notConnectedLabel": "Not connected",
+      "comingSoonLabel": "Coming soon",
       "scopesLabel": "Permissions",
+      "errors": {
+        "unauthorized": "Your session is missing or expired. Sign in again to manage platform accounts.",
+        "network": "Could not reach the backend — check your connection and try again.",
+        "actionFailed": "The backend could not complete this action."
+      },
       "accounts": [
         {
           "name": "YouTube",
           "provider": "youtube",
           "detail": "Native captions + multi-audio tracks",
           "scopes": "Manage live broadcasts and captions",
-          "connected": false,
-          "account": "",
           "icon": "Video"
         },
         {
-          "name": "Twitch · channel 1 (TR)",
+          "name": "Twitch",
           "provider": "twitch",
-          "detail": "Turkish output channel",
-          "scopes": "Read channel, edit stream info",
-          "connected": false,
-          "account": "",
+          "detail": "Channel identity for founding-5 verification",
+          "scopes": "Read email, read channel",
           "icon": "Radio"
         },
         {
-          "name": "Twitch · channel 2 (EN)",
-          "provider": "twitch",
-          "detail": "English output channel",
-          "scopes": "Read channel, edit stream info",
-          "connected": false,
-          "account": "",
-          "icon": "Radio"
+          "name": "Streamlabs",
+          "provider": "streamlabs",
+          "detail": "Optional multistream routing (Mode A')",
+          "scopes": "Socket token",
+          "icon": "Route"
         },
         {
-          "name": "Kick · channel 1 (TR)",
+          "name": "Kick",
           "provider": "kick",
-          "detail": "Turkish output channel",
-          "scopes": "Read channel, edit stream info",
-          "connected": false,
-          "account": "",
-          "icon": "Radio"
-        },
-        {
-          "name": "Kick · channel 2 (EN)",
-          "provider": "kick",
-          "detail": "English output channel",
-          "scopes": "Read channel, edit stream info",
-          "connected": false,
-          "account": "",
-          "icon": "Radio"
+          "detail": "Coming soon — Kick OAuth is on the roadmap",
+          "scopes": "",
+          "icon": "Radio",
+          "disabled": true
         }
       ],
       "extension": {
@@ -867,26 +864,22 @@
             {
               "title": "Install and connect the desktop app",
               "body": "Download the desktop app and enter the 6-digit code. The app captures your speech audio on your machine.",
-              "icon": "MonitorCog",
-              "done": false
+              "icon": "MonitorCog"
             },
             {
               "title": "Add captions to your scene",
               "body": "Copy the overlay URL below and add it as a Browser/Web Source in OBS, Streamlabs Desktop, XSplit, vMix, or your streaming software — works the same whether you stream straight from your PC or route a console through a capture card into OBS.",
-              "icon": "Subtitles",
-              "done": false
+              "icon": "Subtitles"
             },
             {
               "title": "Pick your languages",
               "body": "Set the language you speak and the caption languages your audience reads.",
-              "icon": "Languages",
-              "done": false
+              "icon": "Languages"
             },
             {
               "title": "Start streaming as usual, then arm translation here",
               "body": "Press Start Streaming in your software as you always do, then start the translation session below.",
-              "icon": "Play",
-              "done": false
+              "icon": "Play"
             }
           ],
           "connectLabel": "Caption overlay URL — add as a Browser/Web Source in your streaming software",
@@ -903,32 +896,27 @@
             {
               "title": "Choose target platforms",
               "body": "Pick which platforms Strovak should forward your stream to.",
-              "icon": "Share2",
-              "done": false
+              "icon": "Share2"
             },
             {
               "title": "Install and connect the desktop app",
               "body": "Download the desktop app and link it with the 6-digit code.",
-              "icon": "MonitorCog",
-              "done": false
+              "icon": "MonitorCog"
             },
             {
               "title": "Point your streaming software at Strovak",
               "body": "Paste the ingest URL and stream key below into your streaming software's stream settings.",
-              "icon": "MonitorUp",
-              "done": false
+              "icon": "MonitorUp"
             },
             {
               "title": "Pick your languages",
               "body": "Set the language you speak and the caption languages your audience reads.",
-              "icon": "Languages",
-              "done": false
+              "icon": "Languages"
             },
             {
               "title": "Start the stream here",
               "body": "Press Start below — Strovak receives your video, adds captions, and distributes to your platforms.",
-              "icon": "Play",
-              "done": false
+              "icon": "Play"
             }
           ],
           "connectLabel": "Ingest URL and stream key — paste into your streaming software",

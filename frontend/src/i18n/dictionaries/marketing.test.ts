@@ -21,7 +21,7 @@ const distributionPageSource = readFileSync(
   "utf8",
 );
 const platformsPageSource = readFileSync(
-  fileURLToPath(new URL("../../../app/[locale]/dashboard/platforms/page.tsx", import.meta.url)),
+  fileURLToPath(new URL("../../components/platform-accounts-panel.tsx", import.meta.url)),
   "utf8",
 );
 const iconMapBody = iconSource.match(/const icons[^{]*\{([\s\S]*?)\}/)?.[1] ?? "";

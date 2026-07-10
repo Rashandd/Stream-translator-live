@@ -23,4 +23,16 @@ describe("founding application panel", () => {
     expect(source).toContain("labels.statusLabels[application.status]");
     expect(source).toContain("labels.statusHints[application.status]");
   });
+
+  it("shows an auto-verified badge when the application was created via OAuth", () => {
+    expect(source).toContain("application.auto_created_via_oauth");
+    expect(source).toContain("labels.autoVerifiedBadge");
+  });
+
+  it("offers OAuth connect buttons before falling back to the manual form", () => {
+    expect(source).toContain('userFetch(`/api/integrations/${provider}/authorize`)');
+    expect(source).toContain("void connect(\"youtube\")");
+    expect(source).toContain("void connect(\"twitch\")");
+    expect(source).toContain("setShowManualForm(true)");
+  });
 });
