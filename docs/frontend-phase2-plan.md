@@ -1,10 +1,5 @@
 # StreamDubber Frontend — Faz 2 Uygulama Planı
 
-Durum: Uygulamaya hazır plan; bu doküman kod değişikliği yapmaz
-
-Tarih: 10 Temmuz 2026
-
-Hedef kitle: Yeni Codex/Claude ajanları ve entegrasyon sorumlusu
 
 Ana kaynaklar: `AGENTS.md`, `DESIGN.md`, `docs/frontend-config.md`,
 `docs/multistream.md`, `docs/audio-pipeline.md`, `docs/security.md`,
