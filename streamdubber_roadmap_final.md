@@ -924,6 +924,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] Broadcaster config sayfası + dashboard kartı  <!-- Claude 2026-07-04: extension/config.html (6 haneli kodla bağlama, yalnız public değerler Twitch config service'e) + /dashboard/platforms kartı. Kart CANLI: adminFetch ile kod üretme/binding/unlink (V11 emsali — admin bootstrap oturumu; 1.4 user backend'i gelince yalnız token kaynağı değişir) -->
 - [ ] Twitch console kaydı + Hosted Test (CSP/wss doğrulaması, mobile, slow network)  <!-- ext.strovak.com DNS + Twitch developer console insan adımları; bkz. infra/deploy.md §7 -->
 - [ ] Twitch review başvurusu (erken başla — 2–4 hafta)  <!-- Hosted Test bitmeden gönderilmez; walkthrough + changelog + test hesapları (plan A5) -->
+- [ ] BYO API Key modu (yayıncı kendi çeviri key'ini girerek free plan'da çoklu dil çeviri açabilir) — henüz faza atanmadı, detaylı tasarım aşağıda "Rakip Analizi — BYO API Key (ultimatecc.net)" bölümünde
 
 #### 2.5 Chrome Extension — Kick ve Evrensel
 - [ ] Manifest V3
@@ -1247,6 +1248,43 @@ Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RT
 - [ ] Tarayıcı uyumluluğu testi — `getDisplayMedia` sekme-sesi paylaşımı Chrome/Edge'de net, Safari/Firefox'ta kısıtlı/farklı davranabilir; desteklenmeyen tarayıcıda net bir uyarı gerekir
 
 > Bu özellik SDK'dan bağımsız, tamamen web tabanlı olduğu için Faz 1-3'ün SDK/RTMP/multistream işiyle çakışmaz — ayrı, paralel geliştirilebilecek bir görev grubu. Hangi faza (Faz 2 sonrası mı, Faz 4 büyüme kapsamında mı) alınacağı kullanıcı kararı bekliyor; şimdilik sadece "Coming Soon" kataloğunda ve bu analiz bölümünde duruyor.
+
+---
+
+## Rakip Analizi — BYO API Key (ultimatecc.net)
+
+> Kaynak: ultimatecc.net + guide.ultimatecc.net + github.com/UltimateCC/extension (GPLv3, açık kaynak Twitch Extension), 2026-07-10 itibarıyla. Bu bölüm sadece analiz + uygulama planıdır — Faz 1 kapsamına girmez, hemen kodlanmaz; bkz. 2.4'teki referans satırı.
+
+### Rakip Ne Sunuyor
+- UltimateCC iki modda çalışıyor: **(1) Ücretsiz** — temel altyazı (STT), yayıncıya hiçbir maliyet yansımıyor. **(2) Kendi API key'in** — yayıncı kendi çeviri servisi API key'ini girerse gerçek zamanlı çeviri (çoklu dil) açılıyor.
+- Backend/EBS kaynağı kapalı (org'da sadece `extension` ve `guide` repoları public); hangi sağlayıcıların (Google Cloud Translation / DeepL / Azure Translator gibi) desteklendiği ve key'in tam olarak hangi panelden/nasıl girildiği dokümantasyondan doğrulanamadı. Aşağıdaki tasarım bilinen genel BYOK deseni + bizim mevcut mimarimize göre kurgulandı — UltimateCC'nin birebir kopyası değil.
+- Motivasyon açık: çeviri (translation API) maliyeti STT'ye göre görece düşük ama sıfır değil; ücretsiz kullanıcıyı ücretsiz tutup çeviri maliyetini "kullanıcı öder" modeline kaydırıyorlar — kendi COGS'larını sıfıra indiren bir free-tier büyütme taktiği.
+
+### Bizim Ürünle Farkı
+Bugün StreamDubber'da sağlayıcı seçimi tamamen **global/admin seviyesinde**: `backend/src/config.rs::ServiceConfig` tek bir `HashMap<String,String>` — `translate.provider=deepl`, `translate.fallback=google` (CLAUDE.md'deki `config::get("stt.provider")` deseni). Per-kullanıcı veya per-kanal bir override yok. Çeviri maliyeti her zaman bize (`backend/src/secrets::ManagedSecrets`'teki `DEEPL_KEY`/`GOOGLE_TRANSLATE_KEY`) ait. Free plan izleyicilere çoklu dil çeviri açmak istersek faturası bize çıkar — bugün bunu sadece plan gating'le kısıtlıyoruz.
+
+### Nasıl Yapılabilir — Mevcut Mimariyle Örtüşme
+
+| İhtiyaç | Mevcut StreamDubber'da karşılığı |
+|---|---|
+| Kanal-bazlı şifreli key saklama | `backend/src/stt_servers/mod.rs::SttServerStore` deseni birebir uyarlanabilir: `Cipher` (`backend/src/crypto.rs`, AES-256-GCM, `encrypt_str`/`decrypt_str`) ile şifrele, alanı `#[serde(skip_serializing)]` işaretle — `ssh_private_key_encrypted`/`api_token_encrypted` ile aynı desen, hiçbir JSON yanıtında düz metin dönmez |
+| Kanal-bazlı ayar deposu | `backend/src/bindings/mod.rs::ChannelBinding` bugün sadece `{user_id, platform, channel_id}` — key alanı yok. Yeni bir kardeş store gerekir (örn. `ChannelProviderKeyStore`, `channel_id` anahtarlı, `SttServerStore` şablonunda) — `ChannelBinding`'e alan eklemek yerine ayrı store tercih edilmeli (aynı `relay`/`voice_models`/`sdk_link` deseni: her domain kendi store'unu tutar) |
+| Sağlayıcıyı runtime'da anahtarla değiştirme | `backend/src/gateway/translate.rs::TranslateProvider` trait'i zaten `SecretRef` ile inşa ediliyor (`SecretRef::fixed(value)` bugün de mevcut — sabit bir key ile provider kurmak zaten mümkün). Trait değişikliği gerekmiyor; sadece kurulum noktasında (`ext_twitch` caption pipeline'ının provider seçtiği yer) global `ManagedSecrets` yerine kanal-bazlı `ChannelProviderKeyStore`'dan çözülen bir `SecretRef` kullanılmalı |
+| Global config'i bozmadan opsiyonel geçersiz kılma | `ServiceConfig` değişmeden kalır (admin varsayılanı hâlâ geçerli) — BYOK sadece `ext_twitch` caption akışında, kanalın kendi key'i varsa `ManagedSecrets` yerine onu tercih eden bir if/else katmanı |
+
+**Sonuç:** Trait/protokol seviyesinde büyük bir refactor gerekmiyor — `SecretRef` zaten "sabit key" kurgusunu destekliyor. Asıl iş: (1) yeni şifreli kanal-key store'u, (2) broadcaster config sayfasına (`extension/config.html`) key giriş formu + admin API, (3) `ext_twitch` pipeline'ında per-kanal `SecretRef` çözümleme.
+
+### Uygulama Planı (Görevler — henüz hiçbir faza atanmadı)
+- [ ] `ChannelProviderKeyStore` (backend/src/ext_twitch veya yeni modül) — `SttServerStore` şablonunda, `channel_id` anahtarlı, `Cipher` ile AES-256-GCM şifreli, `#[serde(skip_serializing)]` alan
+- [ ] `PUT/DELETE /api/ext_twitch/channel-key` (broadcaster oturumu) — key kaydet/sil; response'ta asla düz metin dönmez (sadece "kayıtlı: evet/hayır" + son 4 karakter mask, `SecretRef::mask` deseniyle aynı)
+- [ ] Broadcaster config sayfası (`extension/config.html`) — sağlayıcı seçimi (DeepL/Google) + key input formu; "Ücretsiz: sadece kaynak dil altyazı. Kendi key'inle: çoklu dil çeviri" mesajı
+- [ ] `ext_twitch` caption pipeline'ında provider seçimi: kanalın kendi key'i varsa `TranslateProvider`'ı ondan kur, yoksa mevcut plan-gated `ManagedSecrets` akışına düş (mevcut fallback zincirine ek katman, `config::get`/`SecretRef` deseniyle uyumlu)
+- [ ] Kota/kullanım ayrımı: BYOK ile yapılan çeviri `UsageTracker`'a hiç yazılmamalı (yayıncının kendi faturası, bizim maliyetimiz değil) — plan limitlerinden muaf
+- [ ] Admin toggle: `ext.twitch.byok_enabled` (config-driven, varsayılan kapalı — CLAUDE.md "hiçbir şey hard-coded olmaz" kuralına uygun)
+- [ ] Güvenlik: key'in Twitch config service'ine (public/çevrimiçi) hiç gitmemesi — sadece backend'e POST edilmeli (`extension/config.html`'in bugünkü "yalnız public değerler Twitch config service'e" ilkesiyle aynı)
+- [ ] ToS/hukuk notu: yayıncının girdiği key'in kullanım sorumluluğu (rate limit, fatura) kendisine ait olduğu broadcaster config sayfasında açıkça belirtilmeli
+
+> Bu özellik Faz 1/2'nin mevcut Twitch Extension işine ek, opsiyonel bir katman — mevcut EBS/JWT/binding altyapısını bozmaz. Hangi faza alınacağı (Faz 2 sonu / Faz 4 büyüme) kullanıcı kararı bekliyor.
 
 ---
 
