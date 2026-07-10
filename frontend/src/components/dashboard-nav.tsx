@@ -51,7 +51,7 @@ export function DashboardNav({ ariaLabel, groups, statusLabels, locale, rootHref
               <Link
                 aria-current={active ? "page" : undefined}
                 className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                  active ? "bg-ink text-white" : "text-text hover:bg-white hover:text-ink"
+                  active ? "bg-primary text-white" : "text-text hover:bg-surface hover:text-ink"
                 }`}
                 href={localizePath(locale, item.href)}
                 key={item.href}

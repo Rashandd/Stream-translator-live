@@ -52,7 +52,7 @@ type Props = {
 };
 
 const selectClassName =
-  "h-11 rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue";
+  "h-11 rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue";
 
 export function CaptionOverlayBuilder({
   overlayUrlTemplate,
@@ -176,7 +176,7 @@ export function CaptionOverlayBuilder({
             ).map(([value, label]) => (
               <button
                 className={`flex-1 text-sm font-semibold transition ${
-                  state.position === value ? "bg-ink text-white" : "bg-white text-ink hover:bg-canvas"
+                  state.position === value ? "bg-primary text-white" : "bg-surface text-ink hover:bg-canvas"
                 }`}
                 key={value}
                 onClick={() => update("position", value)}
@@ -190,7 +190,7 @@ export function CaptionOverlayBuilder({
 
         <label className="block">
           <span className="text-xs font-medium text-muted">{labels.colorLabel}</span>
-          <div className="mt-1 flex h-11 items-center gap-2 rounded-lg border border-border bg-white px-2">
+          <div className="mt-1 flex h-11 items-center gap-2 rounded-lg border border-border bg-surface px-2">
             <input
               aria-label={labels.colorLabel}
               className="h-8 w-8 shrink-0 cursor-pointer rounded border border-border"
@@ -208,7 +208,7 @@ export function CaptionOverlayBuilder({
 
         <div>
           <span className="text-xs font-medium text-muted">{labels.backgroundLabel}</span>
-          <div className="mt-1 flex h-11 items-center gap-2 rounded-lg border border-border bg-white px-2">
+          <div className="mt-1 flex h-11 items-center gap-2 rounded-lg border border-border bg-surface px-2">
             <input
               aria-label={labels.backgroundLabel}
               className="h-8 w-8 shrink-0 cursor-pointer rounded border border-border"
@@ -233,7 +233,7 @@ export function CaptionOverlayBuilder({
 
       <div>
         <p className="mb-2 text-xs font-medium text-muted">{labels.previewLabel}</p>
-        <div className="relative min-h-24 overflow-hidden rounded-lg bg-ink p-4">
+        <div className="relative min-h-24 overflow-hidden rounded-lg bg-primary p-4">
           <div style={{ ...style.container, position: "absolute" }}>
             <span style={style.caption}>{previewText}</span>
           </div>

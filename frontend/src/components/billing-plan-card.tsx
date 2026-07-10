@@ -114,7 +114,7 @@ export function BillingPlanCard({ displayPlans, livePlans, fallback, labels }: P
   }, [nextPlan]);
 
   return (
-    <section className="rounded-xl border border-border bg-white p-6">
+    <section className="rounded-xl border border-border bg-surface p-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold text-ink">{current.name}</h2>
         <p className="font-mono text-lg font-semibold text-ink">{current.price}</p>
@@ -133,7 +133,7 @@ export function BillingPlanCard({ displayPlans, livePlans, fallback, labels }: P
         <p className="mt-6 text-center text-xs font-medium text-muted">{labels.topPlanLabel}</p>
       ) : (
         <button
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           disabled={checkoutState === "pending" || !nextPlan}
           onClick={() => void upgrade()}
           type="button"

@@ -24,7 +24,7 @@ export function MobileMenu({ ariaLabel, menuLabel, menuCloseLabel, items, signIn
       <button
         aria-expanded={open}
         aria-label={open ? menuCloseLabel : menuLabel}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-ink"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-ink"
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
@@ -34,7 +34,7 @@ export function MobileMenu({ ariaLabel, menuLabel, menuCloseLabel, items, signIn
       {open ? (
         <nav
           aria-label={ariaLabel}
-          className="absolute inset-x-0 top-full z-50 border-b border-border bg-white px-4 pb-5 pt-2 shadow-panel"
+          className="absolute inset-x-0 top-full z-50 border-b border-border bg-surface px-4 pb-5 pt-2 shadow-panel"
         >
           <ul className="space-y-1">
             {items.map((item) => (
@@ -51,7 +51,7 @@ export function MobileMenu({ ariaLabel, menuLabel, menuCloseLabel, items, signIn
           </ul>
           <div className="mt-3 flex flex-col gap-2 border-t border-hairline pt-4">
             <Link
-              className="inline-flex h-11 items-center justify-center rounded-full border border-border bg-white px-5 text-sm font-semibold text-ink"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink"
               href={localizePath(locale, signIn.href)}
               onClick={() => setOpen(false)}
             >

@@ -58,7 +58,7 @@ export default async function PricingPage({ params }: Props) {
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((plan) => (
             <div
-              className={`flex flex-col rounded-xl border bg-white p-6 ${
+              className={`flex flex-col rounded-xl border bg-surface p-6 ${
                 plan.popular ? "border-blue shadow-panel" : "border-border"
               }`}
               key={plan.name}
@@ -98,8 +98,8 @@ export default async function PricingPage({ params }: Props) {
               <Link
                 className={`mt-6 inline-flex h-11 items-center justify-center rounded-full px-5 text-sm font-semibold transition ${
                   plan.popular
-                    ? "bg-ink text-white hover:bg-text"
-                    : "border border-border bg-white text-ink hover:border-cyan hover:bg-cyan/10"
+                    ? "bg-primary text-white hover:bg-primary-hover"
+                    : "border border-border bg-surface text-ink hover:border-cyan hover:bg-cyan/10"
                 }`}
                 href={localizePath(locale, pricing.ctaHref)}
               >

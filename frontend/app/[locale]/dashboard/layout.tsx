@@ -7,6 +7,7 @@ import { DashboardNav } from "@/src/components/dashboard-nav";
 import { Icon } from "@/src/components/icon";
 import { SignOutLink } from "@/src/components/sign-out-link";
 import { StatusStrip } from "@/src/components/status-strip";
+import { ThemeToggle } from "@/src/components/theme-toggle";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -32,7 +33,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="border-b border-hairline bg-white">
+      <header className="border-b border-hairline bg-surface">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link className="flex shrink-0 items-center" href={localizePath(locale, "/")}>
             <Image
@@ -54,8 +55,9 @@ export default async function DashboardLayout({ children, params }: DashboardLay
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-ink">
               <Icon className="h-[18px] w-[18px]" name="Settings" />
             </span>
+            <ThemeToggle />
             <SignOutLink
-              className="inline-flex h-9 items-center justify-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+              className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
               href={localizePath(locale, "/login")}
               label={dashboard.topbar.signOutLabel}
               tokenKind="user"

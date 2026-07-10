@@ -35,7 +35,7 @@ export default async function GoLivePage({ params }: Props) {
     <div className="space-y-6">
       <PageHeader subtitle={goLive.subtitle} title={goLive.title} />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue">{goLive.modeLabel}</p>
@@ -45,7 +45,7 @@ export default async function GoLivePage({ params }: Props) {
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">{mode.summary}</p>
         </div>
         <Link
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-4 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-4 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
           href={localizePath(locale, "/dashboard/distribution")}
         >
           <Icon className="h-4 w-4" name="Route" />

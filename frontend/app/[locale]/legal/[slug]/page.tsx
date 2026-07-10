@@ -73,7 +73,7 @@ export default async function LegalPage({ params }: Props) {
   const registeredAddress = runtimeConfig?.["company.registered_address"]?.trim() || "";
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-surface">
       <SiteHeader config={config} locale={locale} />
 
       <article className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">

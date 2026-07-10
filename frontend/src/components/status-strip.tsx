@@ -27,7 +27,7 @@ export function StatusStrip({ ariaLabel, items }: StatusStripProps) {
       role="group"
     >
       {items.map((item) => (
-        <div className="flex items-center gap-3 bg-white px-4 py-3" key={item.label}>
+        <div className="flex items-center gap-3 bg-surface px-4 py-3" key={item.label}>
           <Icon className="h-5 w-5 shrink-0 text-muted" name={item.icon} />
           <div className="min-w-0">
             <p className="text-xs font-medium text-muted">{item.label}</p>

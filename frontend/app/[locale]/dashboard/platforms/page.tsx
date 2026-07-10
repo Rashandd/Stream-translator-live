@@ -36,7 +36,7 @@ export default async function PlatformsPage({ params }: Props) {
 
       <PlatformAccountsPanel labels={platforms} />
 
-      <section className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5">
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">

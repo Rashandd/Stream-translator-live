@@ -78,7 +78,7 @@ export function AdminLiveStatus({ labels }: { labels: Labels }) {
   );
 
   return (
-    <section className="rounded-xl border border-border bg-white p-4">
+    <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink">{labels.title}</h2>
       {state === null ? (
         <p className="mt-2 text-sm text-muted">{labels.checking}</p>

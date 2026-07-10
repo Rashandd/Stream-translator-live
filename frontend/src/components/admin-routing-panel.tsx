@@ -86,7 +86,7 @@ export function AdminRoutingPanel({ labels, loginHref, statusLabels }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -110,7 +110,7 @@ export function AdminRoutingPanel({ labels, loginHref, statusLabels }: Props) {
         const fallbackChoices = realOptions.filter((o) => o.slug !== activeSlug);
 
         return (
-          <section className="rounded-xl border border-border bg-white p-5 sm:p-6" key={group.key}>
+          <section className="rounded-xl border border-border bg-surface p-5 sm:p-6" key={group.key}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold text-ink">{group.label}</h2>
               <code className="rounded-md bg-canvas px-2 py-1 font-mono text-xs text-muted">
@@ -127,9 +127,9 @@ export function AdminRoutingPanel({ labels, loginHref, statusLabels }: Props) {
                     aria-pressed={active}
                     className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${
                       active
-                        ? "bg-ink text-white"
+                        ? "bg-primary text-white"
                         : selectable
-                          ? "text-text hover:bg-white"
+                          ? "text-text hover:bg-surface"
                           : "text-faint"
                     }`}
                     disabled={!selectable || !live || active || savingKey === group.providerConfigKey}
@@ -152,7 +152,7 @@ export function AdminRoutingPanel({ labels, loginHref, statusLabels }: Props) {
               <span>{group.fallbackLabel}:</span>
               {fallbackChoices.length > 0 ? (
                 <select
-                  className="h-8 rounded-lg border border-border bg-white px-2 text-sm text-ink outline-none transition focus:border-blue"
+                  className="h-8 rounded-lg border border-border bg-surface px-2 text-sm text-ink outline-none transition focus:border-blue"
                   disabled={!live || savingKey === group.fallbackConfigKey}
                   onChange={(event) => void set(group.fallbackConfigKey, event.target.value)}
                   value={fallbackSlug}

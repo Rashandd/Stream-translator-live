@@ -44,7 +44,7 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
           {overview.howItWorks.steps.map((step, index) => (
             <li className="rounded-lg border border-hairline bg-canvas p-4" key={step.title}>
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
                   {index + 1}
                 </span>
                 <Icon className="h-[18px] w-[18px] text-blue" name={step.icon} />
@@ -68,7 +68,7 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
           <p className="text-xs font-medium text-muted">{overview.quickStart.streamKeyLabel}</p>
           <div className="mt-1 flex items-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2">
             <code className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{overview.quickStart.streamKey}</code>
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-ink">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-ink">
               <Icon className="h-3.5 w-3.5" name="Copy" />
               {overview.quickStart.copyLabel}
             </span>
@@ -81,7 +81,7 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
               href={localizePath(locale, action.href)}
               key={action.label}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink">
                 <Icon className="h-[18px] w-[18px]" name={action.icon} />
               </span>
               <span className="min-w-0">

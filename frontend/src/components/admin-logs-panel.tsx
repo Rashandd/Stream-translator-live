@@ -129,7 +129,7 @@ export function AdminLogsPanel({ labels, fallbackRows, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -140,12 +140,12 @@ export function AdminLogsPanel({ labels, fallbackRows, loginHref }: Props) {
 
   const chip = (active: boolean) =>
     `rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-      active ? "border-blue/40 bg-blue/10 text-ink" : "border-border bg-white text-muted hover:text-ink"
+      active ? "border-blue/40 bg-blue/10 text-ink" : "border-border bg-surface text-muted hover:text-ink"
     }`;
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-border bg-white p-4">
+      <section className="rounded-xl border border-border bg-surface p-4">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-danger" name="ShieldCheck" />
           <h2 className="text-sm font-semibold text-ink">{labels.recentErrors.title}</h2>
@@ -169,7 +169,7 @@ export function AdminLogsPanel({ labels, fallbackRows, loginHref }: Props) {
       </section>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-white px-3 py-2">
+        <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
           <Icon className="h-4 w-4 text-muted" name="Settings" />
           <input
             className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
@@ -206,7 +206,7 @@ export function AdminLogsPanel({ labels, fallbackRows, loginHref }: Props) {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>

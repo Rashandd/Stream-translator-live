@@ -50,7 +50,7 @@ export default async function SolutionsPage({ params }: SolutionsPageProps) {
       <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-24">
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {solutions.items.map((item) => (
-            <div className="flex flex-col rounded-xl border border-border bg-white p-6" key={item.title}>
+            <div className="flex flex-col rounded-xl border border-border bg-surface p-6" key={item.title}>
               <Icon className="h-6 w-6 text-blue" name={item.icon} />
               <h3 className="mt-4 text-xl font-semibold text-ink">{item.title}</h3>
               <p className="mt-2 text-base leading-7 text-muted">{item.body}</p>
@@ -70,13 +70,13 @@ export default async function SolutionsPage({ params }: SolutionsPageProps) {
           </div>
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Link
-              className="inline-flex h-12 items-center justify-center rounded-full bg-ink px-6 text-sm font-semibold text-white transition hover:bg-text"
+              className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-white transition hover:bg-primary-hover"
               href={localizePath(locale, solutions.cta.primary.href)}
             >
               {solutions.cta.primary.label}
             </Link>
             <Link
-              className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-white px-6 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
+              className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-surface px-6 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
               href={localizePath(locale, solutions.cta.secondary.href)}
             >
               {solutions.cta.secondary.label}

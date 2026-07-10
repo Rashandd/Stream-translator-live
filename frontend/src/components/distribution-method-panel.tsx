@@ -203,7 +203,7 @@ export function DistributionMethodPanel({ labels }: Props) {
 
           return (
             <article
-              className={`rounded-xl border bg-white p-5 transition ${
+              className={`rounded-xl border bg-surface p-5 transition ${
                 selectedMethod ? "border-blue shadow-panel" : "border-border"
               }`}
               key={method.id}
@@ -239,7 +239,7 @@ export function DistributionMethodPanel({ labels }: Props) {
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <button
-                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-white px-4 text-sm font-semibold text-ink transition hover:border-blue hover:text-blue disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 text-sm font-semibold text-ink transition hover:border-blue hover:text-blue disabled:opacity-50"
                   disabled={selectedMethod}
                   onClick={() => setSelected(method.id)}
                   type="button"
@@ -250,7 +250,7 @@ export function DistributionMethodPanel({ labels }: Props) {
 
                 {method.provider ? (
                   <button
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                     disabled={!canConnect || connectBusy === method.provider}
                     onClick={() => void connect(method.provider as string)}
                     type="button"
@@ -290,7 +290,7 @@ export function DistributionMethodPanel({ labels }: Props) {
 
       <div className="flex flex-col gap-3 rounded-xl border border-warning/25 bg-warning/10 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-ink">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink">
             <Icon className="h-5 w-5" name="Gauge" />
           </span>
           <div>
@@ -298,7 +298,7 @@ export function DistributionMethodPanel({ labels }: Props) {
             <p className="mt-1 text-sm leading-6 text-muted">{labels.uploadWarning.body}</p>
           </div>
         </div>
-        <span className="inline-flex shrink-0 rounded-full border border-warning/30 bg-white px-3 py-1.5 font-mono text-xs font-semibold text-ink">
+        <span className="inline-flex shrink-0 rounded-full border border-warning/30 bg-surface px-3 py-1.5 font-mono text-xs font-semibold text-ink">
           {labels.uploadWarning.metric}
         </span>
       </div>

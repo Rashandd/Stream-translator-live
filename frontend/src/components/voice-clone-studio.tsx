@@ -271,7 +271,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-border bg-white p-5 sm:p-6">
+      <section className="space-y-4 rounded-xl border border-border bg-surface p-5 sm:p-6">
         {error ? (
           <p className="rounded-lg border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-ink" role="alert">
             {error}
@@ -283,7 +283,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
             {labels.form.nameLabel}
           </label>
           <input
-            className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue placeholder:text-faint"
+            className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue placeholder:text-faint"
             id="voice-name"
             onChange={(event) => setName(event.target.value)}
             placeholder={labels.form.namePlaceholder}
@@ -348,7 +348,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
               {labels.form.sourceLanguageLabel}
             </label>
             <select
-              className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+              className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
               id="voice-source-lang"
               onChange={(event) => selectSingleSourceLang(event.target.value)}
               value={sourceLangs[0] ?? ""}
@@ -409,7 +409,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
         </label>
 
         <button
-          className="inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           disabled={submitting || recording}
           onClick={() => void submit()}
           type="button"
@@ -418,7 +418,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
         </button>
       </section>
 
-      <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+      <section className="rounded-xl border border-border bg-surface p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-ink">{labels.modelsTitle}</h2>
         {!models || models.length === 0 ? (
           <p className="mt-2 text-sm text-muted">{labels.modelsEmpty}</p>

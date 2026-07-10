@@ -48,7 +48,7 @@ export default async function SignupPage({ params }: Props) {
           />
         </Link>
 
-        <div className="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
           <h1 className="text-2xl font-semibold text-ink">{signup.title}</h1>
 
           <SignupForm

@@ -163,7 +163,7 @@ export function TwitchExtensionLink({ labels }: Props) {
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <button
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white opacity-50"
           disabled
           type="button"
         >
@@ -190,7 +190,7 @@ export function TwitchExtensionLink({ labels }: Props) {
               <span className="text-ink">{labels.linkedLabel}:</span>
               <span className="font-mono text-xs text-ink">{binding.channels.join(", ")}</span>
               <button
-                className="inline-flex h-8 items-center rounded-full border border-border bg-white px-3 text-xs font-semibold text-ink transition hover:border-danger hover:text-danger disabled:opacity-50"
+                className="inline-flex h-8 items-center rounded-full border border-border bg-surface px-3 text-xs font-semibold text-ink transition hover:border-danger hover:text-danger disabled:opacity-50"
                 disabled={busy}
                 onClick={unlink}
                 type="button"
@@ -206,7 +206,7 @@ export function TwitchExtensionLink({ labels }: Props) {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
           disabled={busy}
           onClick={generate}
           type="button"
@@ -223,7 +223,7 @@ export function TwitchExtensionLink({ labels }: Props) {
             {code.code}
           </span>
           <button
-            className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-white px-3 text-xs font-semibold text-ink transition hover:bg-canvas"
+            className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-surface px-3 text-xs font-semibold text-ink transition hover:bg-canvas"
             onClick={copy}
             type="button"
           >

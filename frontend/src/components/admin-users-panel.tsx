@@ -112,7 +112,7 @@ export function AdminUsersPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -129,7 +129,7 @@ export function AdminUsersPanel({ labels, loginHref }: Props) {
         </p>
       ) : null}
 
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2">
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
         <Icon className="h-4 w-4 text-muted" name="Settings" />
         <input
           className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
@@ -144,7 +144,7 @@ export function AdminUsersPanel({ labels, loginHref }: Props) {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
@@ -172,7 +172,7 @@ export function AdminUsersPanel({ labels, loginHref }: Props) {
                     <td className="px-4 py-3 font-semibold text-ink">{user.email}</td>
                     <td className="px-4 py-3">
                       <select
-                        className="h-9 rounded-lg border border-border bg-white px-2 text-sm text-ink outline-none transition focus:border-blue"
+                        className="h-9 rounded-lg border border-border bg-surface px-2 text-sm text-ink outline-none transition focus:border-blue"
                         onChange={(event) =>
                           setPendingPlan((current) => ({ ...current, [user.id]: event.target.value }))
                         }

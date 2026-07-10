@@ -65,7 +65,7 @@ export function WaitlistCta({ interest, labels }: Props) {
       <p className="mb-2 text-xs font-medium text-muted">{labels.label}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
-          className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+          className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
           onChange={(event) => setEmail(event.target.value)}
           placeholder={labels.emailPlaceholder}
           required
@@ -73,7 +73,7 @@ export function WaitlistCta({ interest, labels }: Props) {
           value={email}
         />
         <button
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           disabled={status === "loading"}
           type="submit"
         >

@@ -139,7 +139,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
 
   if (!data && !error) {
     return (
-      <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+      <section className="rounded-xl border border-border bg-surface p-5 sm:p-6">
         <h2 className="text-lg font-semibold text-ink">{labels.title}</h2>
         <p className="mt-2 text-sm text-muted">{labels.loading}</p>
       </section>
@@ -149,7 +149,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
   const enabledLanguages = data?.languages.filter((lang) => lang.enabled) ?? [];
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-white p-5 sm:p-6">
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-5 sm:p-6">
       <div>
         <h2 className="text-lg font-semibold text-ink">{labels.title}</h2>
         <p className="mt-1 text-sm leading-6 text-muted">
@@ -168,7 +168,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
         <div className="mt-2 inline-flex flex-wrap gap-1 rounded-xl border border-border bg-canvas p-1">
           <button
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              sourceLang === "auto" ? "bg-ink text-white" : "text-text hover:bg-white"
+              sourceLang === "auto" ? "bg-primary text-white" : "text-text hover:bg-surface"
             }`}
             onClick={() => selectSource("auto")}
             type="button"
@@ -178,7 +178,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
           {enabledLanguages.map((lang) => (
             <button
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                sourceLang === lang.code ? "bg-ink text-white" : "text-text hover:bg-white"
+                sourceLang === lang.code ? "bg-primary text-white" : "text-text hover:bg-surface"
               }`}
               key={lang.code}
               onClick={() => selectSource(lang.code)}
@@ -236,7 +236,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
       {atLimit ? <p className="text-xs text-muted">{labels.limitReachedNote}</p> : null}
 
       <button
-        className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+        className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
         disabled={saving}
         onClick={() => void save()}
         type="button"

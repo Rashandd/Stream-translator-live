@@ -167,7 +167,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
         </div>
         <p className="mt-3 text-sm leading-6 text-muted">{labels.statusHints[application.status]}</p>
         <button
-          className="mt-4 inline-flex h-9 items-center justify-center rounded-full border border-border bg-white px-4 text-xs font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
+          className="mt-4 inline-flex h-9 items-center justify-center rounded-full border border-border bg-surface px-4 text-xs font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10"
           onClick={() => setEditing(true)}
           type="button"
         >
@@ -183,7 +183,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
         <p className="text-sm leading-6 text-muted">{labels.connectCta}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
             disabled={connectBusy === "youtube"}
             onClick={() => void connect("youtube")}
             type="button"
@@ -191,7 +191,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
             {labels.connectYoutubeLabel}
           </button>
           <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
             disabled={connectBusy === "twitch"}
             onClick={() => void connect("twitch")}
             type="button"
@@ -219,7 +219,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
             {labels.platformLabel}
           </label>
           <select
-            className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink"
+            className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"
             id="founding-platform"
             onChange={(e) => setPlatform(e.target.value as Platform)}
             value={platform}
@@ -236,7 +236,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
             {labels.channelUrlLabel}
           </label>
           <input
-            className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink"
+            className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"
             id="founding-channel-url"
             onChange={(e) => setChannelUrl(e.target.value)}
             placeholder={labels.channelUrlPlaceholder}
@@ -249,7 +249,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
             {labels.messageLabel}
           </label>
           <textarea
-            className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
+            className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
             id="founding-message"
             onChange={(e) => setMessage(e.target.value)}
             placeholder={labels.messagePlaceholder}
@@ -259,7 +259,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <button
-          className="inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
           disabled={submitting || channelUrl.trim().length === 0}
           type="submit"
         >

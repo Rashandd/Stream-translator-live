@@ -115,7 +115,7 @@ export function AdminDeeplLanguagesPanel({ labels }: { labels: Labels }) {
             <button
               aria-pressed={active}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                active ? "border-ink bg-ink text-white" : "border-border text-text hover:bg-canvas"
+                active ? "border-primary bg-primary text-white" : "border-border text-text hover:bg-canvas"
               }`}
               key={lang.code}
               onClick={() => toggle(lang.code)}
@@ -128,7 +128,7 @@ export function AdminDeeplLanguagesPanel({ labels }: { labels: Labels }) {
         })}
       </div>
       <button
-        className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+        className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
         disabled={saving}
         onClick={() => void save()}
         type="button"

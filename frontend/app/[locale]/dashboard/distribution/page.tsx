@@ -35,7 +35,7 @@ export default async function DistributionPage({ params }: Props) {
     <div className="space-y-6">
       <PageHeader subtitle={distribution.subtitle} title={distribution.title} />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
             <Icon className="h-5 w-5" name="MonitorCog" />
@@ -52,7 +52,7 @@ export default async function DistributionPage({ params }: Props) {
           </div>
         </div>
         <Link
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover"
           href={localizePath(locale, distribution.appStatus.ctaHref)}
         >
           <Icon className="h-4 w-4" name="Download" />
@@ -72,7 +72,7 @@ export default async function DistributionPage({ params }: Props) {
             const brand = brandForPlatform(row.platform);
 
             return (
-              <div className="rounded-xl border border-border bg-white p-5" key={row.platform}>
+              <div className="rounded-xl border border-border bg-surface p-5" key={row.platform}>
                 <div className="flex items-center gap-2">
                   {brand ? (
                     <BrandMark brand={brand} className="h-5 w-5" />

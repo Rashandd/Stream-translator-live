@@ -43,7 +43,7 @@ export default async function AdminLoginPage({ params }: Props) {
           />
         </Link>
 
-        <div className="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
           <span className="inline-flex rounded-full border border-violet/30 bg-violet/10 px-2.5 py-0.5 text-xs font-semibold text-ink">
             {config.admin.topbar.roleLabel}
           </span>

@@ -142,7 +142,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
 
   if (!policy && !error) {
     return (
-      <section className="rounded-xl border border-border bg-white p-5">
+      <section className="rounded-xl border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-ink">{labels.title}</h2>
         <p className="mt-2 text-sm text-muted">{labels.loading}</p>
       </section>
@@ -169,7 +169,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Bulut modu */}
-        <div className="flex flex-col rounded-xl border border-border bg-white p-5">
+        <div className="flex flex-col rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center gap-2">
             <Icon className="h-5 w-5 text-blue" name={labels.cloud.icon} />
             <h3 className="text-base font-semibold text-ink">{labels.cloud.name}</h3>
@@ -199,7 +199,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
         </div>
 
         {/* Cihazında (yerel) modu */}
-        <div className="flex flex-col rounded-xl border border-border bg-white p-5">
+        <div className="flex flex-col rounded-xl border border-border bg-surface p-5">
           <div className="flex items-center gap-2">
             <Icon className="h-5 w-5 text-blue" name={labels.local.icon} />
             <h3 className="text-base font-semibold text-ink">{labels.local.name}</h3>
@@ -251,7 +251,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
             {policy?.local_allowed ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
-                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-ink transition hover:bg-white"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-ink transition hover:bg-surface"
                   onClick={() => void queueBenchmark()}
                   type="button"
                 >
@@ -260,7 +260,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
                 </button>
                 {testQueued ? (
                   <button
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-ink transition hover:bg-white"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-ink transition hover:bg-surface"
                     onClick={() => void loadPolicy()}
                     type="button"
                   >
@@ -281,7 +281,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
               </span>
             ) : (
               <button
-                className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={saving || !localUnlocked}
                 onClick={() => void setMode("local")}
                 type="button"

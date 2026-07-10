@@ -42,7 +42,7 @@ export default async function AdminVerifyPage({ params }: Props) {
           />
         </Link>
 
-        <div className="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
           <h1 className="text-2xl font-semibold text-ink">{verify.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{verify.subtitle}</p>
 
@@ -56,7 +56,7 @@ export default async function AdminVerifyPage({ params }: Props) {
               <label className="text-sm font-semibold text-ink" htmlFor="code">{verify.codeLabel}</label>
               <input
                 autoComplete="one-time-code"
-                className="mt-1.5 h-12 w-full rounded-lg border border-border bg-white px-3 text-center font-mono text-lg tracking-[0.4em] text-ink outline-none transition focus:border-blue"
+                className="mt-1.5 h-12 w-full rounded-lg border border-border bg-surface px-3 text-center font-mono text-lg tracking-[0.4em] text-ink outline-none transition focus:border-blue"
                 id="code"
                 inputMode="numeric"
                 maxLength={6}
@@ -67,7 +67,7 @@ export default async function AdminVerifyPage({ params }: Props) {
               />
             </div>
             <button
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text"
+              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover"
               type="submit"
             >
               {verify.submitLabel}

@@ -1,6 +1,9 @@
 import type { Config } from "tailwindcss";
 
+const withOpacity = (variable: string) => `rgb(var(${variable}) / <alpha-value>)`;
+
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,14 +11,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#F7F8FA",
-        surface: "#FFFFFF",
-        ink: "#061A3D",
-        text: "#273247",
-        muted: "#68748A",
-        faint: "#98A2B3",
-        hairline: "#E8EEF5",
-        border: "#D7E0EA",
+        canvas: withOpacity("--color-canvas"),
+        surface: withOpacity("--color-surface"),
+        ink: withOpacity("--color-ink"),
+        text: withOpacity("--color-text"),
+        muted: withOpacity("--color-muted"),
+        faint: withOpacity("--color-faint"),
+        hairline: withOpacity("--color-hairline"),
+        border: withOpacity("--color-border"),
+        // Brand primary — CTA buttons/badges. Kept independent from the
+        // "ink"/"text" heading tokens so dark mode can swap in a legible
+        // accent instead of navy-on-near-black.
+        primary: withOpacity("--color-primary"),
+        "primary-hover": withOpacity("--color-primary-hover"),
         cyan: "#36D8E4",
         blue: "#2F6BFF",
         violet: "#9A8CFF",

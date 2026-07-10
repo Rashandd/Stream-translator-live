@@ -93,7 +93,7 @@ export function AdminFoundingPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -115,7 +115,7 @@ export function AdminFoundingPanel({ labels, loginHref }: Props) {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>

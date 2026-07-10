@@ -76,7 +76,7 @@ export function SdkPairingPanel({ labels }: { labels: Labels }) {
         <p className="mt-2 text-xs text-muted">{fill(labels.expiresInTemplate, { minutes: String(minutes) })}</p>
       ) : null}
       <button
-        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border bg-white px-5 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10 disabled:opacity-50"
+        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10 disabled:opacity-50"
         disabled={busy}
         onClick={() => void generate()}
         type="button"

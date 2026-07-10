@@ -211,7 +211,7 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -344,7 +344,7 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input
                     aria-label={`${plan.name} stripe price id`}
-                    className="h-9 w-48 rounded-lg border border-border bg-white px-2.5 font-mono text-xs text-ink outline-none transition focus:border-blue"
+                    className="h-9 w-48 rounded-lg border border-border bg-surface px-2.5 font-mono text-xs text-ink outline-none transition focus:border-blue"
                     onChange={(event) =>
                       setPriceDrafts((current) => ({ ...current, [plan.name]: event.target.value }))
                     }
@@ -352,7 +352,7 @@ export function AdminProductionSetupPanel({ labels, loginHref }: Props) {
                     value={priceDrafts[plan.name] ?? ""}
                   />
                   <button
-                    className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
+                    className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                     disabled={priceBusy === plan.name || !(priceDrafts[plan.name] ?? "").trim()}
                     onClick={() => void savePrice(plan.name)}
                     type="button"

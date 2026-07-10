@@ -163,7 +163,7 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -180,7 +180,7 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
         </p>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
@@ -210,7 +210,7 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         aria-label={`${row.name} value`}
-                        className="h-9 w-44 rounded-lg border border-border bg-white px-2.5 font-mono text-xs text-ink outline-none transition focus:border-blue"
+                        className="h-9 w-44 rounded-lg border border-border bg-surface px-2.5 font-mono text-xs text-ink outline-none transition focus:border-blue"
                         onChange={(event) =>
                           setDrafts((current) => ({ ...current, [row.name]: event.target.value }))
                         }
@@ -219,7 +219,7 @@ export function AdminSecretsPanel({ labels, loginHref }: Props) {
                         value={drafts[row.name] ?? ""}
                       />
                       <button
-                        className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
+                        className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                         disabled={busy === row.name || !(drafts[row.name] ?? "").trim()}
                         onClick={() => void save(row.name)}
                         type="button"

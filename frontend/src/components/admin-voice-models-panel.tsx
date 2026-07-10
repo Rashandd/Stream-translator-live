@@ -231,7 +231,7 @@ export function AdminVoiceModelsPanel({ labels }: { labels: Labels }) {
                         </>
                       ) : null}
                       <button
-                        className="inline-flex h-8 items-center rounded-full bg-ink px-3 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
+                        className="inline-flex h-8 items-center rounded-full bg-primary px-3 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                         disabled={busyId === model.id || model.status === "approved"}
                         onClick={() => void act(model.id, "approve")}
                         type="button"

@@ -142,7 +142,7 @@ export function SdkDevicesPanel({ labels }: { labels: Labels }) {
                 </p>
               </div>
               <button
-                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 text-xs font-semibold text-muted transition hover:border-danger hover:text-danger disabled:opacity-50"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-xs font-semibold text-muted transition hover:border-danger hover:text-danger disabled:opacity-50"
                 disabled={removingId === device.id}
                 onClick={() => void remove(device.id)}
                 type="button"

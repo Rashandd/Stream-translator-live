@@ -215,7 +215,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -244,7 +244,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
                 {labels.company[field.labelKey]}
               </label>
               <input
-                className="mt-2 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+                className="mt-2 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
                 id={field.key}
                 onChange={(event) => {
                   setCompanyDrafts((current) => ({ ...current, [field.key]: event.target.value }));
@@ -256,7 +256,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
           ))}
         </div>
         <button
-          className="mt-4 inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+          className="mt-4 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
           disabled={companySaving}
           onClick={() => void saveCompanyDetails()}
           type="button"
@@ -276,7 +276,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
               {labels.selectLabel}
             </label>
             <select
-              className="mt-2 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+              className="mt-2 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
               id="legal-page"
               onChange={(event) => {
                 setSelectedSlug(event.target.value);
@@ -302,7 +302,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
               {labels.htmlLabel}
             </label>
             <textarea
-              className="mt-2 min-h-[340px] w-full rounded-lg border border-border bg-white p-3 font-mono text-sm leading-6 text-ink outline-none transition focus:border-blue"
+              className="mt-2 min-h-[340px] w-full rounded-lg border border-border bg-surface p-3 font-mono text-sm leading-6 text-ink outline-none transition focus:border-blue"
               id="legal-html"
               onChange={(event) => {
                 setDrafts((current) => ({ ...current, [selectedPage.slug]: event.target.value }));
@@ -314,7 +314,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button
-                className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
                 disabled={saving}
                 onClick={() => void save(selectedDraft)}
                 type="button"
@@ -322,7 +322,7 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
                 {saving ? labels.savingLabel : saved ? labels.savedLabel : labels.saveLabel}
               </button>
               <button
-                className="inline-flex h-9 items-center rounded-full border border-border bg-white px-4 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10 disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-full border border-border bg-surface px-4 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10 disabled:opacity-50"
                 disabled={saving}
                 onClick={() => void save("")}
                 type="button"

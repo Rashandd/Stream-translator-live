@@ -5,8 +5,36 @@
 :root {
   --font-inter: Inter, system-ui, sans-serif;
   --font-geist-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-canvas: 247 248 250;
+  --color-surface: 255 255 255;
+  --color-ink: 6 26 61;
+  --color-text: 39 50 71;
+  --color-muted: 104 116 138;
+  --color-faint: 152 162 179;
+  --color-hairline: 232 238 245;
+  --color-border: 215 224 234;
+  --color-primary: 6 26 61;
+  --color-primary-hover: 39 50 71;
+
   --background: #f7f8fa;
   --foreground: #061a3d;
+}
+
+:root.dark {
+  --color-canvas: 8 15 28;
+  --color-surface: 15 24 41;
+  --color-ink: 244 247 251;
+  --color-text: 199 208 222;
+  --color-muted: 139 150 168;
+  --color-faint: 92 107 130;
+  --color-hairline: 28 42 66;
+  --color-border: 36 52 79;
+  --color-primary: 63 111 255;
+  --color-primary-hover: 99 141 255;
+
+  --background: #080f1c;
+  --foreground: #f4f7fb;
 }
 
 * {
@@ -28,6 +56,13 @@ body {
     linear-gradient(180deg, #ffffff 0%, #f7f8fa 42%, #eef6fb 100%);
   color: var(--foreground);
   font-family: var(--font-inter);
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(54, 216, 228, 0.1), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(154, 140, 255, 0.1), transparent 28%),
+    linear-gradient(180deg, #0b1526 0%, #080f1c 42%, #060b16 100%);
 }
 
 a {

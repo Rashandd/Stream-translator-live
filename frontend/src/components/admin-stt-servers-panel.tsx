@@ -210,7 +210,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -227,13 +227,13 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
         </p>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-white p-4">
+      <div className="rounded-xl border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">{labels.addTitle}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
             {labels.nameLabel}
             <input
-              className="h-9 rounded-lg border border-border bg-white px-2.5 text-sm text-ink outline-none transition focus:border-blue"
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 text-sm text-ink outline-none transition focus:border-blue"
               onChange={(event) => setName(event.target.value)}
               placeholder={labels.namePlaceholder}
               value={name}
@@ -242,7 +242,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
             {labels.hostnameLabel}
             <input
-              className="h-9 rounded-lg border border-border bg-white px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
               onChange={(event) => setHostname(event.target.value)}
               placeholder={labels.hostnamePlaceholder}
               value={hostname}
@@ -251,7 +251,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
             {labels.sshPortLabel}
             <input
-              className="h-9 rounded-lg border border-border bg-white px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
               onChange={(event) => setSshPort(event.target.value)}
               type="number"
               value={sshPort}
@@ -260,7 +260,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
           <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
             {labels.sshUserLabel}
             <input
-              className="h-9 rounded-lg border border-border bg-white px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
               onChange={(event) => setSshUser(event.target.value)}
               value={sshUser}
             />
@@ -269,7 +269,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
         <label className="mt-3 flex flex-col gap-1 text-xs font-semibold text-muted">
           {labels.publicEndpointLabel}
           <input
-            className="h-9 w-full rounded-lg border border-border bg-white px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
+            className="h-9 w-full rounded-lg border border-border bg-surface px-2.5 font-mono text-sm text-ink outline-none transition focus:border-blue"
             onChange={(event) => setPublicEndpointOverride(event.target.value)}
             placeholder={labels.publicEndpointPlaceholder}
             value={publicEndpointOverride}
@@ -277,7 +277,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
         </label>
         <p className="mt-1 text-xs text-faint">{labels.publicEndpointHint}</p>
         <button
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text disabled:opacity-50"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
           disabled={adding || !name.trim() || !hostname.trim()}
           onClick={() => void addServer()}
           type="button"
@@ -299,7 +299,7 @@ export function AdminSttServersPanel({ labels, loginHref }: Props) {
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
+      <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>

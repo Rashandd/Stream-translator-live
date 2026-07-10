@@ -53,8 +53,8 @@ export default async function AdminInfrastructurePage({ params }: Props) {
                   <button
                     className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition ${
                       running
-                        ? "border-border bg-white text-ink hover:border-danger hover:text-danger"
-                        : "border-border bg-white text-ink hover:border-success hover:text-success"
+                        ? "border-border bg-surface text-ink hover:border-danger hover:text-danger"
+                        : "border-border bg-surface text-ink hover:border-success hover:text-success"
                     }`}
                     type="button"
                   >

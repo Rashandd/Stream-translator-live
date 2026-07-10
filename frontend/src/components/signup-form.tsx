@@ -88,7 +88,7 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
         <label className="text-sm font-semibold text-ink" htmlFor="email">{labels.emailLabel}</label>
         <input
           autoComplete="email"
-          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
           id="email"
           name="email"
           onChange={(event) => setEmail(event.target.value)}
@@ -101,7 +101,7 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
         <label className="text-sm font-semibold text-ink" htmlFor="password">{labels.passwordLabel}</label>
         <input
           autoComplete="new-password"
-          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
           id="password"
           minLength={8}
           onChange={(event) => setPassword(event.target.value)}
@@ -110,7 +110,7 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
           value={password}
         />
       </div>
-      <label className="flex gap-3 rounded-lg border border-border bg-white p-3 text-xs leading-5 text-muted">
+      <label className="flex gap-3 rounded-lg border border-border bg-surface p-3 text-xs leading-5 text-muted">
         <input
           checked={marketingConsent}
           className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-blue"
@@ -135,7 +135,7 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
         </p>
       ) : null}
       <button
-        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
         disabled={pending}
         type="submit"
       >

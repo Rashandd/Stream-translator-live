@@ -110,7 +110,7 @@ export function PlatformAccountsPanel({ labels }: { labels: Labels }) {
 
   return (
     <>
-      <div className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
         <Icon className="mt-0.5 h-5 w-5 shrink-0 text-blue" name="LockKeyhole" />
         <p className="text-sm leading-6 text-muted">{labels.oauthNotice}</p>
       </div>
@@ -128,7 +128,7 @@ export function PlatformAccountsPanel({ labels }: { labels: Labels }) {
           const connected = status?.connected ?? false;
 
           return (
-            <li className="flex flex-col gap-4 rounded-xl border border-border bg-white p-5" key={account.provider}>
+            <li className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-5" key={account.provider}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-ink">
@@ -167,8 +167,8 @@ export function PlatformAccountsPanel({ labels }: { labels: Labels }) {
               <button
                 className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   connected
-                    ? "border border-border bg-white text-ink hover:border-danger hover:text-danger"
-                    : "bg-ink text-white hover:bg-text"
+                    ? "border border-border bg-surface text-ink hover:border-danger hover:text-danger"
+                    : "bg-primary text-white hover:bg-primary-hover"
                 }`}
                 disabled={
                   account.disabled ||

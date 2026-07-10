@@ -30,7 +30,7 @@ export default async function AdminVoiceModelsPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <PageHeader subtitle={voiceModels.subtitle} title={voiceModels.title} />
-      <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+      <section className="rounded-xl border border-border bg-surface p-5 sm:p-6">
         <AdminVoiceModelsPanel labels={voiceModels} />
       </section>
     </div>

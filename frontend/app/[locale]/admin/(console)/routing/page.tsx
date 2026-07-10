@@ -45,7 +45,7 @@ export default async function AdminRoutingPage({ params }: Props) {
         statusLabels={config.statusLabels}
       />
 
-      <div className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
+      <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4">
         <Icon className="mt-0.5 h-5 w-5 shrink-0 text-blue" name="Route" />
         <div>
           <p className="text-sm font-semibold text-ink">{routing.fallbackRuleLabel}</p>
@@ -63,7 +63,7 @@ export default async function AdminRoutingPage({ params }: Props) {
             <div key={field.label}>
               <label className="text-xs font-medium text-muted">{field.label}</label>
               <input
-                className="mt-1 h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue placeholder:text-faint"
+                className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue placeholder:text-faint"
                 defaultValue=""
                 placeholder={field.placeholder}
                 type="text"
@@ -72,7 +72,7 @@ export default async function AdminRoutingPage({ params }: Props) {
           ))}
         </div>
         <button
-          className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text"
+          className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover"
           type="button"
         >
           {routing.saveLabel}

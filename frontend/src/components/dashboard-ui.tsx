@@ -28,7 +28,7 @@ type MetricCardProps = {
 
 export function MetricCard({ label, value, hint, icon }: MetricCardProps) {
   return (
-    <article className="rounded-xl border border-border bg-white p-5">
+    <article className="rounded-xl border border-border bg-surface p-5">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted">{label}</p>
         <Icon className="h-5 w-5 text-blue" name={icon} />
@@ -48,7 +48,7 @@ type SectionCardProps = {
 
 export function SectionCard({ title, subtitle, action, children }: SectionCardProps) {
   return (
-    <section className="rounded-xl border border-border bg-white p-5 sm:p-6">
+    <section className="rounded-xl border border-border bg-surface p-5 sm:p-6">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-ink">{title}</h2>

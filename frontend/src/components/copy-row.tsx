@@ -31,7 +31,7 @@ export function CopyRow({
     <div className={`flex min-w-0 items-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2 ${className}`}>
       <code className="min-w-0 flex-1 truncate font-mono text-sm text-ink">{value}</code>
       <button
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-white px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-blue hover:text-blue"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-blue hover:text-blue"
         onClick={() => void copy()}
         type="button"
       >

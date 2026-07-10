@@ -66,7 +66,7 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
         <label className="text-sm font-semibold text-ink" htmlFor="email">{labels.emailLabel}</label>
         <input
           autoComplete="email"
-          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
           id="email"
           name="email"
           onChange={(event) => setEmail(event.target.value)}
@@ -84,7 +84,7 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
         </div>
         <input
           autoComplete="current-password"
-          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink outline-none transition focus:border-blue"
+          className="mt-1.5 h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink outline-none transition focus:border-blue"
           id="password"
           onChange={(event) => setPassword(event.target.value)}
           required
@@ -98,7 +98,7 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
         </p>
       ) : null}
       <button
-        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
         disabled={pending}
         type="submit"
       >

@@ -41,7 +41,7 @@ export default async function SecurityPage({ params }: Props) {
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2">
           {security.claims.map((claim) => (
-            <div className="rounded-xl border border-border bg-white p-6" key={claim.title}>
+            <div className="rounded-xl border border-border bg-surface p-6" key={claim.title}>
               <Icon className="h-6 w-6 text-blue" name={claim.icon} />
               <h2 className="mt-4 text-lg font-semibold text-ink">{claim.title}</h2>
               <p className="mt-2 text-sm leading-6 text-muted">{claim.body}</p>

@@ -131,7 +131,7 @@ export function GoLivePanel({ labels, mode, isCloud }: { labels: Labels; mode: M
                         target.enabled ? "justify-end bg-success" : "justify-start bg-border"
                       }`}
                     >
-                      <span className="h-5 w-5 rounded-full bg-white" />
+                      <span className="h-5 w-5 rounded-full bg-surface" />
                     </span>
                   </li>
                 ))}
@@ -142,7 +142,7 @@ export function GoLivePanel({ labels, mode, isCloud }: { labels: Labels; mode: M
           <button
             aria-disabled={!ready}
             className={`mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition ${
-              ready ? "bg-ink hover:bg-text" : "cursor-not-allowed bg-faint"
+              ready ? "bg-primary hover:bg-primary-hover" : "cursor-not-allowed bg-faint"
             }`}
             disabled={!ready}
             type="button"

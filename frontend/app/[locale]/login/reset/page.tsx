@@ -42,7 +42,7 @@ export default async function ResetPage({ params }: Props) {
           />
         </Link>
 
-        <div className="rounded-2xl border border-border bg-white p-6 sm:p-8">
+        <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
           <h1 className="text-2xl font-semibold text-ink">{reset.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{reset.subtitle}</p>
 

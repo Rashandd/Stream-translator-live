@@ -99,7 +99,7 @@ export function AdminPromoPanel({ labels, loginHref }: Props) {
       <div className="rounded-xl border border-warning/25 bg-warning/10 p-4">
         <p className="text-sm text-ink">{labels.errors.unauthorized}</p>
         <a
-          className="mt-3 inline-flex h-9 items-center rounded-full bg-ink px-4 text-xs font-semibold text-white transition hover:bg-text"
+          className="mt-3 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-white transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.signInLabel}
@@ -146,7 +146,7 @@ export function AdminPromoPanel({ labels, loginHref }: Props) {
               {labels.messageLabel}
             </label>
             <textarea
-              className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink"
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink"
               id="promo-message"
               onChange={(e) => setMessage(e.target.value)}
               rows={2}
@@ -155,7 +155,7 @@ export function AdminPromoPanel({ labels, loginHref }: Props) {
           </div>
 
           <button
-            className="inline-flex h-10 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-text disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
             disabled={saving}
             onClick={() => void save()}
             type="button"
