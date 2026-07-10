@@ -16,12 +16,14 @@ describe("admin legal HTML editor", () => {
 
   it("uses textarea editing for direct HTML", () => {
     expect(source).toContain("<textarea");
-    expect(source).toContain("dangerouslySetInnerHTML");
+    expect(source).toContain('sandbox=""');
+    expect(source).toContain("srcDoc={previewHtml}");
+    expect(source).not.toContain("dangerouslySetInnerHTML");
   });
 
   it("seeds the editable draft from the en.json fallback until a custom save exists", () => {
     expect(source).toContain("saved?.trim() ? saved : fallbackHtml(page)");
-    expect(source).toContain("value.trim() ? value : fallbackHtml(selectedPage)");
+    expect(source).toContain("serverHtml.trim() ? serverHtml : fallbackHtml(selectedPage)");
   });
 
   it("exposes an editable company entity panel (name, registration number, address)", () => {
@@ -38,7 +40,14 @@ describe("admin legal HTML editor", () => {
 
   it("public legal page reads configured HTML before fallback content", () => {
     expect(legalPageSource).toContain("loadRuntimeConfig");
+    expect(legalPageSource).toContain("sanitizeLegalHtml");
     expect(legalPageSource).toContain("dangerouslySetInnerHTML");
     expect(legalPageSource).toContain("legal.${slug}.html");
+  });
+
+  it("replaces a saved draft with the sanitized server response", () => {
+    expect(source).toContain("updated[configKey(selectedPage.slug)]");
+    expect(source).toContain("serverHtml.trim() ? serverHtml : fallbackHtml(selectedPage)");
+    expect(source).not.toContain("value.trim() ? value : fallbackHtml(selectedPage)");
   });
 });

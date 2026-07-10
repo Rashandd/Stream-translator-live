@@ -7,6 +7,7 @@ import en from "@/src/i18n/dictionaries/en.json";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 import { API_URL } from "@/src/lib/api";
 import { getPublicConfig } from "@/src/lib/config";
+import { sanitizeLegalHtml } from "@/src/lib/legal-html";
 
 type Props = {
   params: Promise<{
@@ -67,7 +68,7 @@ export default async function LegalPage({ params }: Props) {
   }
 
   const runtimeConfig = await loadRuntimeConfig();
-  const runtimeHtml = runtimeConfig?.[`legal.${slug}.html`]?.trim() || null;
+  const runtimeHtml = sanitizeLegalHtml(runtimeConfig?.[`legal.${slug}.html`] ?? "").trim() || null;
   const legalName = runtimeConfig?.["company.legal_name"]?.trim() || "";
   const registrationNumber = runtimeConfig?.["company.registration_number"]?.trim() || "";
   const registeredAddress = runtimeConfig?.["company.registered_address"]?.trim() || "";

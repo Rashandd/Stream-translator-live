@@ -163,10 +163,11 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
         return;
       }
       const updated = (await response.json()) as Record<string, string>;
+      const serverHtml = updated[configKey(selectedPage.slug)] ?? "";
       setRuntimeConfig(updated);
       setDrafts((current) => ({
         ...current,
-        [selectedPage.slug]: value.trim() ? value : fallbackHtml(selectedPage),
+        [selectedPage.slug]: serverHtml.trim() ? serverHtml : fallbackHtml(selectedPage),
       }));
       setSaved(true);
     } catch {
@@ -335,7 +336,12 @@ export function AdminLegalPanel({ labels, loginHref, pages }: Props) {
       </SectionCard>
 
       <SectionCard title={labels.previewTitle}>
-        <div className="legal-html" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        <iframe
+          className="min-h-[420px] w-full rounded-lg border border-border bg-white"
+          sandbox=""
+          srcDoc={previewHtml}
+          title={labels.previewTitle}
+        />
       </SectionCard>
     </div>
   );
