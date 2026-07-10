@@ -17,7 +17,7 @@ export function SiteHeader({ config, locale }: SiteHeaderProps) {
       <div className="flex min-w-0 items-center gap-10 lg:gap-16">
         <Link className="flex min-w-0 shrink-0 items-center" href={localizePath(locale, "/")}>
           <BrandLogo
-            className="h-14 w-auto object-contain sm:h-20 lg:h-24"
+            className="h-11 w-auto object-contain sm:h-20 lg:h-24"
             config={config}
             height={545}
             priority
@@ -42,7 +42,9 @@ export function SiteHeader({ config, locale }: SiteHeaderProps) {
         <span className="hidden rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted lg:inline-flex">
           {config.nav.languageLabel}
         </span>
-        <ThemeToggle />
+        <span className="hidden md:inline-flex">
+          <ThemeToggle />
+        </span>
         <Link
           className="hidden h-11 items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10 md:inline-flex"
           href={localizePath(locale, config.nav.signIn.href)}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Icon } from "@/src/components/icon";
+import { ThemeToggle } from "@/src/components/theme-toggle";
 import { localizePath, type Locale } from "@/src/i18n/routing";
 
 type MenuLink = { label: string; href: string };
@@ -49,14 +50,15 @@ export function MobileMenu({ ariaLabel, menuLabel, menuCloseLabel, items, signIn
               </li>
             ))}
           </ul>
-          <div className="mt-3 flex flex-col gap-2 border-t border-hairline pt-4">
+          <div className="mt-3 flex items-center gap-2 border-t border-hairline pt-4">
             <Link
-              className="inline-flex h-11 items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink"
               href={localizePath(locale, signIn.href)}
               onClick={() => setOpen(false)}
             >
               {signIn.label}
             </Link>
+            <ThemeToggle />
           </div>
         </nav>
       ) : null}
