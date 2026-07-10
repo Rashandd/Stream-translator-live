@@ -44,6 +44,24 @@ jobs:
       - name: cargo clippy --workspace -- -D warnings
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  sdk-macos-build-check:
+    name: SDK macOS build check (informational)
+    runs-on: macos-latest
+    # Real-device audio capture on macOS has never been verified (see
+    # docs/sdk-distribution.md) and this repo has no darwin CI history —
+    # informational only until that changes. Catches compile breaks on PRs
+    # instead of waiting for the sdk-release tag build to find them.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo check -p streamdubber-sdk (macOS)
+        run: cargo check -p streamdubber-sdk --all-targets
+
   frontend:
     name: Frontend (lint + test + typecheck)
     runs-on: ubuntu-latest
