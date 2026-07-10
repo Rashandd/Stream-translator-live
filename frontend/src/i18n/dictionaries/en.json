@@ -148,7 +148,7 @@
     },
     "audience": {
       "eyebrow": "Who it's for",
-      "title": "Built for streamers first. Ready for teams next.",
+      "title": "Built for live creators who want more languages.",
       "items": [
         {
           "title": "Streamers & creators",
@@ -164,38 +164,21 @@
           "title": "Educators",
           "body": "Make live lectures understandable in any language, in real time.",
           "icon": "Building2"
-        },
-        {
-          "title": "Business & teams",
-          "body": "Real-time translation for webinars and town halls — with data that stays private.",
-          "icon": "MonitorUp"
         }
       ]
-    },
-    "businessCta": {
-      "eyebrow": "For business — on the way",
-      "title": "The same live engine is coming to your team.",
-      "body": "Webinars, town halls, conferences and product events — translated live in every attendee's language, with your video and data kept private. Rolling out next.",
-      "cta": {
-        "label": "See what's coming",
-        "href": "/solutions"
-      }
     }
   },
   "solutions": {
     "hero": {
       "eyebrow": "Solutions",
-      "title": "One live translation engine. Every audience.",
-      "summary": "Real-time captions and voice-preserving translation for anyone who goes live — from a solo streamer to a global town hall. Your video stays on your machine; only audio reaches the cloud."
+      "title": "One live translation setup for every stream.",
+      "summary": "Real-time captions and voice-preserving translation for creators going live on Twitch, Kick, or YouTube. Your video stays on your machine; only audio reaches the cloud."
     },
     "groups": {
-      "creators": "For creators",
-      "business": "For business"
+      "creators": "For creators"
     },
     "audienceLabels": {
-      "creators": "Creators",
-      "business": "Business",
-      "both": "Everyone"
+      "creators": "Creators"
     },
     "items": [
       {
@@ -209,56 +192,14 @@
         "title": "Voice-preserving dubbing",
         "body": "Speak once and reach every language in your own cloned voice — not a robotic overlay.",
         "icon": "AudioLines",
-        "audience": "both",
+        "audience": "creators",
         "status": "coming_soon"
       },
       {
-        "title": "Webinar translation",
-        "body": "Let every attendee follow your webinar in their language, live — no interpreter booth, no delay.",
-        "icon": "MonitorUp",
-        "audience": "business",
-        "status": "coming_soon"
-      },
-      {
-        "title": "Events & conferences",
-        "body": "Caption and translate keynotes and panels for a global room, on screen and in real time.",
-        "icon": "Presentation",
-        "audience": "business",
-        "status": "coming_soon"
-      },
-      {
-        "title": "Online meetings",
-        "body": "Two-way live translation for calls and all-hands, so language never slows the conversation.",
-        "icon": "MessagesSquare",
-        "audience": "business",
-        "status": "coming_soon"
-      },
-      {
-        "title": "API for developers",
-        "body": "Drop real-time translation and voice cloning into your own product with one API.",
-        "icon": "Code2",
-        "audience": "business",
-        "status": "waitlist"
-      },
-      {
-        "title": "Zoom translation",
-        "body": "Live captions and translation inside Zoom calls, so no attendee is left reading a transcript later.",
-        "icon": "Video",
-        "audience": "business",
-        "status": "coming_soon"
-      },
-      {
-        "title": "MS Teams translation",
-        "body": "Bring real-time translated captions into Microsoft Teams meetings and town halls.",
-        "icon": "MessagesSquare",
-        "audience": "business",
-        "status": "coming_soon"
-      },
-      {
-        "title": "Google Meet translation",
-        "body": "Translate Google Meet calls live, without asking guests to install anything extra.",
-        "icon": "MonitorUp",
-        "audience": "business",
+        "title": "Native caption layers",
+        "body": "Let viewers switch captions on from the player or extension layer instead of reading burned-in subtitles.",
+        "icon": "Subtitles",
+        "audience": "creators",
         "status": "coming_soon"
       },
       {
@@ -269,39 +210,11 @@
         "status": "coming_soon"
       },
       {
-        "title": "Churches",
-        "body": "Translate sermons and services live for a congregation that speaks more than one language.",
-        "icon": "Building2",
-        "audience": "business",
-        "status": "waitlist"
-      },
-      {
-        "title": "Education",
-        "body": "Give students live translated captions for lectures and remote classes, in the language they learn best in.",
-        "icon": "GraduationCap",
-        "audience": "business",
-        "status": "waitlist"
-      },
-      {
-        "title": "Nonprofit",
-        "body": "Reach donors and communities across languages during live fundraisers and briefings.",
-        "icon": "HeartHandshake",
-        "audience": "business",
-        "status": "waitlist"
-      },
-      {
-        "title": "Broadcasting",
-        "body": "Bring live translated captions to broadcast and cable feeds without a second interpreter booth.",
-        "icon": "Radio",
-        "audience": "both",
-        "status": "waitlist"
-      },
-      {
-        "title": "International companies",
-        "body": "Keep global all-hands and product launches understandable for every regional office, live.",
-        "icon": "Globe2",
-        "audience": "business",
-        "status": "waitlist"
+        "title": "Dubbed language channels",
+        "body": "Run a dedicated dubbed channel per language when a platform needs separate streams for separate audio.",
+        "icon": "Share2",
+        "audience": "creators",
+        "status": "coming_soon"
       }
     ],
     "cta": {
@@ -312,8 +225,8 @@
         "href": "/signup"
       },
       "secondary": {
-        "label": "Talk to us",
-        "href": "/signup"
+        "label": "See pricing",
+        "href": "/pricing"
       }
     }
   },
@@ -1179,7 +1092,7 @@
         "price": "$9.99",
         "summary": "For streamers going multilingual.",
         "features": [
-          "Live captions in every language",
+          "Everything in Free, plus:",
           "30 hours a month, then $0.30 per extra hour",
           "Up to 3 platforms",
           "No watermark"
@@ -1191,7 +1104,7 @@
         "price": "$24.99",
         "summary": "Captions plus a dubbed voice for your stream.",
         "features": [
-          "Captions in every language",
+          "Everything in Starter, plus:",
           "Dubbed voice cloning (rolling out)",
           "80 hours a month",
           "All platforms"
@@ -1203,26 +1116,14 @@
         "price": "$99.99",
         "summary": "Everything, including your own cloned voice.",
         "features": [
-          "Captions in every language",
+          "Everything in Pro, plus:",
           "Clone your own original voice for dubbing",
           "200 hours a month",
-          "All platforms · priority support"
+          "Priority support"
         ],
         "popular": false
       }
-    ],
-    "onDevice": {
-      "badge": "Experimental",
-      "title": "Stretch your hours with on-device processing",
-      "summary": "Streamers with a capable NVIDIA GPU can run speech-to-text — and, on Pro and Streamer, voice dubbing — on their own machine instead of our cloud. Minutes processed on your device count at a reduced rate against your quota, so the same plan lasts longer, and your voice never leaves your PC.",
-      "points": [
-        "Available on every plan for captions, and on Pro/Streamer for voice dubbing — enable it from the Languages & captions or Voice cloning studio page in your dashboard",
-        "Requires an NVIDIA GPU (RTX 3060 or better recommended) and a passed hardware test",
-        "On-device dubbing doesn't count against your plan hours at all — only cloud-synthesized dubbing does",
-        "If your hardware falls behind mid-stream we switch to cloud automatically without interrupting your broadcast; those minutes count at the normal rate"
-      ]
-    },
-    "note": "Prices and limits shown here reflect the current plan catalog and may be updated — your dashboard always shows your live plan."
+    ]
   },
   "howItWorks": {
     "hero": {

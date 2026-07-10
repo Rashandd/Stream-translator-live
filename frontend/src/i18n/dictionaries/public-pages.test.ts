@@ -75,8 +75,19 @@ describe("pricing page config", () => {
     }
   });
 
-  it("tells the customer prices come from live plan data", () => {
-    expect(en.pricing.note).toBeTruthy();
+  it("describes paid plans as lower-plan inclusions plus extras", () => {
+    const starter = en.pricing.plans.find((plan) => plan.name === "Starter");
+    const pro = en.pricing.plans.find((plan) => plan.name === "Pro");
+    const streamer = en.pricing.plans.find((plan) => plan.name === "Streamer");
+    expect(starter?.features[0]).toBe("Everything in Free, plus:");
+    expect(pro?.features[0]).toBe("Everything in Starter, plus:");
+    expect(streamer?.features[0]).toBe("Everything in Pro, plus:");
+  });
+
+  it("does not show pricing catalog fine print or on-device promo copy", () => {
+    expect("note" in en.pricing).toBe(false);
+    expect("onDevice" in en.pricing).toBe(false);
+    expect(JSON.stringify(en.pricing)).not.toContain("Prices and limits shown here");
   });
 });
 

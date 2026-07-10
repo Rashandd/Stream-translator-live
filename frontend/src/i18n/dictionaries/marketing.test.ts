@@ -141,16 +141,14 @@ describe("solutions dictionary", () => {
     expect(solutions?.hero.summary).toBeTruthy();
   });
 
-  it("covers streamer-first plus business use-cases with valid audiences", () => {
+  it("covers creator use-cases with valid audiences", () => {
     const items = solutions?.items ?? [];
     expect(items.length).toBeGreaterThanOrEqual(5);
 
     // Streamers are the primary audience: the first card targets creators.
-    expect(["creators", "both"]).toContain(items[0]?.audience);
-    // At least one card must speak to business (the palabra-style secondary market).
-    expect(items.some((item) => item.audience === "business" || item.audience === "both")).toBe(true);
+    expect(items[0]?.audience).toBe("creators");
 
-    const validAudiences = new Set(["creators", "business", "both"]);
+    const validAudiences = new Set(["creators"]);
     const validStatuses = new Set(["enabled", "beta", "waitlist", "coming_soon", "disabled"]);
     for (const item of items) {
       expect(item.title).toBeTruthy();
@@ -161,14 +159,11 @@ describe("solutions dictionary", () => {
     }
   });
 
-  it("does not present Phase-2 business use-cases as live products", () => {
-    // Roadmap rule: the palabra-style catalog is out of Phase 1 and must show a
-    // coming_soon/waitlist/beta status — never "enabled" — for business surfaces.
-    for (const item of solutions?.items ?? []) {
-      if (item.audience === "business") {
-        expect(item.status).not.toBe("enabled");
-      }
-    }
+  it("does not present business use-cases on public marketing surfaces", () => {
+    const marketingText = JSON.stringify({ home: en.home, solutions: en.solutions }).toLowerCase();
+    expect(marketingText).not.toContain("business");
+    expect(marketingText).not.toContain("town hall");
+    expect(marketingText).not.toContain("webinar");
   });
 
   it("does not render notify-me forms on the public solutions page", () => {

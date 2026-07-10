@@ -109,26 +109,6 @@ export default async function PricingPage({ params }: Props) {
           ))}
         </div>
 
-        <div className="mt-12 rounded-2xl border border-border bg-white p-6 sm:p-8">
-          <div className="flex flex-wrap items-center gap-2">
-            <Icon className="h-5 w-5 text-blue" name="MonitorCog" />
-            <h2 className="text-xl font-semibold text-ink">{pricing.onDevice.title}</h2>
-            <span className="rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 text-xs font-semibold text-ink">
-              {pricing.onDevice.badge}
-            </span>
-          </div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">{pricing.onDevice.summary}</p>
-          <ul className="mt-4 space-y-2">
-            {pricing.onDevice.points.map((point) => (
-              <li className="flex items-start gap-2 text-sm leading-6 text-muted" key={point}>
-                <Icon className="mt-1 h-3.5 w-3.5 shrink-0 text-success" name="CheckCircle2" />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="mt-8 max-w-3xl text-sm leading-6 text-muted">{pricing.note}</p>
       </section>
 
       <SiteFooter config={config} locale={locale} />
