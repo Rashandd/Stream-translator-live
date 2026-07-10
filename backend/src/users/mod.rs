@@ -24,11 +24,13 @@ use argon2::password_hash::{PasswordHash, SaltString};
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use axum::extract::{Path as RoutePath, Query, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AdminUser;
 use crate::auth::jwt::Claims;
+use crate::auth::session::{create_browser_session, SessionPrincipal};
 use crate::crypto::Cipher;
 use crate::logging::{LogLevel, Logger};
 use crate::plans::PlanRegistry;
@@ -699,20 +701,22 @@ pub enum LoginResponse {
     TwoFactorPending {
         two_factor_required: bool,
         expires_in_secs: u64,
+        role: String,
     },
 }
 
 /// `POST /api/auth/login` — tek giriş ucu.
 ///
-/// Önce env-bootstrap admin denenir (davranış V2'den beri değişmedi: admin'e
-/// 2FA yok, 12 saatlik `role=admin` token). Sonra kullanıcı deposu:
+/// Önce env-bootstrap admin denenir. Admin ve yayıncı aynı e-posta 2FA
+/// politikasından geçer; doğrulama tamamlanmadan hiçbir session üretilmez.
+/// Sonra kullanıcı deposu:
 /// `auth.email_2fa` config'ine göre 6 haneli kod maillenir veya token döner.
 /// Kimlik uyuşmazsa 401 — hangi alanın yanlış olduğu söylenmez.
 pub async fn login(
     State(app): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, (StatusCode, String)> {
+) -> Result<Response, (StatusCode, String)> {
     let login_limit: u32 = app
         .service_config
         .get("auth.login.rate_limit_per_min")
@@ -729,29 +733,23 @@ pub async fn login(
     // 1) Bootstrap admin (varsa).
     if let Some(admin) = app.bootstrap_admin.as_ref() {
         if admin.verify(&req.email, &req.password) {
-            let expires_at = chrono::Utc::now().timestamp() + 12 * 3600;
-            let claims = Claims {
+            let admin_email = admin.email().to_string();
+            let principal = SessionPrincipal {
                 sub: "admin-bootstrap".to_string(),
                 role: "admin".to_string(),
                 plan: "streamer".to_string(),
-                exp: expires_at,
             };
-            let token = app
-                .jwt
-                .issue(&claims)
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            app.logger.log(
-                LogLevel::Info,
-                "auth",
-                "admin login succeeded",
-                Some("admin-bootstrap"),
-                None,
-            );
-            return Ok(Json(LoginResponse::Token {
-                token,
-                expires_at,
-                role: "admin".to_string(),
-            }));
+            if let Some(pending) = begin_login_twofactor(
+                &app,
+                &admin_email,
+                "admin-bootstrap",
+                "admin",
+            )
+            .await?
+            {
+                return Ok(pending);
+            }
+            return finish_principal_login(&app, principal, &headers).await;
         }
     }
 
@@ -767,30 +765,55 @@ pub async fn login(
         return Err((StatusCode::UNAUTHORIZED, "invalid credentials".to_string()));
     };
 
+    if let Some(pending) = begin_login_twofactor(
+        &app,
+        &user.email,
+        &user.id,
+        "broadcaster",
+    )
+    .await?
+    {
+        return Ok(pending);
+    }
+    finish_user_login(&app, &user, &headers).await
+}
+
+/// Start the common email challenge for either role. `None` means the policy
+/// explicitly disabled 2FA or `auto` mode skipped it because SMTP is not yet
+/// configured; no session is issued inside this helper.
+async fn begin_login_twofactor(
+    app: &AppState,
+    email: &str,
+    subject: &str,
+    role: &str,
+) -> Result<Option<Response>, (StatusCode, String)> {
     let mode = app
         .service_config
         .get("auth.email_2fa")
         .unwrap_or_else(|| "auto".to_string());
     if mode == "off" {
-        return issue_user_token(&app, &user).map(Json);
+        return Ok(None);
     }
 
-    // 2FA kodu üret ve maille.
-    let code = match app.twofactor.issue(&user.email, CodePurpose::Login) {
+    let pending_response = || {
+        Json(LoginResponse::TwoFactorPending {
+            two_factor_required: true,
+            expires_in_secs: app.twofactor.ttl_secs(),
+            role: role.to_string(),
+        })
+        .into_response()
+    };
+    let code = match app.twofactor.issue(email, CodePurpose::Login) {
         Ok(code) => code,
         Err(TwoFactorError::TooSoon) => {
-            // Kod zaten yolda — frontend verify ekranında bekliyor olmalı.
-            return Ok(Json(LoginResponse::TwoFactorPending {
-                two_factor_required: true,
-                expires_in_secs: app.twofactor.ttl_secs(),
-            }));
+            return Ok(Some(pending_response()));
         }
         Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string())),
     };
     let mail_result = crate::mail::send(
         app.secrets.as_ref(),
         &app.service_config,
-        &user.email,
+        email,
         "Your Strovak verification code",
         &format!("Your sign-in verification code is: {code}\n\nIt expires in 10 minutes. If you didn't try to sign in, you can ignore this email."),
     )
@@ -802,40 +825,36 @@ pub async fn login(
                 LogLevel::Info,
                 "auth",
                 "2fa code sent",
-                Some(&user.id),
+                Some(subject),
                 None,
             );
-            Ok(Json(LoginResponse::TwoFactorPending {
-                two_factor_required: true,
-                expires_in_secs: app.twofactor.ttl_secs(),
-            }))
+            Ok(Some(pending_response()))
         }
         Err(crate::mail::MailError::NotConfigured) if mode != "required" => {
-            // Dev/kurulum modu: SMTP panelden girilene kadar 2FA atlanır.
-            app.twofactor.cancel(&user.email, CodePurpose::Login);
+            app.twofactor.cancel(email, CodePurpose::Login);
             app.logger.log(
                 LogLevel::Warn,
                 "auth",
                 "smtp not configured — 2fa skipped (auth.email_2fa=auto)",
-                Some(&user.id),
+                Some(subject),
                 None,
             );
-            issue_user_token(&app, &user).map(Json)
+            Ok(None)
         }
         Err(crate::mail::MailError::NotConfigured) => {
-            app.twofactor.cancel(&user.email, CodePurpose::Login);
+            app.twofactor.cancel(email, CodePurpose::Login);
             Err((
                 StatusCode::SERVICE_UNAVAILABLE,
                 "email 2fa required but smtp is not configured".to_string(),
             ))
         }
         Err(err) => {
-            app.twofactor.cancel(&user.email, CodePurpose::Login);
+            app.twofactor.cancel(email, CodePurpose::Login);
             app.logger.log(
                 LogLevel::Error,
                 "auth",
                 &format!("2fa mail send failed: {err}"),
-                Some(&user.id),
+                Some(subject),
                 None,
             );
             Err((
@@ -877,6 +896,54 @@ pub(crate) fn issue_user_token(
     })
 }
 
+fn user_principal(user: &UserRecord) -> SessionPrincipal {
+    SessionPrincipal {
+        sub: user.id.clone(),
+        role: "broadcaster".to_string(),
+        plan: user.plan.clone(),
+    }
+}
+
+async fn finish_user_login(
+    app: &AppState,
+    user: &UserRecord,
+    headers: &HeaderMap,
+) -> Result<Response, (StatusCode, String)> {
+    finish_principal_login(app, user_principal(user), headers).await
+}
+
+async fn finish_principal_login(
+    app: &AppState,
+    principal: SessionPrincipal,
+    headers: &HeaderMap,
+) -> Result<Response, (StatusCode, String)> {
+    // Browser requests always carry Origin (a forbidden request header that
+    // application JavaScript cannot suppress). CLI/SDK callers keep the
+    // legacy bearer response during migration; browser JavaScript never sees
+    // an access token in JSON.
+    if headers.contains_key(axum::http::header::ORIGIN) {
+        return create_browser_session(app, principal).await;
+    }
+
+    let expires_at = chrono::Utc::now().timestamp() + USER_TOKEN_TTL_SECS;
+    let claims = Claims {
+        sub: principal.sub,
+        role: principal.role.clone(),
+        plan: principal.plan,
+        exp: expires_at,
+    };
+    let token = app
+        .jwt
+        .issue(&claims)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+    Ok(Json(LoginResponse::Token {
+        token,
+        expires_at,
+        role: principal.role,
+    })
+    .into_response())
+}
+
 /// `POST /api/auth/2fa` gövdesi.
 #[derive(Debug, Deserialize)]
 pub struct TwoFactorRequest {
@@ -888,16 +955,34 @@ pub struct TwoFactorRequest {
 /// Başarılı doğrulama e-postayı da doğrulanmış işaretler.
 pub async fn twofa_verify(
     State(app): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<TwoFactorRequest>,
-) -> Result<Json<LoginResponse>, (StatusCode, String)> {
+) -> Result<Response, (StatusCode, String)> {
     verify_code_or_status(&app, &req.email, CodePurpose::Login, &req.code)?;
+    if app
+        .bootstrap_admin
+        .as_ref()
+        .as_ref()
+        .is_some_and(|admin| admin.matches_email(&req.email))
+    {
+        return finish_principal_login(
+            &app,
+            SessionPrincipal {
+                sub: "admin-bootstrap".to_string(),
+                role: "admin".to_string(),
+                plan: "streamer".to_string(),
+            },
+            &headers,
+        )
+        .await;
+    }
     let Some(user) = app.users.get(&req.email) else {
         return Err((StatusCode::UNAUTHORIZED, "invalid or expired code".to_string()));
     };
     if let Err(err) = app.users.mark_verified(&user.email) {
         tracing::warn!(error = %err, "mark_verified failed");
     }
-    issue_user_token(&app, &user).map(Json)
+    finish_user_login(&app, &user, &headers).await
 }
 
 fn verify_code_or_status(

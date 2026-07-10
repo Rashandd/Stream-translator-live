@@ -4,11 +4,13 @@ use std::sync::Arc;
 
 use axum::{
     extract::{FromRef, FromRequestParts},
-    http::{request::Parts, StatusCode},
+    http::{request::Parts, Method, StatusCode},
     response::{IntoResponse, Response},
 };
 
 use super::jwt::{Claims, Jwt, JwtError};
+use super::session::{access_cookie, require_cookie_request};
+use crate::config::ServiceConfig;
 
 /// Kullanıcı rolü.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,13 +39,15 @@ pub enum AuthError {
     InvalidToken(#[from] JwtError),
     #[error("insufficient role")]
     Forbidden,
+    #[error("cookie request security validation failed")]
+    CookieSecurity,
 }
 
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let status = match self {
             AuthError::MissingBearer | AuthError::InvalidToken(_) => StatusCode::UNAUTHORIZED,
-            AuthError::Forbidden => StatusCode::FORBIDDEN,
+            AuthError::Forbidden | AuthError::CookieSecurity => StatusCode::FORBIDDEN,
         };
         (status, self.to_string()).into_response()
     }
@@ -72,13 +76,30 @@ impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
     Arc<Jwt>: axum::extract::FromRef<S>,
+    Arc<ServiceConfig>: axum::extract::FromRef<S>,
 {
     type Rejection = AuthError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let jwt = Arc::<Jwt>::from_ref(state);
-        let token = bearer_token(parts)?;
-        let claims = jwt.verify(token)?;
+        let bearer = bearer_token(parts).ok();
+        let cookie = if bearer.is_none() {
+            access_cookie(&parts.headers)
+        } else {
+            None
+        };
+        let token = bearer
+            .map(str::to_string)
+            .or(cookie)
+            .ok_or(AuthError::MissingBearer)?;
+        if bearer.is_none()
+            && !matches!(parts.method, Method::GET | Method::HEAD | Method::OPTIONS)
+        {
+            let config = Arc::<ServiceConfig>::from_ref(state);
+            require_cookie_request(&parts.headers, &config)
+                .map_err(|_| AuthError::CookieSecurity)?;
+        }
+        let claims = jwt.verify(&token)?;
         // Bilinmeyen rol = broadcaster'a düşürme; reddet (güvenli varsayılan).
         let role = Role::parse(&claims.role).ok_or(AuthError::Forbidden)?;
         Ok(AuthUser { claims, role })
@@ -95,6 +116,7 @@ impl<S> FromRequestParts<S> for AdminUser
 where
     S: Send + Sync,
     Arc<Jwt>: axum::extract::FromRef<S>,
+    Arc<ServiceConfig>: axum::extract::FromRef<S>,
 {
     type Rejection = AuthError;
 

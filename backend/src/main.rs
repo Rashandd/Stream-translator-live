@@ -10,6 +10,7 @@ use streamdubber_backend::{
     auth::bootstrap::BootstrapAdmin,
     auth::jwt::Jwt,
     auth::oauth_login::LoginProviders,
+    auth::session::SessionStore,
     billing::Billing,
     bindings::{self, ChannelBindingStore},
     ext_twitch::ExtTwitch,
@@ -560,6 +561,11 @@ async fn build_state(
             }
         };
 
+    let browser_sessions = Arc::new(match &db_pool {
+        Some(pool) => SessionStore::with_db(pool.clone()),
+        None => SessionStore::in_memory(),
+    });
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -586,6 +592,7 @@ async fn build_state(
         users: Arc::new(users),
         twofactor: Arc::new(TwoFactorStore::new()),
         auth_limiter: Arc::new(AuthLimiter::new()),
+        browser_sessions,
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
         stream_settings,

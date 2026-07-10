@@ -7,6 +7,7 @@ use axum::extract::FromRef;
 use crate::auth::bootstrap::BootstrapAdmin;
 use crate::auth::jwt::Jwt;
 use crate::auth::oauth_login::LoginProviders;
+use crate::auth::session::SessionStore;
 use crate::billing::Billing;
 use crate::bindings::ChannelBindingStore;
 use crate::config::ServiceConfig;
@@ -78,6 +79,8 @@ pub struct AppState {
     pub twofactor: Arc<TwoFactorStore>,
     /// `POST /api/auth/login` ve `/signup` brute-force koruması (per-IP, bellek içi).
     pub auth_limiter: Arc<AuthLimiter>,
+    /// HttpOnly browser cookie refresh sessions (hashed, rotating, revocable).
+    pub browser_sessions: Arc<SessionStore>,
     /// Panel → SDK komut kuyruğu (2.6b; bellek içi, tek seferlik teslim).
     pub sdk_commands: Arc<SdkCommandQueue>,
     /// Kullanıcı başına STT modu + benchmark sonucu (`STT_SETTINGS_FILE`).
@@ -132,6 +135,7 @@ impl AppState {
             users: Arc::new(UserStore::in_memory()),
             twofactor: Arc::new(TwoFactorStore::new()),
             auth_limiter: Arc::new(AuthLimiter::new()),
+            browser_sessions: Arc::new(SessionStore::in_memory()),
             sdk_commands: Arc::new(SdkCommandQueue::new()),
             stt_settings: Arc::new(SttSettingsStore::in_memory()),
             stream_settings: Arc::new(StreamSettingsStore::in_memory()),
@@ -284,6 +288,12 @@ impl FromRef<AppState> for Arc<UserStore> {
 impl FromRef<AppState> for Arc<TwoFactorStore> {
     fn from_ref(state: &AppState) -> Self {
         state.twofactor.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SessionStore> {
+    fn from_ref(state: &AppState) -> Self {
+        state.browser_sessions.clone()
     }
 }
 

@@ -91,6 +91,21 @@ impl BootstrapAdmin {
         // hangi alanın yanlış olduğu sızmaz.
         email_ok && password_ok
     }
+
+    /// Canonical delivery address for the second factor. It is exposed only
+    /// inside the backend and never included in session payloads.
+    pub fn email(&self) -> &str {
+        &self.email
+    }
+
+    /// Case-insensitive, constant-time identity check used after a 2FA code
+    /// has been consumed.
+    pub fn matches_email(&self, email: &str) -> bool {
+        constant_time_eq(
+            self.email.to_lowercase().as_bytes(),
+            email.trim().to_lowercase().as_bytes(),
+        )
+    }
 }
 
 /// Zamanlama saldırılarına karşı sabit zamanlı karşılaştırma.
