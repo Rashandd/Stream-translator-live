@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import en from "@/src/i18n/dictionaries/en.json";
-import { THEME_INIT_SCRIPT } from "@/src/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,15 +10,17 @@ export const metadata: Metadata = {
   description: en.brand.tagline,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <Script nonce={nonce} src="/theme-init.js" strategy="beforeInteractive" />
       </head>
       <body suppressHydrationWarning>{children}</body>
     </html>

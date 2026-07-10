@@ -26,9 +26,3 @@ export function applyTheme(theme: Theme) {
 export function persistTheme(theme: Theme) {
   window.localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
-
-/**
- * Inlined into <head> so the correct theme class is set before first paint
- * (no stored-preference flash of the wrong theme).
- */
-export const THEME_INIT_SCRIPT = `(function(){try{var k="${THEME_STORAGE_KEY}";var s=localStorage.getItem(k);var t=s==="light"||s==="dark"?s:(new Date().getHours()>=7&&new Date().getHours()<19?"light":"dark");if(t==="dark"){document.documentElement.classList.add("dark");}}catch(e){}})();`;
