@@ -1495,7 +1495,7 @@
       "submitLabel": "Verify and sign in",
       "resendLabel": "Resend code",
       "backLabel": "Back to sign in",
-      "devNotice": "Email delivery is not configured yet. Add a noreply sender (SMTP or API) below in Service routing; until then this step is a stub for development."
+      "devNotice": "Email delivery is not configured yet. Set the noreply sender via the config API (mail.* keys); until then this step is a stub for development."
     },
     "nav": {
       "ariaLabel": "Admin navigation",
@@ -1543,11 +1543,6 @@
               "label": "Secrets",
               "href": "/admin/secrets",
               "icon": "KeyRound"
-            },
-            {
-              "label": "Service routing",
-              "href": "/admin/routing",
-              "icon": "Route"
             },
             {
               "label": "Legal",
@@ -1819,96 +1814,6 @@
       "startLabel": "Start",
       "stopLabel": "Stop"
     },
-    "routing": {
-      "title": "Service routing",
-      "subtitle": "Switch providers without a deploy. Every choice is stored in config (DB) and applied at runtime — nothing here is hard-coded.",
-      "groups": [
-        {
-          "key": "stt",
-          "label": "Speech-to-text (STT)",
-          "providerConfigKey": "stt.provider",
-          "fallbackConfigKey": "stt.fallback",
-          "options": [
-            { "slug": "deepgram", "name": "Deepgram", "status": "enabled" },
-            { "slug": "assemblyai", "name": "AssemblyAI", "status": "enabled" },
-            { "slug": "faster-whisper", "name": "faster-whisper", "status": "coming_soon" },
-            { "slug": "hybrid", "name": "Hybrid", "status": "coming_soon" }
-          ],
-          "fallbackLabel": "Fallback",
-          "fallbackNone": "None"
-        },
-        {
-          "key": "translation",
-          "label": "Translation",
-          "providerConfigKey": "translate.provider",
-          "fallbackConfigKey": "translate.fallback",
-          "options": [
-            { "slug": "deepl", "name": "DeepL", "status": "enabled" },
-            { "slug": "google", "name": "Google Translate", "status": "enabled" },
-            { "slug": "hy-mt1.5", "name": "HY-MT1.5", "status": "coming_soon" },
-            { "slug": "hybrid", "name": "Hybrid", "status": "coming_soon" }
-          ],
-          "fallbackLabel": "Fallback",
-          "fallbackNone": "None"
-        },
-        {
-          "key": "tts",
-          "label": "Text-to-speech (TTS)",
-          "providerConfigKey": "tts.provider",
-          "fallbackConfigKey": "tts.fallback",
-          "options": [
-            { "slug": "elevenlabs", "name": "ElevenLabs", "status": "enabled" },
-            { "slug": "cartesia", "name": "Cartesia", "status": "coming_soon" },
-            { "slug": "xtts-v2", "name": "XTTS-v2", "status": "coming_soon" }
-          ],
-          "fallbackLabel": "Fallback",
-          "fallbackNone": "None"
-        }
-      ],
-      "fallbackRuleLabel": "Auto fallback rule",
-      "fallbackRule": "When the primary provider is busy or errors, traffic shifts to the fallback automatically.",
-      "loading": "Loading…",
-      "savingLabel": "Saving…",
-      "errors": {
-        "unauthorized": "Your admin session expired.",
-        "network": "Couldn't reach the server. Try again."
-      },
-      "signInLabel": "Sign in again",
-      "deeplLanguages": {
-        "title": "DeepL target languages",
-        "subtitle": "Choose which languages are offered to broadcasters platform-wide. Each plan still caps how many a broadcaster can pick at once.",
-        "loading": "Loading catalog…",
-        "saveLabel": "Save",
-        "savingLabel": "Saving…",
-        "savedLabel": "Saved",
-        "errorNetwork": "Could not reach the API.",
-        "errorSave": "Could not save the enabled language list."
-      },
-      "historyTitle": "Change history",
-      "historyEmpty": "No changes recorded yet.",
-      "history": [
-        {
-          "when": "—",
-          "what": "Defaults loaded from service_config seed.",
-          "who": "system"
-        }
-      ],
-      "emailSenderTitle": "Notification sender (noreply)",
-      "emailSenderNote": "Set the SMTP or API credentials used to send 2FA and report emails. Stored in Vault, never in code. Empty for now — login codes are stubbed until this is filled.",
-      "emailSenderFields": [
-        {
-          "label": "Provider",
-          "value": "Not set",
-          "placeholder": "SMTP / SendGrid / SES"
-        },
-        {
-          "label": "From address",
-          "value": "Not set",
-          "placeholder": "noreply@strovak.com"
-        }
-      ],
-      "saveLabel": "Save"
-    },
     "voiceModels": {
       "title": "Voice model approval queue",
       "subtitle": "Every cloned voice needs a human sign-off before it can be used live — consent and misuse risk, not a provider limitation.",
@@ -2085,7 +1990,7 @@
           "session": "—"
         }
       ],
-      "levelNote": "Minimum level is read from the log.level config key — change it from Service routing without a restart.",
+      "levelNote": "Minimum level is read from the log.level config key — change it via the config API without a restart.",
       "note": "Secrets are redacted before storage; only reference IDs are logged. Live entries stream from GET /admin/logs once the console is wired to the backend.",
       "liveBadge": "Live",
       "fallbackBadge": "Sample data (API unreachable)",
@@ -2123,7 +2028,7 @@
       },
       "signInLabel": "Go to admin sign-in",
       "maskNote": "Values are masked server-side: the API returns only the first and last characters of each secret (for example sk_l...3456). The full value never leaves the server.",
-      "note": "Keys resolve at call time, so a key saved here activates its provider on the next request. In production set providers.mock_fallback to false under Service routing so missing keys fail loudly instead of producing mock output."
+      "note": "Keys resolve at call time, so a key saved here activates its provider on the next request. In production set providers.mock_fallback to false via the config API so missing keys fail loudly instead of producing mock output."
     },
     "sttServers": {
       "title": "STT Servers",
@@ -2168,7 +2073,7 @@
         "provisionFailed": "Could not start installation."
       },
       "signInLabel": "Go to admin sign-in",
-      "note": "Once a server reports Ready, switch stt.provider to \"selfhosted\" under Service routing to send transcription there instead of Deepgram."
+      "note": "Once a server reports Ready, switch stt.provider to \"selfhosted\" via the config API to send transcription there instead of Deepgram."
     },
     "productionSetup": {
       "title": "Production Setup",
