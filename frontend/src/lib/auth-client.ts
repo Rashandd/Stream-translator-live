@@ -1,14 +1,18 @@
 /**
  * Yayıncı auth akışı yardımcıları (client-only).
  *
- * `POST /api/auth/login` tek uçtur: admin kimliği admin token'ı, yayıncı
- * kimliği yayıncı token'ı döndürür; SMTP yapılandırıldıysa yayıncı için
+ * `POST /api/auth/login` tek uçtur. Tarayıcıdan çağrıldığında (her zaman,
+ * `Origin` başlığı yüzünden) yanıt bir bearer token değil, HttpOnly
+ * `sd_access`/`sd_refresh`/`sd_csrf` çerezleri kuran bir `BrowserSession`
+ * gövdesidir (`backend/src/auth/session.rs::session_response`) — rol
+ * `data.role`'den okunur, çerezler zaten `Set-Cookie` ile kurulmuştur,
+ * burada saklanacak bir token yoktur. SMTP yapılandırıldıysa yayıncı için
  * 2FA kodu maillenir ve yanıt `two_factor_required` olur. 2FA bekleyen
  * e-posta sessionStorage'da tutulur — verify sayfası oradan okur (URL'e
  * e-posta yazılmaz).
  */
 
-import { API_URL, setAdminToken, setUserToken } from "@/src/lib/api";
+import { API_URL } from "@/src/lib/api";
 
 const PENDING_2FA_KEY = "sd.pending2fa.email";
 
@@ -24,12 +28,13 @@ export async function login(email: string, password: string): Promise<LoginOutco
   try {
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
     if (response.ok) {
       const data = (await response.json()) as {
-        token?: string;
+        authenticated?: boolean;
         role?: string;
         two_factor_required?: boolean;
       };
@@ -37,12 +42,10 @@ export async function login(email: string, password: string): Promise<LoginOutco
         savePending2faEmail(email);
         return { kind: "twofactor" };
       }
-      if (data.token && data.role === "admin") {
-        setAdminToken(data.token);
+      if (data.authenticated && data.role === "admin") {
         return { kind: "admin" };
       }
-      if (data.token) {
-        setUserToken(data.token);
+      if (data.authenticated) {
         return { kind: "broadcaster" };
       }
       return { kind: "invalid" };

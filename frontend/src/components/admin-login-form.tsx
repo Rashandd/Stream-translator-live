@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API_URL, setAdminToken } from "@/src/lib/api";
+import { API_URL } from "@/src/lib/api";
 
 type Labels = {
   emailLabel: string;
@@ -34,13 +34,17 @@ export function AdminLoginForm({ labels, redirectTo }: Props) {
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       if (response.ok) {
-        const data = (await response.json()) as { token: string };
-        setAdminToken(data.token);
-        window.location.assign(redirectTo);
+        const data = (await response.json()) as { authenticated?: boolean; role?: string };
+        if (data.authenticated && data.role === "admin") {
+          window.location.assign(redirectTo);
+          return;
+        }
+        setError(labels.errorInvalid);
         return;
       }
       setError(response.status === 503 ? labels.errorUnavailable : labels.errorInvalid);

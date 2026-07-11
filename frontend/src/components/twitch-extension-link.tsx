@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { adminFetch, getAdminToken } from "@/src/lib/api";
+import { adminFetch } from "@/src/lib/api";
 import { Icon } from "@/src/components/icon";
 
 /**
@@ -9,10 +9,13 @@ import { Icon } from "@/src/components/icon";
  *
  * Backend uçları gerçek ve testli (`/api/ext/twitch/code|binding`). Yayıncı
  * hesap sistemi (1.4 user backend'i) henüz olmadığı için oturum kaynağı,
- * V11 Google Connect emsalindeki gibi admin bootstrap token'ıdır
+ * V11 Google Connect emsalindeki gibi admin bootstrap oturumudur
  * (`adminFetch`): operatör akışı uçtan uca bugün doğrular, broadcaster
- * girişi gelince yalnız token kaynağı değişir. Oturum yoksa buton pasif
- * kalır ve `signInNote` gösterilir — kart dekoratife düşmez.
+ * girişi gelince yalnız oturum kaynağı değişir. Bu kart yalnızca
+ * `AuthGuard` ile korunan admin sayfalarında render edilir; oturum HttpOnly
+ * çerezde olduğu için client-side bir ön-kontrol mümkün değil — ilk fetch
+ * denenir, 401/403 gelirse `hasSession` false'a düşer ve `signInNote`
+ * gösterilir.
  */
 
 type Labels = {
@@ -38,7 +41,7 @@ type Binding = { linked: boolean; channels: string[] };
 type LinkCode = { code: string; expiresAt: number };
 
 export function TwitchExtensionLink({ labels }: Props) {
-  const [hasSession, setHasSession] = useState(false);
+  const [hasSession, setHasSession] = useState(true);
   const [serviceOff, setServiceOff] = useState(false);
   const [binding, setBinding] = useState<Binding | null>(null);
   const [code, setCode] = useState<LinkCode | null>(null);
@@ -75,10 +78,7 @@ export function TwitchExtensionLink({ labels }: Props) {
   }, [gate]);
 
   useEffect(() => {
-    if (getAdminToken()) {
-      setHasSession(true);
-      void refreshBinding();
-    }
+    void refreshBinding();
   }, [refreshBinding]);
 
   // Kod geri sayımı — süre dolunca kod kaybolur (backend'de de geçersizdir).

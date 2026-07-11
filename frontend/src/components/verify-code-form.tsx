@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_URL, setUserToken } from "@/src/lib/api";
+import { API_URL } from "@/src/lib/api";
 import { clearPending2faEmail, readPending2faEmail } from "@/src/lib/auth-client";
 
 type Labels = {
@@ -45,13 +45,13 @@ export function VerifyCodeForm({ labels, dashboardHref }: Props) {
     try {
       const response = await fetch(`${API_URL}/api/auth/2fa`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code }),
       });
       if (response.ok) {
-        const data = (await response.json()) as { token?: string };
-        if (data.token) {
-          setUserToken(data.token);
+        const data = (await response.json()) as { authenticated?: boolean };
+        if (data.authenticated) {
           clearPending2faEmail();
           window.location.assign(dashboardHref);
           return;
