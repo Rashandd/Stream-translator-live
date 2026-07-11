@@ -917,6 +917,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 #### 2.4 Twitch Extension
 - [x] Twitch Extension policy ve uyumluluk dokümanı  <!-- Codex 2026-07-03: docs/twitch-extension-policy.md; Faz 2 öncesi policy gate, review checklist, EBS/JWT, audio, UGC, Bits, mobile ve submission kuralları -->
 - [x] Uygulama planı (Faz 1 hazırlık / Faz 2 ayrımı)  <!-- Claude 2026-07-04: docs/twitch-extension-plan.md -->
+- [x] Production readiness execution plan  <!-- Codex 2026-07-11: docs/twitch-extension-production-readiness-plan.md; gerçek SDK→STT→çeviri→EBS zinciri, distributed state, worker pool, lifecycle, production rollout, Hosted Test ve rollback kapıları. -->
 - [x] Faz 2 hazırlık A1: overlay abone limiti + son N altyazı snapshot'ı (config-driven)  <!-- Claude 2026-07-04: backend/src/overlay, overlay.max_subscribers / overlay.snapshot_lines -->
 - [x] Faz 2 hazırlık A2: channel_bindings modeli + migration (platform-bağımsız; Kick/Chrome ext aynı depoyu kullanır)  <!-- Claude 2026-07-04: backend/src/bindings + 0002_channel_bindings.sql -->
 - [x] EBS backend: Twitch JWT doğrulama (rotasyonlu), kanal bağlama (kod-claim), caption state + canlı caption WS, per-viewer rate limit + per-channel viewer limiti, CORS  <!-- Claude 2026-07-04: backend/src/ext_twitch (+jwt.rs), TWITCH_EXT_SECRET(+_PREVIOUS), ext.twitch.* config (varsayılan KAPALI), 10 e2e test (tests/ext_twitch_api.rs). Overlay token viewer'a asla dönmez — sunucu içinde çözülür -->

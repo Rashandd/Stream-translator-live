@@ -160,6 +160,7 @@ Zorunlu:
 - Güvenlik: `docs/commands/security-check.md`
 - GitHub issue: `docs/commands/fix-issue.md`
 - Twitch Extension ops: `docs/twitch-extension-plan.md`
+- Twitch Extension production çıkışı: `docs/twitch-extension-production-readiness-plan.md`
 - Self-hosted STT tasarımı: `docs/local-stt-plan.md`, `docs/selfhosted-stt-plan.md`
 - Dashboard/admin spec: `docs/dashboard.md`
 
@@ -1912,21 +1913,21 @@ tek fonksiyonda izole tutulmalı.**
 
 ## Bölge F — Twitch Extension Aktifleştirme (çoğu ops)
 
-**Bugün:** EBS tamam (`backend/src/ext_twitch/mod.rs` — bind/state/WS, viewer
-limitleri, token izolasyonu), extension frontend tamam (`extension/js/viewer.js`,
-`config.js`), config anahtarları seed'li ama `ext.twitch.enabled=false`
-(`backend/src/config.rs:189-192` — bu, **BH-13**'ün `feature.twitch_extension.enabled`
-flag'iyle aynı amaca hizmet eder; çakışma yok, bkz. §0). `docs/twitch-extension-plan.md`
-kalanları: A5 (test hesapları), B5 (Hosted Test), B6 (review) — insan işi.
+**Bugün:** EBS adapter'ı (`backend/src/ext_twitch/mod.rs`) ve extension frontend'i
+(`extension/js/`) mock E2E seviyesinde tamamdır; ancak bu, gerçek STT→çeviri→viewer
+caption zincirinin production-ready olduğu anlamına gelmez. Frame-başına STT,
+process-local state, worker pool, viewer lifecycle ve dashboard broadcaster auth
+boşlukları vardır.
 
-**Yapılacak (agent kapsamında — F1):** (1) `GET /ext/twitch/state/{channel_id}` ve
-captions WS için uçtan uca smoke testi (config açık + binding + aktif yayın senaryosu
-— mevcut test altyapısıyla, **BH-13'ün gerçek gate mekanizmasına karşı**); (2)
-`docs/commands/security-check.md` / prod checklist'ine "prod'da
-`ext.twitch.enabled=true`/`feature.twitch_extension.enabled=true` + `TWITCH_EXT_SECRET`
-secret'ı girilecek" maddesi.
+**Yürütme kaynağı:** Extension'a özel code, test, operasyon, Hosted Test ve canary
+kapılarının tek kaynağı artık
+`docs/twitch-extension-production-readiness-plan.md`'dir. Bu bölüm yalnız birleşik
+hardening sırasını korur: F1 smoke, o dokümandaki PR-13/PR-16 kanıtlarının bir
+parçasıdır; `BH-13`, `BH-03/04/06`, `BH-10` ve `A2/A3` tamamlanmadan global activation
+yapılamaz.
 
-**Kapsam dışı (insan):** Twitch console kaydı, Hosted Test yükleme, review başvurusu.
+**Kapsam dışı (insan yetkisi):** Twitch console kaydı, DNS/TLS yayına alma, Hosted Test
+yükleme ve review başvurusu; agent bunlar için artefact ve runbook hazırlar.
 
 ---
 

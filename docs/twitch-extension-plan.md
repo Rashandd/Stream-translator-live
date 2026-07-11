@@ -3,7 +3,9 @@
 Durum: Kabul edildi — Faz 2 implementasyonu başladı (kullanıcı onayı 2026-07-04)
 Kapsam: StreamDubber Twitch Extension (viewer overlay + broadcaster config + EBS)
 Faz uyumu: Faz 1'de yalnız hazırlık (extension kodu YOK), Faz 2'de implementasyon
-Bağlı dokümanlar: `docs/twitch-extension-policy.md` (kabul edilmiş policy), `streamdubber_roadmap_final.md` §2.4, `DESIGN.md`
+Bağlı dokümanlar: `docs/twitch-extension-policy.md` (kabul edilmiş policy),
+`docs/twitch-extension-production-readiness-plan.md` (production code/ops gates),
+`streamdubber_roadmap_final.md` §2.4, `DESIGN.md`
 
 İlerleme (2026-07-04):
 
@@ -16,6 +18,10 @@ Bağlı dokümanlar: `docs/twitch-extension-policy.md` (kabul edilmiş policy), 
 - [ ] B6 review başvurusu (B5 sonrası)
 - Not: `ext.twitch.enabled` varsayılan **kapalı** — Faz 1 davranışı değişmedi;
   aktivasyon admin panelden (bkz. `infra/deploy.md` §7 kurulum sırası).
+- Not: B5/B6'ya geçmeden önce gerçek caption pipeline, distributed state, viewer
+  lifecycle ve broadcaster auth kapıları `twitch-extension-production-readiness-plan.md`
+  içindeki kanonik merge sırasıyla tamamlanmalıdır. Mevcut EBS/mock test başarısı tek
+  başına production activation izni değildir.
 
 ## Neden
 
