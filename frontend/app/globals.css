@@ -17,6 +17,16 @@
   --color-primary: 6 26 61;
   --color-primary-hover: 39 50 71;
 
+  /* Accent palette (DESIGN.md). Fixed across themes except where dark-mode
+     text contrast needs a touch more lightness (see :root.dark below). */
+  --color-cyan: 54 216 228;
+  --color-blue: 47 107 255;
+  --color-violet: 154 140 255;
+  --color-coral: 255 106 74;
+  --color-success: 19 166 107;
+  --color-warning: 245 158 11;
+  --color-danger: 216 58 70;
+
   --background: #f7f8fa;
   --foreground: #061a3d;
 }
@@ -30,8 +40,20 @@
   --color-faint: 92 107 130;
   --color-hairline: 28 42 66;
   --color-border: 36 52 79;
-  --color-primary: 63 111 255;
-  --color-primary-hover: 99 141 255;
+  --color-primary: 60 105 242;
+  --color-primary-hover: 78 111 201;
+
+  /* blue/danger are lightened just enough to keep body-text contrast (WCAG AA,
+     4.5:1) against --color-surface when used as plain foreground text, e.g.
+     links and error copy. Backgrounds only use these at low opacity, so the
+     shift is imperceptible there. */
+  --color-cyan: 54 216 228;
+  --color-blue: 68 122 255;
+  --color-violet: 154 140 255;
+  --color-coral: 255 106 74;
+  --color-success: 19 166 107;
+  --color-warning: 245 158 11;
+  --color-danger: 221 84 94;
 
   --background: #080f1c;
   --foreground: #f4f7fb;
@@ -82,7 +104,7 @@ textarea {
 }
 
 .legal-html {
-  color: #273247;
+  color: rgb(var(--color-text));
   font-size: 1rem;
   line-height: 1.8;
 }
@@ -94,7 +116,7 @@ textarea {
 .legal-html h1,
 .legal-html h2,
 .legal-html h3 {
-  color: #061a3d;
+  color: rgb(var(--color-ink));
   font-weight: 650;
   line-height: 1.2;
 }
@@ -112,7 +134,7 @@ textarea {
 }
 
 .legal-html a {
-  color: #2f6bff;
+  color: rgb(var(--color-blue));
   font-weight: 650;
 }
 
