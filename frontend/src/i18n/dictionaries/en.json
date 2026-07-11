@@ -1,8 +1,8 @@
 {
   "brand": {
     "name": "Strovak.com",
-    "logoAsset": "/logo-strovak.png",
-    "logoAssetDark": "/logo-strovak-dark.png",
+    "logoAsset": "/logo-strovak-green.png",
+    "logoAssetDark": "/logo-strovak-green-dark.png",
     "tagline": "Live translation. Voice cloning. Multistreaming."
   },
   "nav": {
