@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/src/components/icon";
-import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from "@/src/lib/theme";
+import { applyTheme, persistTheme, resolveInitialTheme, watchSystemTheme, type Theme } from "@/src/lib/theme";
 
 type ThemeToggleProps = {
   lightLabel?: string;
@@ -14,6 +14,10 @@ export function ThemeToggle({ lightLabel = "Switch to light theme", darkLabel = 
 
   useEffect(() => {
     setTheme(resolveInitialTheme());
+    return watchSystemTheme((next) => {
+      setTheme(next);
+      applyTheme(next);
+    });
   }, []);
 
   if (theme === null) {

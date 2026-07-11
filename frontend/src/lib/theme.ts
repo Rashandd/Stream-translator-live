@@ -1,13 +1,12 @@
 export const THEME_STORAGE_KEY = "streamdubber-theme";
 
+const DARK_MEDIA_QUERY = "(prefers-color-scheme: dark)";
+
 export type Theme = "light" | "dark";
 
-/**
- * No stored preference yet: default to dark outside local daytime hours
- * (07:00-19:00), matching the user's device clock.
- */
-export function themeForLocalHour(hour: number): Theme {
-  return hour >= 7 && hour < 19 ? "light" : "dark";
+/** No stored preference yet: default to whatever the OS/browser reports. */
+export function themeFromSystemPreference(): Theme {
+  return window.matchMedia(DARK_MEDIA_QUERY).matches ? "dark" : "light";
 }
 
 export function getStoredTheme(): Theme | null {
@@ -16,7 +15,7 @@ export function getStoredTheme(): Theme | null {
 }
 
 export function resolveInitialTheme(): Theme {
-  return getStoredTheme() ?? themeForLocalHour(new Date().getHours());
+  return getStoredTheme() ?? themeFromSystemPreference();
 }
 
 export function applyTheme(theme: Theme) {
@@ -25,4 +24,18 @@ export function applyTheme(theme: Theme) {
 
 export function persistTheme(theme: Theme) {
   window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+/**
+ * Follows the OS theme live as long as the user hasn't made an explicit
+ * choice (persistTheme wasn't called yet). Returns an unsubscribe function.
+ */
+export function watchSystemTheme(onChange: (theme: Theme) => void): () => void {
+  const media = window.matchMedia(DARK_MEDIA_QUERY);
+  const listener = (event: { matches: boolean }) => {
+    if (getStoredTheme() !== null) return;
+    onChange(event.matches ? "dark" : "light");
+  };
+  media.addEventListener("change", listener);
+  return () => media.removeEventListener("change", listener);
 }
