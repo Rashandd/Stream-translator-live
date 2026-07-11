@@ -27,9 +27,10 @@
      preview surfaces (OBS overlay preview). Distinct from --color-primary,
      which is a button/accent color — unsuitable for a section-sized fill. */
   --color-emphasis: 6 26 61;
-  /* Same idea, green-toned: the homepage "every setup covered" band. Fixed
-     across themes (not tuned per-theme like --color-emphasis) — a deep
-     forest green rather than the neon --color-primary. */
+  /* Same idea, green-toned: the homepage "every setup covered" band — a deep
+     forest green rather than the neon --color-primary. Dark theme uses an
+     even darker shade (see :root.dark) so it doesn't read as too bright next
+     to the near-black canvas. */
   --color-emphasis-green: 24 105 55;
 
   /* Accent palette (DESIGN.md). Fixed across themes except where dark-mode
@@ -72,7 +73,9 @@
      brand-navy band instead of vanishing into the page or clashing as a
      saturated block. */
   --color-emphasis: 16 23 63;
-  --color-emphasis-green: 24 105 55;
+  /* Darker than the light-theme value — the lighter green read as too bright
+     next to the near-black canvas. */
+  --color-emphasis-green: 14 60 32;
 
   /* blue/danger are tuned for dark mode: less saturated/bright than their
      light-theme hex so they don't read as neon against the near-black

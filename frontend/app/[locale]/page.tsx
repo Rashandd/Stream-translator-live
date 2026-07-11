@@ -38,7 +38,7 @@ export default async function HomePage({ params }: HomePageProps) {
     <main className="min-h-screen overflow-hidden">
       <SiteHeader config={config} locale={locale} />
 
-      <section className="mx-auto grid w-full max-w-7xl items-center gap-10 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-[0.92fr_1fr] lg:px-8 lg:pb-24 lg:pt-20">
+      <section className="mx-auto w-full max-w-7xl px-4 pb-16 pt-12 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
         <div className="max-w-3xl">
           <div className="mb-6 inline-flex rounded-full border border-cyan/25 bg-surface/80 px-4 py-2 text-sm font-semibold text-ink shadow-sm">
             {config.home.hero.eyebrow}
@@ -58,32 +58,6 @@ export default async function HomePage({ params }: HomePageProps) {
             </Link>
           </div>
           <p className="mt-4 text-sm leading-6 text-muted">{config.home.hero.note}</p>
-        </div>
-
-        <div className="relative min-h-[360px]">
-          <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_30%_25%,rgba(54,216,228,0.34),transparent_32%),radial-gradient(circle_at_68%_70%,rgba(154,140,255,0.24),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.92),rgba(238,246,251,0.86))] shadow-panel" />
-          <div className="relative flex min-h-[360px] flex-col justify-between rounded-[32px] border border-border bg-surface/58 p-6 backdrop-blur">
-            <div className="flex items-center justify-end">
-              <Icon className="h-6 w-6 text-blue" name="AudioLines" />
-            </div>
-            <div className="mx-auto flex h-36 w-full max-w-md items-center justify-center rounded-full border border-white/70 bg-surface/42">
-              <div className="h-20 w-20 rounded-full border border-cyan/35 bg-cyan/20" />
-              <div className="-ml-3 h-24 w-24 rounded-full border border-blue/25 bg-blue/15" />
-              <div className="-ml-4 h-16 w-16 rounded-full border border-violet/35 bg-violet/20" />
-            </div>
-            <div>
-              <p className="font-mono text-sm font-semibold text-blue">{config.home.scene.subtitle}</p>
-              <h2 className="mt-2 text-3xl font-semibold text-ink">{config.home.scene.title}</h2>
-              <div className="mt-5 grid gap-2">
-                {config.home.scene.items.map((item) => (
-                  <div className="flex items-center gap-3 rounded-full border border-white/70 bg-surface/78 px-4 py-3 text-sm font-medium text-muted" key={item}>
-                    <Icon className="h-4 w-4 shrink-0 text-blue" name="CheckCircle2" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
