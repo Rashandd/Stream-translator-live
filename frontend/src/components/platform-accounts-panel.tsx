@@ -168,7 +168,7 @@ export function PlatformAccountsPanel({ labels }: { labels: Labels }) {
                 className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   connected
                     ? "border border-border bg-surface text-ink hover:border-danger hover:text-danger"
-                    : "bg-primary text-white hover:bg-primary-hover"
+                    : "bg-primary text-on-primary hover:bg-primary-hover"
                 }`}
                 disabled={
                   account.disabled ||

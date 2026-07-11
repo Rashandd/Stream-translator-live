@@ -50,7 +50,7 @@ export default async function HomePage({ params }: HomePageProps) {
             {config.home.hero.summary}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-white transition hover:bg-primary-hover" href={localizePath(locale, config.home.hero.primaryCta.href)}>
+            <Link className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-on-primary transition hover:bg-primary-hover" href={localizePath(locale, config.home.hero.primaryCta.href)}>
               {config.home.hero.primaryCta.label}
             </Link>
             <Link className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-surface px-6 text-sm font-semibold text-ink transition hover:border-cyan hover:bg-cyan/10" href={localizePath(locale, config.home.hero.secondaryCta.href)}>

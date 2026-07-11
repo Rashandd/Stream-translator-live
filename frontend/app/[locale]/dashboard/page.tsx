@@ -44,7 +44,7 @@ export default async function DashboardOverviewPage({ params }: DashboardPagePro
           {overview.howItWorks.steps.map((step, index) => (
             <li className="rounded-lg border border-hairline bg-canvas p-4" key={step.title}>
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-on-primary">
                   {index + 1}
                 </span>
                 <Icon className="h-[18px] w-[18px] text-blue" name={step.icon} />

@@ -98,7 +98,7 @@ export default async function PricingPage({ params }: Props) {
               <Link
                 className={`mt-6 inline-flex h-11 items-center justify-center rounded-full px-5 text-sm font-semibold transition ${
                   plan.popular
-                    ? "bg-primary text-white hover:bg-primary-hover"
+                    ? "bg-primary text-on-primary hover:bg-primary-hover"
                     : "border border-border bg-surface text-ink hover:border-cyan hover:bg-cyan/10"
                 }`}
                 href={localizePath(locale, pricing.ctaHref)}

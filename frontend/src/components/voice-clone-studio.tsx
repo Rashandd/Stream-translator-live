@@ -409,7 +409,7 @@ export function VoiceCloneStudio({ labels }: { labels: Labels }) {
         </label>
 
         <button
-          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           disabled={submitting || recording}
           onClick={() => void submit()}
           type="button"

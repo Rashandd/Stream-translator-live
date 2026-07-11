@@ -14,19 +14,26 @@
   --color-faint: 152 162 179;
   --color-hairline: 232 238 245;
   --color-border: 215 224 234;
-  --color-primary: 6 26 61;
-  --color-primary-hover: 39 50 71;
+  /* Brand primary: Kick-inspired green. Deepened for light theme so it still
+     separates from a near-white page (raw neon has almost no contrast there);
+     dark theme uses the full neon (see :root.dark). Button/pill text pairs
+     with --color-on-primary, not a theme-flipping white/ink token, since a
+     bright green never suits white text. */
+  --color-primary: 12 163 55;
+  --color-primary-hover: 27 198 83;
+  --color-on-primary: 6 26 61;
 
   /* Deep "inverted band" background for full-bleed emphasis sections and dark
      preview surfaces (OBS overlay preview). Distinct from --color-primary,
-     which is a button/accent color and shifts to a bright blue in dark mode —
-     unsuitable for a section-sized fill. */
+     which is a button/accent color — unsuitable for a section-sized fill. */
   --color-emphasis: 6 26 61;
 
   /* Accent palette (DESIGN.md). Fixed across themes except where dark-mode
-     text contrast needs a touch more lightness (see :root.dark below). */
+     text contrast needs a touch more lightness (see :root.dark below).
+     --color-blue carries the same brand-green role as --color-primary but
+     tuned for use as plain text/icons (links, eyebrows, icon accents). */
   --color-cyan: 54 216 228;
-  --color-blue: 47 107 255;
+  --color-blue: 16 122 44;
   --color-violet: 154 140 255;
   --color-coral: 255 106 74;
   --color-success: 19 166 107;
@@ -49,8 +56,12 @@
   --color-faint: 108 109 116;
   --color-hairline: 35 35 39;
   --color-border: 45 45 51;
-  --color-primary: 62 95 192;
-  --color-primary-hover: 85 110 205;
+  /* Full Kick-neon green: pops hard against the near-black canvas (14:1+),
+     so button/pill text uses the same dark --color-on-primary as light theme
+     rather than flipping to white. */
+  --color-primary: 83 252 24;
+  --color-primary-hover: 58 181 10;
+  --color-on-primary: 6 26 61;
 
   /* A deep midnight indigo, not the neutral canvas/surface grays and not the
      bright accent blue — keeps emphasis sections reading as a deliberate
@@ -62,9 +73,10 @@
      light-theme hex so they don't read as neon against the near-black
      surface, while still clearing WCAG AA (4.5:1) as plain foreground text
      (links, error copy). Backgrounds only use these at low opacity, so the
-     shift is imperceptible there. */
+     shift is imperceptible there. --color-blue is the brand green's text/icon
+     shade, brightened relative to light theme for legibility on near-black. */
   --color-cyan: 54 216 228;
-  --color-blue: 100 137 222;
+  --color-blue: 90 230 100;
   --color-violet: 154 140 255;
   --color-coral: 255 106 74;
   --color-success: 19 166 107;

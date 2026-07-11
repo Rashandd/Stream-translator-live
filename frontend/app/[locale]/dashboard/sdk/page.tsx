@@ -50,7 +50,7 @@ export default async function SdkPage({ params }: Props) {
                   </span>
                   {href ? (
                     <a
-                      className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
                       download
                       href={href}
                     >

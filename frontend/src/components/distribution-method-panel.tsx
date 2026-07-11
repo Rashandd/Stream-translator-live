@@ -250,7 +250,7 @@ export function DistributionMethodPanel({ labels }: Props) {
 
                 {method.provider ? (
                   <button
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
                     disabled={!canConnect || connectBusy === method.provider}
                     onClick={() => void connect(method.provider as string)}
                     type="button"

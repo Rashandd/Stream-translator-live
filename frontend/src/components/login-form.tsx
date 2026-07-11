@@ -98,7 +98,7 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
         </p>
       ) : null}
       <button
-        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
         disabled={pending}
         type="submit"
       >

@@ -176,7 +176,7 @@ export function CaptionOverlayBuilder({
             ).map(([value, label]) => (
               <button
                 className={`flex-1 text-sm font-semibold transition ${
-                  state.position === value ? "bg-primary text-white" : "bg-surface text-ink hover:bg-canvas"
+                  state.position === value ? "bg-primary text-on-primary" : "bg-surface text-ink hover:bg-canvas"
                 }`}
                 key={value}
                 onClick={() => update("position", value)}

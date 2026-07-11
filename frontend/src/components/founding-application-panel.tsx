@@ -183,7 +183,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
         <p className="text-sm leading-6 text-muted">{labels.connectCta}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
             disabled={connectBusy === "youtube"}
             onClick={() => void connect("youtube")}
             type="button"
@@ -191,7 +191,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
             {labels.connectYoutubeLabel}
           </button>
           <button
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
             disabled={connectBusy === "twitch"}
             onClick={() => void connect("twitch")}
             type="button"
@@ -259,7 +259,7 @@ export function FoundingApplicationPanel({ labels }: { labels: Labels }) {
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <button
-          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
           disabled={submitting || channelUrl.trim().length === 0}
           type="submit"
         >

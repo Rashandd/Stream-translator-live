@@ -141,8 +141,8 @@ export function GoLivePanel({ labels, mode, isCloud }: { labels: Labels; mode: M
 
           <button
             aria-disabled={!ready}
-            className={`mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold text-white transition ${
-              ready ? "bg-primary hover:bg-primary-hover" : "cursor-not-allowed bg-faint"
+            className={`mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold transition ${
+              ready ? "bg-primary text-on-primary hover:bg-primary-hover" : "cursor-not-allowed bg-faint text-white"
             }`}
             disabled={!ready}
             type="button"

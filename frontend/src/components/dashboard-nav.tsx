@@ -51,12 +51,12 @@ export function DashboardNav({ ariaLabel, groups, statusLabels, locale, rootHref
               <Link
                 aria-current={active ? "page" : undefined}
                 className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
-                  active ? "bg-primary text-white" : "text-text hover:bg-surface hover:text-ink"
+                  active ? "bg-primary text-on-primary" : "text-text hover:bg-surface hover:text-ink"
                 }`}
                 href={localizePath(locale, item.href)}
                 key={item.href}
               >
-                <Icon className={`h-[18px] w-[18px] ${active ? "text-white" : "text-muted"}`} name={item.icon} />
+                <Icon className={`h-[18px] w-[18px] ${active ? "text-on-primary" : "text-muted"}`} name={item.icon} />
                 <span className="whitespace-nowrap">{item.label}</span>
                 {item.status ? (
                   <span className="hidden lg:ml-auto lg:block">

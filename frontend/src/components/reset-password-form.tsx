@@ -87,7 +87,7 @@ export function ResetPasswordForm({ labels, loginHref }: Props) {
           {labels.doneMessage}
         </p>
         <Link
-          className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover"
+          className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
           href={loginHref}
         >
           {labels.doneLoginLabel}
@@ -138,7 +138,7 @@ export function ResetPasswordForm({ labels, loginHref }: Props) {
           </p>
         ) : null}
         <button
-          className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+          className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
           disabled={pending || code.length !== 6}
           type="submit"
         >
@@ -170,7 +170,7 @@ export function ResetPasswordForm({ labels, loginHref }: Props) {
         </p>
       ) : null}
       <button
-        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+        className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
         disabled={pending}
         type="submit"
       >

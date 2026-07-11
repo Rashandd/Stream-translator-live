@@ -281,7 +281,7 @@ export function TtsProcessingPanel({ labels }: { labels: Labels }) {
               </span>
             ) : (
               <button
-                className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={saving || !localUnlocked}
                 onClick={() => void setMode("local")}
                 type="button"

@@ -168,7 +168,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
         <div className="mt-2 inline-flex flex-wrap gap-1 rounded-xl border border-border bg-canvas p-1">
           <button
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              sourceLang === "auto" ? "bg-primary text-white" : "text-text hover:bg-surface"
+              sourceLang === "auto" ? "bg-primary text-on-primary" : "text-text hover:bg-surface"
             }`}
             onClick={() => selectSource("auto")}
             type="button"
@@ -178,7 +178,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
           {enabledLanguages.map((lang) => (
             <button
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                sourceLang === lang.code ? "bg-primary text-white" : "text-text hover:bg-surface"
+                sourceLang === lang.code ? "bg-primary text-on-primary" : "text-text hover:bg-surface"
               }`}
               key={lang.code}
               onClick={() => selectSource(lang.code)}
@@ -236,7 +236,7 @@ export function TargetLanguagePicker({ labels }: { labels: Labels }) {
       {atLimit ? <p className="text-xs text-muted">{labels.limitReachedNote}</p> : null}
 
       <button
-        className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+        className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
         disabled={saving}
         onClick={() => void save()}
         type="button"

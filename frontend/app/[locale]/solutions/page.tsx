@@ -70,7 +70,7 @@ export default async function SolutionsPage({ params }: SolutionsPageProps) {
           </div>
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Link
-              className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-white transition hover:bg-primary-hover"
+              className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
               href={localizePath(locale, solutions.cta.primary.href)}
             >
               {solutions.cta.primary.label}

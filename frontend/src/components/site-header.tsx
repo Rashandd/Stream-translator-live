@@ -52,7 +52,7 @@ export function SiteHeader({ config, locale }: SiteHeaderProps) {
           {config.nav.signIn.label}
         </Link>
         <Link
-          className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover sm:px-5"
+          className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover sm:px-5"
           href={localizePath(locale, config.nav.cta.href)}
         >
           {config.nav.cta.label}

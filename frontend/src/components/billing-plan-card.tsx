@@ -133,7 +133,7 @@ export function BillingPlanCard({ displayPlans, livePlans, fallback, labels }: P
         <p className="mt-6 text-center text-xs font-medium text-muted">{labels.topPlanLabel}</p>
       ) : (
         <button
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-60"
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-60"
           disabled={checkoutState === "pending" || !nextPlan}
           onClick={() => void upgrade()}
           type="button"

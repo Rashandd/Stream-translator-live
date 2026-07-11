@@ -44,7 +44,7 @@ export default async function HowItWorksPage({ params }: Props) {
           {howItWorks.steps.map((step, index) => (
             <li className="rounded-xl border border-border bg-surface p-6" key={step.title}>
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
                   {index + 1}
                 </span>
                 <Icon className="h-6 w-6 text-blue" name={step.icon} />
@@ -76,7 +76,7 @@ export default async function HowItWorksPage({ params }: Props) {
           <h2 className="text-xl font-semibold text-ink">{howItWorks.ctaTitle}</h2>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white transition hover:bg-primary-hover"
+              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
               href={localizePath(locale, howItWorks.primaryCta.href)}
             >
               {howItWorks.primaryCta.label}

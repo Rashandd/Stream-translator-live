@@ -163,7 +163,7 @@ export function TwitchExtensionLink({ labels }: Props) {
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <button
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary opacity-50"
           disabled
           type="button"
         >
@@ -206,7 +206,7 @@ export function TwitchExtensionLink({ labels }: Props) {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <button
-          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
           disabled={busy}
           onClick={generate}
           type="button"
