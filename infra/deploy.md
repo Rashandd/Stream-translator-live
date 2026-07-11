@@ -121,6 +121,7 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `USERS_FILE` | `/data/users.enc` — yayıncı hesapları (1.4) şifreli kalıcı |
 | `SDK_SESSIONS_FILE` | `/data/sdk-sessions.enc` — eşleşmiş cihazların canlı presence kaydı (heartbeat secret) şifreli kalıcı |
 | `FOUNDING_APPS_FILE` | `/data/founding-apps.json` — founding beta başvuruları + onay durumu (düz JSON); boşsa onaylar restart'ta kaybolur |
+| `STT_SERVERS_FILE` | `/data/stt-servers.enc` — self-hosted GPU STT worker kayıtları (endpoint + bearer token) şifreli kalıcı; boşsa her backend redeploy'unda worker'ı admin panelden yeniden eklemen/provizyon etmen gerekir (bkz. §8) |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
@@ -159,8 +160,10 @@ erişilir. Yönetilen DB'ye geçiş istenirse `DATABASE_URL`'i değiştirmek yet
 3. Her key'i satırdaki **Test** butonuyla canlı doğrula; SMTP için
    **Admin → Production Setup**/mail testi kullan. SMTP girildiği anda
    yayıncı login'i otomatik e-posta 2FA'ya geçer (`auth.email_2fa=auto`).
-4. **Admin → Service routing**: `providers.mock_fallback` → `false`
-   (üretimde key eksikse mock çıktı yerine açık hata).
+4. `providers.mock_fallback` → `false` (üretimde key eksikse mock çıktı
+   yerine açık hata) — bu anahtarın artık panelde yüzeyi yok, config API'den
+   ayarlanır (bkz. §8'deki `PUT /admin/config` örneği; `key` olarak
+   `providers.mock_fallback`, `value` olarak `false` gönder).
 5. `stripe_price_id`'leri **Admin → Production Setup**'tan gir (Stripe
    Dashboard'da ürün/fiyat oluşturduktan sonra).
 6. Durumu **Admin → Production Setup** kartlarından doğrula (hepsi yeşil).
@@ -222,3 +225,85 @@ Kurulum sırası (Faz 2 aktivasyonu):
 1. Admin → Secrets: `TWITCH_EXT_SECRET` (Twitch console'daki base64 secret).
 2. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
 3. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.
+
+## 8. GPU worker (self-hosted STT) — OBS overlay için 3. makine
+
+Bu bölüm, yayıncının OBS'e Browser Source olarak yapıştırdığı overlay
+URL'inde (`https://strovak.com/o/{token}`) canlı altyazı görmesi için
+gereken üçüncü makineyi (NVIDIA GPU'lu bir sunucu) uçtan uca anlatır.
+Overlay zincirinin kendisi (SDK → backend WS → `OverlayHub` → `/overlay/{token}`
+→ bu frontend sayfası) kod olarak hazır ve tek backend instance'ı için
+çalışır durumda; eksik olan yalnızca bu worker'ın devreye alınması ve
+backend'e onu kullanmasının söylenmesidir.
+
+### 8a. Worker makinesi
+
+- NVIDIA GPU'lu bir sunucu (Vast.ai, Hetzner GPU, veya benzeri), SSH erişimi.
+- Admin panelden ekle: **Admin → STT servers** (`/admin/stt-servers`) →
+  yeni sunucu → host/SSH bilgileri. Backend, `infra/stt-server/bootstrap.sh`'ı
+  SSH üzerinden çalıştırıp Docker (varsayılan) veya bare-venv modunda
+  `stt-server/main.py` (FastAPI + faster-whisper) kurar ve `mark_ready` ile
+  endpoint + bearer token'ı kaydeder (`STT_SERVERS_FILE`'a şifreli yazılır —
+  §"Zorunlu env değişkenleri" tablosunda, bu env boşsa kayıt her backend
+  redeploy'unda kaybolur).
+- NAT arkasındaki sağlayıcılar (ör. Vast.ai port mapping) için sunucu
+  ekleme formundaki **Public endpoint override** alanını doldur — backend
+  bu adresi SSH'tan gördüğü iç adres yerine kullanır.
+- Worker varsayılan olarak `8443` portunda dinler (`STT_PORT`,
+  `bootstrap.sh`). Bootstrap script kendi `ufw allow ${STT_PORT}/tcp`
+  kuralını ekler — bu varsayılan olarak dünyaya açıktır (erişim bearer
+  token'la korunur ama savunma derinliği için) — **öneri:** bulut
+  sağlayıcının güvenlik grubunda bu portu yalnızca VPS'in IP'sine kısıtla.
+
+### 8b. Backend'e worker'ı kullanmasını söyle (elle adım — otomatik değil)
+
+Worker `Ready` durumuna geçtikten sonra backend onu **otomatik kullanmaya
+başlamaz** — varsayılan `stt.provider=deepgram`'dır ve
+`docs/backend-hardening-captions-plan.md`'de tarif edilen otomatik geçiş
+(`stt.selfhosted.autoactivate`) henüz implemente edilmedi. Eskiden bu
+anahtar **Admin → Service routing** panelinden değiştirilirdi; o sayfa
+kaldırıldığı için (tek karşılığı yoktu, config API'nin üstünde ince bir
+katmandı) artık doğrudan config API'den değiştirilir:
+
+```bash
+# Tarayıcısız (curl) çağrılar Origin göndermez, bu yüzden login klasik
+# bearer token döner (browser-only cookie akışının aksine) — script/CI
+# için tam uygun.
+TOKEN=$(curl -fsS -X POST https://api.strovak.com/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<ADMIN_EMAIL>","password":"<ADMIN_PASSWORD>"}' \
+  | jq -r .token)
+
+curl -fsS -X PUT https://api.strovak.com/admin/config \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"key":"stt.provider","value":"selfhosted"}'
+```
+
+`stt.fallback` (varsayılan `assemblyai`) worker çökerse devreye girer —
+o sağlayıcının key'i **Admin → Secrets**'te yoksa ve
+`providers.mock_fallback=false` ise (bkz. §4 adım 4) altyazı worker
+kesintisinde tamamen durur; kabul edilebilir bir MVP riski, ama bilerek.
+
+### 8c. Doğrulama
+
+1. `curl -H "Authorization: Bearer <worker-token>" https://<worker>:8443/health`
+   → GPU adı/VRAM döner.
+2. Admin panelde sunucu durumu **Ready**.
+3. `stt.provider=selfhosted` ayarlandıktan sonra bir test yayını başlat
+   (SDK ile) ve worker loglarında (`docker compose logs -f` worker'da veya
+   `stt-server.log`) `/transcribe` isteklerinin düştüğünü doğrula.
+4. `https://strovak.com/o/{token}` sayfasını (ve aynı URL'i OBS Browser
+   Source olarak) açıp canlı altyazının worker'dan geldiğini teyit et.
+
+### 8d. Bilinen MVP sınırları (kod değişikliği gerektirmez, bilerek kabul edilmiş)
+
+- **Overlay token her stream'de yeniden üretilir** (`ws/mod.rs`, UUID) —
+  yayıncı her yayın başlangıcında `/o/{token}` URL'ini OBS'e yeniden
+  yapıştırmalı. Kalıcı token Postgres'e taşınana kadar (hardening planı
+  Bölge D1) böyle kalacak.
+- **Overlay/aktif-stream durumu bellek-içi, tek instance'a bağlı** —
+  backend restart'ı canlı yayınları düşürür; yatay ölçekleme öncesi
+  Redis'e taşınması gerekir (hardening planı §6.1/BH-04/BH-06).
+- **Worker'a periyodik health check yok** — yalnız provizyon anında bir
+  kez kontrol edilir; worker yayın ortasında çökerse sessizce
+  `stt.fallback`'e düşer (ya da fallback yoksa altyazı durur).

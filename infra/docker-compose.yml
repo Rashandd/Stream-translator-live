@@ -22,6 +22,7 @@ services:
       RELAY_FILE: /data/relay.enc
       SDK_SESSIONS_FILE: /data/sdk-sessions.enc
       STT_SETTINGS_FILE: /data/stt-settings.json
+      STT_SERVERS_FILE: /data/stt-servers.enc
       USERS_FILE: /data/users.enc
       FOUNDING_APPS_FILE: /data/founding-apps.json
     volumes:
