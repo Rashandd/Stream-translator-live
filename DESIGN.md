@@ -13,11 +13,11 @@ colors:
   faint: "#98A2B3"
   border: "#D7E0EA"
   hairline: "#E8EEF5"
-  primary: "#061A3D"
-  primary-hover: "#273247"
-  on-primary: "#FFFFFF"
+  primary: "#0CA337"
+  primary-hover: "#1BC653"
+  on-primary: "#061A3D"
   accent-coral: "#FF6A4A"
-  accent-blue: "#2F6BFF"
+  accent-blue: "#107A2C"
   accent-violet: "#9A8CFF"
   accent-cyan: "#36D8E4"
   success: "#13A66B"
@@ -195,7 +195,7 @@ components:
     padding: 8px
   modal-overlay:
     backgroundColor: "{colors.overlay}"
-    textColor: "{colors.on-primary}"
+    textColor: "{colors.canvas}"
 ---
 
 ## Overview
@@ -206,7 +206,7 @@ The visual direction is inspired by Palabra's current public site: calm bright s
 
 StreamDubber should feel like a live broadcast control room made simple: fast to scan, confident, private, and operational. The first viewport should always communicate "audio-only cloud pipeline, live captions, translation, and multistream setup" without marketing fog.
 
-The Strovak logo is the visual anchor: deep navy wordmark, cyan-to-blue motion line, small violet audio accent, and generous white space. UI decisions should support that mark with dark navy text, clean white surfaces, precise SVG icons, and restrained blue/cyan/violet accents.
+The Strovak logo is the visual anchor: deep navy wordmark, a cyan-to-blue motion line with a small green accent, and generous white space. UI decisions should support that mark with dark navy text, clean white surfaces, precise SVG icons, and restrained green/blue/cyan/violet accents.
 
 Frontend must be internationalization-ready from the start. Development may ship with English copy only, but copy lives in locale dictionaries/config so Turkish and other languages can be added without rewriting components.
 
@@ -214,7 +214,7 @@ Frontend must be internationalization-ready from the start. Development may ship
 
 Use a mostly white and off-white foundation. The interface should breathe, but it must not become empty. Pair clean white surfaces with hairline borders, dark text, and a small number of vivid accents.
 
-Use blue and coral for active translation energy, language movement, and primary product moments. Use violet and cyan as secondary signal colors for latency, WebSocket, SDK pairing, and platform routing. Do not let violet dominate the whole app.
+`primary` and `accent-blue` are the brand action color — a Kick-inspired green, not blue, despite the token names (kept for backward compatibility with existing components/tooling). `primary` is what CTA buttons, active nav/tab states, and other filled brand surfaces use; `accent-blue` is the same brand color tuned for use as plain text, links, and icon accents. Use coral as the secondary energy color for supporting product moments. Use violet and cyan as secondary signal colors for latency, WebSocket, SDK pairing, and platform routing. Do not let violet or coral compete with green for attention — green is the one color that means "the primary action here."
 
 Status colors are functional, not decorative. Green means connected or healthy. Amber means degraded, setup needed, or nearing a limit. Red means failed, disconnected, blocked, or security risk.
 
@@ -226,25 +226,30 @@ Dark-theme token values (`frontend/app/globals.css`, `:root.dark`):
 
 | Token | Light | Dark |
 |---|---|---|
-| canvas | `#F7F8FA` | `#080F1C` |
-| surface | `#FFFFFF` | `#0F1829` |
-| ink | `#061A3D` | `#F4F7FB` |
-| text | `#273247` | `#C7D0DE` |
-| muted | `#68748A` | `#8B96A8` |
-| faint | `#98A2B3` | `#5C6B82` |
-| hairline | `#E8EEF5` | `#1C2A42` |
-| border | `#D7E0EA` | `#24344F` |
-| primary | `#061A3D` | `#3C69F2` |
-| primary-hover | `#273247` | `#4E6FC9` |
+| canvas | `#F7F8FA` | `#0D0D0F` |
+| surface | `#FFFFFF` | `#18181B` |
+| ink | `#061A3D` | `#F5F5F7` |
+| text | `#273247` | `#D1D2D6` |
+| muted | `#68748A` | `#9B9CA3` |
+| faint | `#98A2B3` | `#6C6D74` |
+| hairline | `#E8EEF5` | `#232327` |
+| border | `#D7E0EA` | `#2D2D33` |
+| primary | `#0CA337` | `#53FC18` |
+| primary-hover | `#1BC653` | `#3AB50A` |
+| on-primary | `#061A3D` | `#061A3D` |
+| emphasis | `#061A3D` | `#10173F` |
+| accent-blue | `#107A2C` | `#5AE664` |
 
-Accent colors (`cyan`, `violet`, `coral`, `success`, `warning`) keep their light-theme hex unchanged in dark mode — they already read clearly on both a white and a near-black surface. `blue` and `danger` get a slightly lightened dark-mode variant (`#447AFF`, `#DD545E`) so they still clear WCAG AA (4.5:1) when used as plain foreground text (links, error copy) against the dark `surface` color; at low opacity (backgrounds, tinted chips) the shift is imperceptible.
+`canvas`/`surface`/`text`/`muted`/`faint`/`hairline`/`border` are a neutral near-black foundation (Twitch/Discord-style dark UI) — almost no blue cast, so the theme reads as genuinely dark, not "dark blue." `emphasis` is a separate deep-navy token for full-bleed "inverted" sections and dark preview surfaces (the homepage "every setup covered" band, the OBS caption preview) — it is not the same token as `primary`, since `primary` is a bright accent color unsuitable for a section-sized fill.
+
+`primary` is the full Kick-style neon green in dark mode (`#53FC18`) — vivid enough on near-white to need a much deeper shade in light mode instead, or it disappears. Neither shade suits white button text, so both themes pair `primary` with the fixed dark `on-primary` (never a theme-flipping white/ink token — a bright green never suits white text). `accent-blue` carries the same brand-green role for plain text/links/icons, tuned brighter in dark mode for legibility against near-black; `cyan`, `violet`, `coral`, `success`, `warning` keep their light-theme hex unchanged in dark mode. `danger` gets a slightly lightened dark-mode variant (`#DD545E`) so it still clears WCAG AA (4.5:1) as plain foreground text against the dark `surface` color; at low opacity (backgrounds, tinted chips) these shifts are imperceptible.
 
 Rules:
 
 - Never invert or filter the light palette to produce dark mode. Tune each token so it still reads as "StreamDubber," not as a color-inverted accident.
-- `primary`/`primary-hover` flip from navy to a bright blue in dark mode — solid navy-on-near-black has no separation, so the CTA needs a genuinely different color, not just a lighter navy.
+- `primary` needs a real per-theme redesign, not just a lightness tweak: light theme uses a deep, saturated green (component contrast against a near-white page); dark theme uses the full neon (component contrast against near-black). Text on top of `primary` always uses `on-primary`, not white — check contrast in both themes whenever `primary`'s value changes.
 - Default theme follows the OS/browser `prefers-color-scheme`. An explicit user choice (the theme toggle) is stored and always wins over the system preference; the app should keep watching for OS preference changes only while no explicit choice has been made.
-- Brand marks (the Strovak logo) need their own dark-mode asset — recoloring navy wordmark pixels to `ink` is not enough on its own, since raster logo exports often carry invisible-on-white antialiasing fringe that becomes a visible light halo on a dark background. Any new logo export must be checked on both the light and dark canvas colors, not just white.
+- Brand marks (the Strovak logo) need their own dark-mode asset — recoloring navy wordmark pixels to `ink` is not enough on its own, since raster logo exports often carry invisible-on-white antialiasing fringe that becomes a visible light halo on a dark background, and very thin strokes (e.g. the tagline) need a more permissive fringe threshold than bold letterforms or they render gap-toothed. Any new logo export must be checked on both the light and dark canvas colors, not just white.
 
 ## Typography
 
