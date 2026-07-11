@@ -24,6 +24,7 @@ const config: Config = {
         // accent instead of navy-on-near-black.
         primary: withOpacity("--color-primary"),
         "primary-hover": withOpacity("--color-primary-hover"),
+        emphasis: withOpacity("--color-emphasis"),
         cyan: withOpacity("--color-cyan"),
         blue: withOpacity("--color-blue"),
         violet: withOpacity("--color-violet"),

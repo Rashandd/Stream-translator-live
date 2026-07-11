@@ -17,6 +17,12 @@
   --color-primary: 6 26 61;
   --color-primary-hover: 39 50 71;
 
+  /* Deep "inverted band" background for full-bleed emphasis sections and dark
+     preview surfaces (OBS overlay preview). Distinct from --color-primary,
+     which is a button/accent color and shifts to a bright blue in dark mode —
+     unsuitable for a section-sized fill. */
+  --color-emphasis: 6 26 61;
+
   /* Accent palette (DESIGN.md). Fixed across themes except where dark-mode
      text contrast needs a touch more lightness (see :root.dark below). */
   --color-cyan: 54 216 228;
@@ -45,6 +51,12 @@
   --color-border: 45 45 51;
   --color-primary: 62 95 192;
   --color-primary-hover: 85 110 205;
+
+  /* A deep midnight indigo, not the neutral canvas/surface grays and not the
+     bright accent blue — keeps emphasis sections reading as a deliberate
+     brand-navy band instead of vanishing into the page or clashing as a
+     saturated block. */
+  --color-emphasis: 16 23 63;
 
   /* blue/danger are tuned for dark mode: less saturated/bright than their
      light-theme hex so they don't read as neon against the near-black

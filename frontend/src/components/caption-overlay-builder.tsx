@@ -233,7 +233,7 @@ export function CaptionOverlayBuilder({
 
       <div>
         <p className="mb-2 text-xs font-medium text-muted">{labels.previewLabel}</p>
-        <div className="relative min-h-24 overflow-hidden rounded-lg bg-primary p-4">
+        <div className="relative min-h-24 overflow-hidden rounded-lg bg-emphasis p-4">
           <div style={{ ...style.container, position: "absolute" }}>
             <span style={style.caption}>{previewText}</span>
           </div>
