@@ -303,6 +303,21 @@ pub fn router(state: AppState) -> Router {
             "/api/auth/oauth/{provider}/callback",
             get(crate::auth::oauth_login::callback),
         )
+        // Hesap linkleme (auth zorunlu): girişli kullanıcı ayarlar ekranından
+        // ikinci bir login sağlayıcısı bağlar/kaldırır (bkz. oauth_login.rs
+        // modül dokümanı — aynı callback route'u login ile paylaşılır).
+        .route(
+            "/api/auth/oauth/identities",
+            get(crate::auth::oauth_login::list_identities),
+        )
+        .route(
+            "/api/auth/oauth/{provider}/link/start",
+            get(crate::auth::oauth_login::link_start),
+        )
+        .route(
+            "/api/auth/oauth/{provider}",
+            axum::routing::delete(crate::auth::oauth_login::unlink),
+        )
         .route("/admin/ping", get(admin_ping))
         .route("/config", get(get_config))
         .route("/admin/config", put(put_config))

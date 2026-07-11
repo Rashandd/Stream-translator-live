@@ -25,6 +25,18 @@
 //! Kick bilinçli olarak burada YOK: OAuth 2.1 + PKCE gerektiriyor (mevcut
 //! [`exchange_code`] sadece client_secret akışını biliyor) ve endpoint'leri
 //! (id.kick.com/api.kick.com) canlı doğrulanmadı — ayrı bir roadmap task'ı.
+//!
+//! **Hesap linkleme**: girişli bir kullanıcı ayarlar ekranından ikinci bir
+//! sağlayıcı bağlayabilir (örn. Google ile kayıt olan biri Twitch'i de
+//! bağlar). Bu, login akışının aynısını reuse eder — tek fark `state`'e
+//! `NO_USER_YET` yerine gerçek `user_id`'nin gömülmesi (bkz.
+//! `integrations::begin_inner`, aynı desen): `GET
+//! /api/auth/oauth/{provider}/link/start` (auth zorunlu, JSON authorize_url
+//! döner — `integrations::authorize` ile aynı desen, çünkü tarayıcı
+//! navigasyonu Authorization header taşıyamaz) → aynı
+//! `/api/auth/oauth/{provider}/callback` → `complete()` `state`'ten gerçek
+//! bir `user_id` çıktığını görünce yeni hesap açmak/login olmak yerine
+//! [`crate::users::UserStore::link_identity`] çağırır.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,15 +45,17 @@ use std::time::Duration;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
-use serde::Deserialize;
+use axum::Json;
+use serde::{Deserialize, Serialize};
 
+use crate::auth::authz::AuthUser;
 use crate::config::ServiceConfig;
 use crate::integrations::oauth::{exchange_code, OAuthProvider, StateStore};
 use crate::integrations::{urlencoding_light, CallbackQuery};
 use crate::logging::LogLevel;
 use crate::secrets::{names, SecretRef, SecretStore};
 use crate::state::AppState;
-use crate::users::{issue_user_token, LoginResponse, UserError, UserRecord};
+use crate::users::{issue_user_token, LoginResponse, OAuthIdentityInfo, UserError, UserRecord};
 #[cfg(test)]
 use crate::users::UserStore;
 
@@ -149,6 +163,23 @@ impl LoginProviders {
 
     /// authorize adımı: yayıncının yönlendirileceği sağlayıcı URL'sini kurar.
     async fn begin(&self, provider_name: &str, cfg: &ServiceConfig) -> Result<String, OAuthLoginError> {
+        self.authorize_url_for(NO_USER_YET, provider_name, cfg).await
+    }
+
+    /// Girişli bir kullanıcının hesabına ek bir sağlayıcı bağlamak için
+    /// authorize adımı — `begin` ile aynı, ama `state`'e placeholder yerine
+    /// gerçek `user_id` gömülür; `complete()` bunu görünce login/signup
+    /// yerine linkleme yapar.
+    async fn begin_link(&self, user_id: &str, provider_name: &str, cfg: &ServiceConfig) -> Result<String, OAuthLoginError> {
+        self.authorize_url_for(user_id, provider_name, cfg).await
+    }
+
+    async fn authorize_url_for(
+        &self,
+        user_id: &str,
+        provider_name: &str,
+        cfg: &ServiceConfig,
+    ) -> Result<String, OAuthLoginError> {
         let creds = self
             .providers
             .get(provider_name)
@@ -163,11 +194,13 @@ impl LoginProviders {
             .get("auth.oauth_redirect_base")
             .unwrap_or_else(|| "http://localhost:8080/api/auth/oauth".to_string());
         let redirect_uri = format!("{base}/{provider_name}/callback");
-        let state = self.states.issue(NO_USER_YET, provider_name, &redirect_uri);
+        let state = self.states.issue(user_id, provider_name, &redirect_uri);
         Ok(creds.provider.authorize_redirect(&client_id, &redirect_uri, &state))
     }
 
-    /// callback adımı: `code`'u token'a çevirir, sağlayıcıdan kimlik çeker,
+    /// callback adımı: `code`'u token'a çevirir, sağlayıcıdan kimlik çeker.
+    /// `state`'ten çıkan `user_id` gerçekse (bkz. `begin_link`) bunu mevcut
+    /// hesaba bağlar; `NO_USER_YET` ise normal login/signup akışı işler:
     /// var olan hesabı bulur ya da (e-posta çakışmıyorsa) yenisini açar, ve
     /// e-posta/şifre login'iyle aynı şekilde bir JWT döner.
     async fn complete(
@@ -176,8 +209,8 @@ impl LoginProviders {
         provider_name: &str,
         code: &str,
         state: &str,
-    ) -> Result<String, OAuthLoginError> {
-        let (_, stashed_provider, redirect_uri) =
+    ) -> Result<OAuthOutcome, OAuthLoginError> {
+        let (stashed_user, stashed_provider, redirect_uri) =
             self.states.consume(state).ok_or(OAuthLoginError::InvalidState)?;
         if stashed_provider != provider_name {
             return Err(OAuthLoginError::InvalidState);
@@ -206,8 +239,20 @@ impl LoginProviders {
         )
         .await?;
 
+        if stashed_user != NO_USER_YET {
+            app.users.link_identity(&stashed_user, provider_name, &identity.external_id)?;
+            app.logger.log(
+                LogLevel::Info,
+                "auth",
+                &format!("oauth account linked: {provider_name}"),
+                Some(&stashed_user),
+                None,
+            );
+            return Ok(OAuthOutcome::Linked { provider: provider_name.to_string() });
+        }
+
         if let Some(existing) = app.users.find_by_oauth(provider_name, &identity.external_id) {
-            return issue_token_string(app, &existing);
+            return issue_token_string(app, &existing).map(OAuthOutcome::LoggedIn);
         }
         if app.users.get(&identity.email).is_some() {
             return Err(OAuthLoginError::EmailExists);
@@ -227,8 +272,15 @@ impl LoginProviders {
             Some(&user.id),
             None,
         );
-        issue_token_string(app, &user)
+        issue_token_string(app, &user).map(OAuthOutcome::LoggedIn)
     }
+}
+
+/// `complete()` sonucu — login/signup mı yoksa mevcut hesaba bağlama mı.
+#[derive(Debug)]
+enum OAuthOutcome {
+    LoggedIn(String),
+    Linked { provider: String },
 }
 
 fn issue_token_string(app: &AppState, user: &UserRecord) -> Result<String, OAuthLoginError> {
@@ -345,6 +397,9 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
         OAuthLoginError::InvalidState => StatusCode::BAD_REQUEST,
         OAuthLoginError::Exchange(_) | OAuthLoginError::Identity(_) => StatusCode::BAD_GATEWAY,
         OAuthLoginError::EmailExists => StatusCode::CONFLICT,
+        OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => StatusCode::CONFLICT,
+        OAuthLoginError::Account(UserError::LastLoginMethod) => StatusCode::CONFLICT,
+        OAuthLoginError::Account(UserError::NotFound) => StatusCode::NOT_FOUND,
         OAuthLoginError::Account(_) | OAuthLoginError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
@@ -357,6 +412,78 @@ pub async fn start(Path(provider): Path<String>, State(app): State<AppState>) ->
         .await
         .map_err(|e| (oauth_login_status(&e), e.to_string()))?;
     Ok(Redirect::to(&url).into_response())
+}
+
+/// `begin`/`link_start` ile aynı şekil — `integrations::AuthorizeResponse`
+/// ile aynı desen: tarayıcı navigasyonu (`window.location.href = ...`)
+/// Authorization header taşıyamadığı için önce authenticated bir `fetch` ile
+/// URL alınır, sonra oraya gidilir.
+#[derive(Debug, Serialize)]
+pub struct LinkStartResponse {
+    pub authorize_url: String,
+}
+
+/// `GET /api/auth/oauth/{provider}/link/start` (auth zorunlu) — girişli
+/// kullanıcının hesabına ek bir sağlayıcı bağlamak için authorize URL'sini
+/// JSON olarak döner.
+pub async fn link_start(
+    user: AuthUser,
+    Path(provider): Path<String>,
+    State(app): State<AppState>,
+) -> Result<Json<LinkStartResponse>, (StatusCode, String)> {
+    let url = app
+        .oauth_login
+        .begin_link(&user.claims.sub, &provider, &app.service_config)
+        .await
+        .map_err(|e| (oauth_login_status(&e), e.to_string()))?;
+    Ok(Json(LinkStartResponse { authorize_url: url }))
+}
+
+/// `GET /api/auth/oauth/identities` yanıtı.
+#[derive(Debug, Serialize)]
+pub struct IdentitiesResponse {
+    /// Şifre de bir giriş yöntemidir — frontend son yöntemi unlink etmeden
+    /// önce bunu göz önünde bulundurur.
+    pub has_password: bool,
+    pub identities: Vec<OAuthIdentityInfo>,
+}
+
+/// `GET /api/auth/oauth/identities` (auth zorunlu) — bağlı giriş
+/// sağlayıcılarının listesi (ayarlar ekranı "Connected accounts").
+pub async fn list_identities(
+    user: AuthUser,
+    State(app): State<AppState>,
+) -> Result<Json<IdentitiesResponse>, (StatusCode, String)> {
+    let record = app
+        .users
+        .get_by_id(&user.claims.sub)
+        .ok_or((StatusCode::NOT_FOUND, "user not found".to_string()))?;
+    Ok(Json(IdentitiesResponse {
+        has_password: record.password_hash.is_some(),
+        identities: app.users.oauth_identities(&user.claims.sub),
+    }))
+}
+
+/// `DELETE /api/auth/oauth/{provider}` (auth zorunlu) — bir sağlayıcının
+/// bağlantısını kaldırır. Hesabın *son* giriş yöntemiyse 409 döner.
+pub async fn unlink(
+    user: AuthUser,
+    Path(provider): Path<String>,
+    State(app): State<AppState>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    app.users
+        .unlink_identity(&user.claims.sub, &provider)
+        .map(|_| StatusCode::NO_CONTENT)
+        .map_err(|err| {
+            let status = match err {
+                UserError::LastLoginMethod | UserError::OAuthIdentityTaken | UserError::AlreadyLinked => {
+                    StatusCode::CONFLICT
+                }
+                UserError::NotFound => StatusCode::NOT_FOUND,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, err.to_string())
+        })
 }
 
 /// `GET /api/auth/oauth/{provider}/callback` (sağlayıcıdan yönlendirme).
@@ -392,12 +519,20 @@ pub async fn callback(
     };
 
     match app.oauth_login.complete(&app, &provider, &code, &state).await {
-        Ok(token) => {
+        Ok(OAuthOutcome::LoggedIn(token)) => {
             app.logger.log(LogLevel::Info, "auth", &format!("oauth login completed via {provider}"), None, None);
             if frontend_base.is_empty() {
                 axum::Json(serde_json::json!({ "token": token })).into_response()
             } else {
                 let url = format!("{frontend_base}/login/oauth-complete#token={token}");
+                Redirect::to(&url).into_response()
+            }
+        }
+        Ok(OAuthOutcome::Linked { provider }) => {
+            if frontend_base.is_empty() {
+                axum::Json(serde_json::json!({ "linked": provider })).into_response()
+            } else {
+                let url = format!("{frontend_base}/dashboard/account?linked={provider}");
                 Redirect::to(&url).into_response()
             }
         }
@@ -507,12 +642,13 @@ mod tests {
         let state_param = begin_and_capture_state(&providers).await;
 
         let app = skeleton_state(UserStore::in_memory(), providers);
-        let token = app
+        let outcome = app
             .oauth_login
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("first login creates an account");
 
+        let OAuthOutcome::LoggedIn(token) = outcome else { panic!("expected a login outcome") };
         assert!(!token.is_empty());
         let user = app.users.find_by_oauth("google", "g-123").expect("account created");
         assert_eq!(user.email, "streamer@example.com");
@@ -532,11 +668,12 @@ mod tests {
         let app = skeleton_state(users, providers);
         let state_param = begin_and_capture_state(&app.oauth_login).await;
 
-        let token = app
+        let outcome = app
             .oauth_login
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("existing identity logs in");
+        let OAuthOutcome::LoggedIn(token) = outcome else { panic!("expected a login outcome") };
         assert!(!token.is_empty());
 
         // Still exactly one account for this identity — no duplicate created.
@@ -563,6 +700,123 @@ mod tests {
 
         // No new (OAuth-only) account was created for this identity.
         assert!(app.users.find_by_oauth("google", "g-123").is_none());
+    }
+
+    /// `begin_link()` üzerinden gerçek bir `state` üretip callback'in
+    /// bekleyeceği kod/state ikilisini simüle eder (linkleme akışı).
+    async fn begin_link_and_capture_state(providers: &LoginProviders, user_id: &str) -> String {
+        let url = providers.begin_link(user_id, "google", &cfg()).await.unwrap();
+        reqwest::Url::parse(&url)
+            .unwrap()
+            .query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.to_string())
+            .expect("state in authorize url")
+    }
+
+    #[tokio::test]
+    async fn complete_links_a_second_provider_to_the_currently_logged_in_account() {
+        let base = spawn_google_mock("streamer@example.com").await;
+        let providers = providers_with(&base, true);
+
+        let users = UserStore::in_memory();
+        let existing = users.signup("existing@example.com", "hunter2-strong", "free").unwrap();
+        let app = skeleton_state(users, providers);
+        let state_param = begin_link_and_capture_state(&app.oauth_login, &existing.id).await;
+
+        let outcome = app
+            .oauth_login
+            .complete(&app, "google", "code-1", &state_param)
+            .await
+            .expect("link succeeds");
+        assert!(matches!(outcome, OAuthOutcome::Linked { provider } if provider == "google"));
+
+        let linked = app.users.find_by_oauth("google", "g-123").expect("identity now resolves");
+        assert_eq!(linked.id, existing.id);
+    }
+
+    #[tokio::test]
+    async fn complete_rejects_linking_an_identity_already_owned_by_another_account() {
+        let base = spawn_google_mock("streamer@example.com").await;
+        let providers = providers_with(&base, true);
+
+        let users = UserStore::in_memory();
+        users.create_oauth_user("google", "g-123", "owner@example.com", "free").unwrap();
+        let other = users.signup("other@example.com", "hunter2-strong", "free").unwrap();
+        let app = skeleton_state(users, providers);
+        let state_param = begin_link_and_capture_state(&app.oauth_login, &other.id).await;
+
+        let err = app
+            .oauth_login
+            .complete(&app, "google", "code-1", &state_param)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, OAuthLoginError::Account(UserError::OAuthIdentityTaken)));
+    }
+
+    fn authed(user_id: &str) -> crate::auth::authz::AuthUser {
+        crate::auth::authz::AuthUser {
+            claims: crate::auth::jwt::Claims {
+                sub: user_id.to_string(),
+                role: "broadcaster".to_string(),
+                plan: "free".to_string(),
+                exp: chrono::Utc::now().timestamp() + 3600,
+            },
+            role: crate::auth::authz::Role::Broadcaster,
+        }
+    }
+
+    #[tokio::test]
+    async fn link_start_returns_an_authorize_url_for_the_logged_in_user() {
+        let providers = providers_with("http://unused", true);
+        let users = UserStore::in_memory();
+        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let app = skeleton_state(users, providers);
+
+        let Json(resp) = link_start(authed(&user.id), Path("google".to_string()), State(app))
+            .await
+            .expect("link start succeeds");
+        assert!(resp.authorize_url.starts_with("http://unused/authorize?"));
+        assert!(resp.authorize_url.contains("state="));
+    }
+
+    #[tokio::test]
+    async fn list_identities_reports_password_and_linked_providers() {
+        let users = UserStore::in_memory();
+        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        users.link_identity(&user.id, "twitch", "t-1").unwrap();
+        let app = skeleton_state(users, LoginProviders::empty());
+
+        let Json(resp) = list_identities(authed(&user.id), State(app)).await.expect("list succeeds");
+        assert!(resp.has_password);
+        assert_eq!(resp.identities.len(), 1);
+        assert_eq!(resp.identities[0].provider, "twitch");
+    }
+
+    #[tokio::test]
+    async fn unlink_rejects_removing_the_only_login_method() {
+        let users = UserStore::in_memory();
+        let user = users.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
+        let app = skeleton_state(users, LoginProviders::empty());
+
+        let err = unlink(authed(&user.id), Path("google".to_string()), State(app))
+            .await
+            .unwrap_err();
+        assert_eq!(err.0, StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn unlink_removes_a_linked_provider_when_another_method_remains() {
+        let users = UserStore::in_memory();
+        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        users.link_identity(&user.id, "twitch", "t-1").unwrap();
+        let app = skeleton_state(users, LoginProviders::empty());
+
+        let status = unlink(authed(&user.id), Path("twitch".to_string()), State(app.clone()))
+            .await
+            .expect("unlink succeeds");
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(app.users.find_by_oauth("twitch", "t-1").is_none());
     }
 
     #[test]

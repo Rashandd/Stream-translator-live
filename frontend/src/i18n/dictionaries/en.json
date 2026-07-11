@@ -280,6 +280,11 @@
               "icon": "Share2"
             },
             {
+              "label": "Sign-in accounts",
+              "href": "/dashboard/account",
+              "icon": "KeyRound"
+            },
+            {
               "label": "Desktop app",
               "href": "/dashboard/sdk",
               "icon": "Download"
@@ -615,6 +620,38 @@
           "failed": "Request failed — try again in a moment."
         },
         "icon": "Subtitles"
+      }
+    },
+    "account": {
+      "title": "Sign-in accounts",
+      "subtitle": "Manage which providers can log you into Strovak — link a second one so you're never locked out.",
+      "passwordLabel": "Password",
+      "passwordSetHint": "You can sign in with your email and password.",
+      "passwordNotSetHint": "No password set — you sign in only through the providers below.",
+      "linkLabel": "Link",
+      "linkingLabel": "Linking…",
+      "unlinkLabel": "Unlink",
+      "unlinkingLabel": "Unlinking…",
+      "linkedLabel": "Linked",
+      "notLinkedLabel": "Not linked",
+      "lastMethodNotice": "This is your only sign-in method — link another provider or set a password before unlinking it.",
+      "linkedBanner": "{provider} account linked.",
+      "providers": [
+        {
+          "name": "Google (YouTube)",
+          "provider": "google",
+          "icon": "Video"
+        },
+        {
+          "name": "Twitch",
+          "provider": "twitch",
+          "icon": "Radio"
+        }
+      ],
+      "errors": {
+        "unauthorized": "Your session is missing or expired. Sign in again to manage sign-in accounts.",
+        "network": "Could not reach the backend — check your connection and try again.",
+        "actionFailed": "The backend could not complete this action."
       }
     },
     "captions": {

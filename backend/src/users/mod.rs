@@ -77,6 +77,10 @@ pub enum UserError {
     EmailTaken,
     #[error("this provider account is already linked to a different user")]
     OAuthIdentityTaken,
+    #[error("this provider is already linked to your account")]
+    AlreadyLinked,
+    #[error("cannot unlink your only sign-in method — set a password or link another provider first")]
+    LastLoginMethod,
     #[error("invalid email address")]
     InvalidEmail,
     #[error("password must be at least {MIN_PASSWORD_LEN} characters")]
@@ -93,11 +97,47 @@ pub enum UserError {
     Internal(String),
 }
 
+/// Bir hesaba, birincil sağlayıcı dışında sonradan bağlanan ek bir OAuth
+/// kimliği (bkz. `UserStore::link_identity`). Birincil kimlik hâlâ
+/// `UserRecord::oauth_provider`/`oauth_external_id`'de yaşar — bu tip yalnızca
+/// *ikinci ve sonrası* bağlamalar içindir, bu yüzden çoğu hesapta boştur.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkedIdentity {
+    pub provider: String,
+    pub external_id: String,
+    pub linked_at_ms: i64,
+}
+
+/// `GET /api/auth/oauth/identities` yanıtındaki tek bir satır — hem birincil
+/// hem sonradan bağlanan kimlikler bu ortak şekle dönüştürülür.
+#[derive(Debug, Clone, Serialize)]
+pub struct OAuthIdentityInfo {
+    pub provider: String,
+    /// Birincil kimlik için `None` (bağlanma anı ayrıca tutulmuyor, hesap
+    /// oluşturulma anıyla aynı — `created_at_ms` frontend'de zaten var).
+    pub linked_at_ms: Option<i64>,
+}
+
 /// E-posta (lowercase) → kayıt deposu; opsiyonel şifreli dosya + DB yansıması.
 pub struct UserStore {
     entries: RwLock<HashMap<String, UserRecord>>,
+    /// `user_id` → sonradan bağlanan ek kimlikler (birincil hariç, bkz.
+    /// [`LinkedIdentity`]). Ayrı kilit — sık okunan `entries`'i linkleme gibi
+    /// nadir bir işlemle birlikte kilitlememek için.
+    links: RwLock<HashMap<String, Vec<LinkedIdentity>>>,
     persist: Option<(PathBuf, Cipher)>,
     db: Option<sqlx::PgPool>,
+}
+
+/// Şifreli dosyaya yazılan/okunan tam görüntü. `links` alanı sonradan
+/// eklendi — eski dosyalarda hiç yok, bu yüzden `#[serde(default)]`;
+/// `users` ise zorunlu kalır ki eski düz `{email: UserRecord}` formatı bu
+/// struct'a yanlışlıkla parse olmasın (bkz. `load_entries`).
+#[derive(Serialize, Deserialize, Default)]
+struct StoreSnapshot {
+    users: HashMap<String, UserRecord>,
+    #[serde(default)]
+    links: HashMap<String, Vec<LinkedIdentity>>,
 }
 
 impl UserStore {
@@ -105,6 +145,7 @@ impl UserStore {
     pub fn in_memory() -> Self {
         UserStore {
             entries: RwLock::new(HashMap::new()),
+            links: RwLock::new(HashMap::new()),
             persist: None,
             db: None,
         }
@@ -114,9 +155,10 @@ impl UserStore {
     pub fn with_file(path: impl Into<PathBuf>, key: &[u8]) -> Result<Self, UserError> {
         let path = path.into();
         let cipher = Cipher::new(key).map_err(|e| UserError::Crypto(e.to_string()))?;
-        let entries = load_entries(&path, &cipher)?;
+        let snapshot = load_entries(&path, &cipher)?;
         Ok(UserStore {
-            entries: RwLock::new(entries),
+            entries: RwLock::new(snapshot.users),
+            links: RwLock::new(snapshot.links),
             persist: Some((path, cipher)),
             db: None,
         })
@@ -214,17 +256,147 @@ impl UserStore {
     }
 
     /// Sağlayıcı kimliğiyle (ör. Google `sub`, Twitch kullanıcı ID'si) kayıt
-    /// arar. Küçük kullanıcı sayısında (Faz 1) doğrusal tarama yeterli —
-    /// e-posta anahtarlı map'e ikinci bir index eklemeye değmez.
+    /// arar — hem birincil kimlik (`UserRecord` sütunları) hem sonradan
+    /// `link_identity` ile bağlanmış kimlikler aranır. Küçük kullanıcı
+    /// sayısında (Faz 1) doğrusal tarama yeterli — e-posta anahtarlı map'e
+    /// ikinci bir index eklemeye değmez.
     pub fn find_by_oauth(&self, provider: &str, external_id: &str) -> Option<UserRecord> {
-        self.entries.read().ok().and_then(|m| {
+        let by_primary = self.entries.read().ok().and_then(|m| {
             m.values()
                 .find(|r| {
                     r.oauth_provider.as_deref() == Some(provider)
                         && r.oauth_external_id.as_deref() == Some(external_id)
                 })
                 .cloned()
-        })
+        });
+        if by_primary.is_some() {
+            return by_primary;
+        }
+        let user_id = self.links.read().ok().and_then(|m| {
+            m.iter()
+                .find(|(_, list)| list.iter().any(|l| l.provider == provider && l.external_id == external_id))
+                .map(|(user_id, _)| user_id.clone())
+        })?;
+        self.get_by_id(&user_id)
+    }
+
+    /// Toplam giriş yöntemi sayısı: şifre (varsa) + birincil OAuth kimliği
+    /// (varsa) + sonradan bağlanan her kimlik. Son yöntemin unlink'lenip
+    /// hesabın kilitlenmesini engellemek için kullanılır.
+    fn login_method_count(&self, user: &UserRecord) -> usize {
+        let mut n = usize::from(user.password_hash.is_some()) + usize::from(user.oauth_provider.is_some());
+        n += self
+            .links
+            .read()
+            .ok()
+            .and_then(|m| m.get(&user.id).map(Vec::len))
+            .unwrap_or(0);
+        n
+    }
+
+    /// Zaten girişli bir kullanıcının hesabına ek bir sağlayıcı bağlar (örn.
+    /// Google ile kayıt olmuş bir yayıncı Twitch'i de bağlar). Kimlik
+    /// (provider, external_id) — birincil sütun olarak ya da daha önce
+    /// linklenmiş olarak — başka bir hesaba aitse reddedilir; bu hesaba zaten
+    /// bağlıysa idempotent olarak başarı döner.
+    pub fn link_identity(&self, user_id: &str, provider: &str, external_id: &str) -> Result<(), UserError> {
+        let user = self.get_by_id(user_id).ok_or(UserError::NotFound)?;
+        if user.oauth_provider.as_deref() == Some(provider) {
+            if user.oauth_external_id.as_deref() == Some(external_id) {
+                return Ok(()); // zaten bu kimlikle birincil olarak bağlı
+            }
+            return Err(UserError::AlreadyLinked);
+        }
+        let taken_as_primary = self.entries.read().ok().is_some_and(|m| {
+            m.values().any(|r| {
+                r.id != user_id
+                    && r.oauth_provider.as_deref() == Some(provider)
+                    && r.oauth_external_id.as_deref() == Some(external_id)
+            })
+        });
+        if taken_as_primary {
+            return Err(UserError::OAuthIdentityTaken);
+        }
+
+        let mut links = self
+            .links
+            .write()
+            .map_err(|_| UserError::Internal("links lock poisoned".into()))?;
+        for (uid, list) in links.iter() {
+            if list.iter().any(|l| l.provider == provider && l.external_id == external_id) {
+                return if uid == user_id { Ok(()) } else { Err(UserError::OAuthIdentityTaken) };
+            }
+        }
+        let entry = links.entry(user_id.to_string()).or_default();
+        if entry.iter().any(|l| l.provider == provider) {
+            return Err(UserError::AlreadyLinked);
+        }
+        entry.push(LinkedIdentity {
+            provider: provider.to_string(),
+            external_id: external_id.to_string(),
+            linked_at_ms: chrono::Utc::now().timestamp_millis(),
+        });
+        drop(links);
+        self.save()?;
+        self.persist_link_db(user_id.to_string(), provider.to_string(), external_id.to_string());
+        Ok(())
+    }
+
+    /// Bir sağlayıcının bağlantısını kaldırır (birincil ya da sonradan
+    /// bağlanmış fark etmez). Bu, hesabın *son* giriş yöntemiyse reddedilir
+    /// — kullanıcı kendini hesabından dışarıda bırakmasın diye.
+    pub fn unlink_identity(&self, user_id: &str, provider: &str) -> Result<(), UserError> {
+        let user = self.get_by_id(user_id).ok_or(UserError::NotFound)?;
+        let is_primary = user.oauth_provider.as_deref() == Some(provider);
+        let has_linked = self
+            .links
+            .read()
+            .ok()
+            .is_some_and(|m| m.get(user_id).is_some_and(|list| list.iter().any(|l| l.provider == provider)));
+        if !is_primary && !has_linked {
+            return Err(UserError::NotFound);
+        }
+        if self.login_method_count(&user) <= 1 {
+            return Err(UserError::LastLoginMethod);
+        }
+
+        if has_linked {
+            let mut links = self
+                .links
+                .write()
+                .map_err(|_| UserError::Internal("links lock poisoned".into()))?;
+            if let Some(list) = links.get_mut(user_id) {
+                list.retain(|l| l.provider != provider);
+            }
+        }
+        if is_primary {
+            self.update(&user.email, |r| {
+                r.oauth_provider = None;
+                r.oauth_external_id = None;
+            })?;
+        } else {
+            self.save()?;
+        }
+        self.remove_link_db(user_id.to_string(), provider.to_string());
+        Ok(())
+    }
+
+    /// Bir kullanıcının tüm giriş kimlikleri (birincil + sonradan bağlanan),
+    /// ayarlar ekranında "Connected accounts" listesi için.
+    pub fn oauth_identities(&self, user_id: &str) -> Vec<OAuthIdentityInfo> {
+        let mut out = Vec::new();
+        if let Some(provider) = self.get_by_id(user_id).and_then(|u| u.oauth_provider) {
+            out.push(OAuthIdentityInfo { provider, linked_at_ms: None });
+        }
+        if let Ok(map) = self.links.read() {
+            if let Some(list) = map.get(user_id) {
+                out.extend(list.iter().map(|l| OAuthIdentityInfo {
+                    provider: l.provider.clone(),
+                    linked_at_ms: Some(l.linked_at_ms),
+                }));
+            }
+        }
+        out
     }
 
     /// E-posta + şifre doğrulaması. Kullanıcı yokken de, ya da hesabın
@@ -351,11 +523,18 @@ impl UserStore {
         let Some((path, cipher)) = &self.persist else {
             return Ok(());
         };
-        let snapshot: HashMap<String, UserRecord> = self
-            .entries
-            .read()
-            .map_err(|_| UserError::Internal("user lock poisoned".into()))?
-            .clone();
+        let snapshot = StoreSnapshot {
+            users: self
+                .entries
+                .read()
+                .map_err(|_| UserError::Internal("user lock poisoned".into()))?
+                .clone(),
+            links: self
+                .links
+                .read()
+                .map_err(|_| UserError::Internal("links lock poisoned".into()))?
+                .clone(),
+        };
         let json = serde_json::to_string(&snapshot)?;
         let sealed = cipher
             .encrypt_str(&json)
@@ -378,6 +557,53 @@ impl UserStore {
         handle.spawn(async move {
             if let Err(err) = upsert_user(&pool, &record).await {
                 tracing::warn!(error = %err, user = %record.id, "user db persist failed");
+            }
+        });
+    }
+
+    /// `user_oauth_links` yansıması — sonradan bağlanan kimlikler içindir
+    /// (birincil kimlik zaten `upsert_user` ile `users` tablosuna yazılır).
+    fn persist_link_db(&self, user_id: String, provider: String, external_id: String) {
+        let Some(pool) = self.db.clone() else {
+            return;
+        };
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        handle.spawn(async move {
+            let result = sqlx::query(
+                "INSERT INTO user_oauth_links (user_id, provider, external_id)
+                 VALUES ($1::uuid, $2, $3)
+                 ON CONFLICT (user_id, provider) DO UPDATE SET
+                     external_id = EXCLUDED.external_id, linked_at = NOW()",
+            )
+            .bind(&user_id)
+            .bind(&provider)
+            .bind(&external_id)
+            .execute(&pool)
+            .await;
+            if let Err(err) = result {
+                tracing::warn!(error = %err, user_id, "oauth link db persist failed");
+            }
+        });
+    }
+
+    /// `user_oauth_links` satırını siler (unlink yansıması).
+    fn remove_link_db(&self, user_id: String, provider: String) {
+        let Some(pool) = self.db.clone() else {
+            return;
+        };
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        handle.spawn(async move {
+            let result = sqlx::query("DELETE FROM user_oauth_links WHERE user_id = $1::uuid AND provider = $2")
+                .bind(&user_id)
+                .bind(&provider)
+                .execute(&pool)
+                .await;
+            if let Err(err) = result {
+                tracing::warn!(error = %err, user_id, "oauth link db remove failed");
             }
         });
     }
@@ -417,16 +643,23 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     Ok(())
 }
 
-fn load_entries(path: &Path, cipher: &Cipher) -> Result<HashMap<String, UserRecord>, UserError> {
+/// Şifreli dosyayı okur. `links` alanı sonradan eklendiği için eski
+/// dosyalar düz `{email: UserRecord}` formatındadır — `StoreSnapshot` olarak
+/// parse başarısız olursa (zorunlu `users` alanı yoksa) düz map'e düşülür.
+fn load_entries(path: &Path, cipher: &Cipher) -> Result<StoreSnapshot, UserError> {
     let sealed = match std::fs::read_to_string(path) {
         Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(HashMap::new()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(StoreSnapshot::default()),
         Err(e) => return Err(UserError::Io(e)),
     };
     let json = cipher
         .decrypt_str(sealed.trim())
         .map_err(|e| UserError::Crypto(format!("users file unreadable: {e}")))?;
-    Ok(serde_json::from_str(&json)?)
+    if let Ok(snapshot) = serde_json::from_str::<StoreSnapshot>(&json) {
+        return Ok(snapshot);
+    }
+    let users: HashMap<String, UserRecord> = serde_json::from_str(&json)?;
+    Ok(StoreSnapshot { users, links: HashMap::new() })
 }
 
 /// Kaba e-posta doğrulaması — tam RFC değil, bariz bozukları eler.
@@ -1287,6 +1520,112 @@ mod tests {
             store.create_oauth_user("google", "g-123", "streamer@example.com", "free"),
             Err(UserError::EmailTaken)
         ));
+    }
+
+    #[test]
+    fn link_identity_lets_a_password_account_add_a_second_provider() {
+        let store = UserStore::in_memory();
+        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+
+        store.link_identity(&user.id, "twitch", "t-1").unwrap();
+
+        let found = store.find_by_oauth("twitch", "t-1").expect("linked identity resolves");
+        assert_eq!(found.id, user.id);
+        let identities = store.oauth_identities(&user.id);
+        assert_eq!(identities.len(), 1);
+        assert_eq!(identities[0].provider, "twitch");
+        assert!(identities[0].linked_at_ms.is_some());
+    }
+
+    #[test]
+    fn link_identity_is_idempotent_for_the_same_account() {
+        let store = UserStore::in_memory();
+        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        store.link_identity(&user.id, "twitch", "t-1").unwrap();
+        // Re-linking the exact same identity to the same account is a no-op.
+        store.link_identity(&user.id, "twitch", "t-1").unwrap();
+        assert_eq!(store.oauth_identities(&user.id).len(), 1);
+    }
+
+    #[test]
+    fn link_identity_rejects_a_provider_identity_taken_by_another_account() {
+        let store = UserStore::in_memory();
+        let a = store.signup("a@example.com", "hunter2-strong", "free").unwrap();
+        let b = store.signup("b@example.com", "hunter2-strong", "free").unwrap();
+        store.link_identity(&a.id, "twitch", "t-1").unwrap();
+
+        assert!(matches!(
+            store.link_identity(&b.id, "twitch", "t-1"),
+            Err(UserError::OAuthIdentityTaken)
+        ));
+    }
+
+    #[test]
+    fn link_identity_rejects_a_provider_already_linked_to_a_different_identity_on_this_account() {
+        let store = UserStore::in_memory();
+        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        store.link_identity(&user.id, "twitch", "t-1").unwrap();
+
+        assert!(matches!(
+            store.link_identity(&user.id, "twitch", "t-2"),
+            Err(UserError::AlreadyLinked)
+        ));
+    }
+
+    #[test]
+    fn link_identity_also_rejects_against_an_existing_primary_oauth_account() {
+        let store = UserStore::in_memory();
+        let primary = store.create_oauth_user("google", "g-1", "a@example.com", "free").unwrap();
+        let other = store.signup("b@example.com", "hunter2-strong", "free").unwrap();
+
+        assert!(matches!(
+            store.link_identity(&other.id, "google", "g-1"),
+            Err(UserError::OAuthIdentityTaken)
+        ));
+        // The primary account itself re-linking its own identity is a no-op.
+        store.link_identity(&primary.id, "google", "g-1").unwrap();
+    }
+
+    #[test]
+    fn unlink_identity_removes_a_linked_provider_when_another_method_remains() {
+        let store = UserStore::in_memory();
+        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        store.link_identity(&user.id, "twitch", "t-1").unwrap();
+
+        store.unlink_identity(&user.id, "twitch").unwrap();
+        assert!(store.find_by_oauth("twitch", "t-1").is_none());
+        assert!(store.oauth_identities(&user.id).is_empty());
+    }
+
+    #[test]
+    fn unlink_identity_rejects_removing_the_only_login_method() {
+        let store = UserStore::in_memory();
+        let user = store.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
+
+        // Only sign-in method — password is None and there's nothing else linked.
+        assert!(matches!(
+            store.unlink_identity(&user.id, "google"),
+            Err(UserError::LastLoginMethod)
+        ));
+        assert!(store.find_by_oauth("google", "g-1").is_some());
+    }
+
+    #[test]
+    fn unlink_identity_can_remove_the_primary_provider_once_a_password_exists() {
+        let store = UserStore::in_memory();
+        let user = store.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
+        store.set_password("oauth-only@example.com", "new-password-1").unwrap();
+
+        store.unlink_identity(&user.id, "google").unwrap();
+        assert!(store.find_by_oauth("google", "g-1").is_none());
+        assert!(store.verify_login("oauth-only@example.com", "new-password-1").is_some());
+    }
+
+    #[test]
+    fn unlink_identity_rejects_unknown_provider_for_this_account() {
+        let store = UserStore::in_memory();
+        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        assert!(matches!(store.unlink_identity(&user.id, "twitch"), Err(UserError::NotFound)));
     }
 
     #[test]
