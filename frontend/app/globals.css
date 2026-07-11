@@ -32,31 +32,35 @@
 }
 
 :root.dark {
-  --color-canvas: 8 15 28;
-  --color-surface: 15 24 41;
-  --color-ink: 244 247 251;
-  --color-text: 199 208 222;
-  --color-muted: 139 150 168;
-  --color-faint: 92 107 130;
-  --color-hairline: 28 42 66;
-  --color-border: 36 52 79;
-  --color-primary: 60 105 242;
-  --color-primary-hover: 78 111 201;
+  /* Neutral near-black foundation (Twitch/Discord-style dark UI) instead of a
+     navy-tinted dark — canvas/surface/text carry almost no blue cast so the
+     theme reads as genuinely dark, not "dark blue". */
+  --color-canvas: 13 13 15;
+  --color-surface: 24 24 27;
+  --color-ink: 245 245 247;
+  --color-text: 209 210 214;
+  --color-muted: 155 156 163;
+  --color-faint: 108 109 116;
+  --color-hairline: 35 35 39;
+  --color-border: 45 45 51;
+  --color-primary: 62 95 192;
+  --color-primary-hover: 85 110 205;
 
-  /* blue/danger are lightened just enough to keep body-text contrast (WCAG AA,
-     4.5:1) against --color-surface when used as plain foreground text, e.g.
-     links and error copy. Backgrounds only use these at low opacity, so the
+  /* blue/danger are tuned for dark mode: less saturated/bright than their
+     light-theme hex so they don't read as neon against the near-black
+     surface, while still clearing WCAG AA (4.5:1) as plain foreground text
+     (links, error copy). Backgrounds only use these at low opacity, so the
      shift is imperceptible there. */
   --color-cyan: 54 216 228;
-  --color-blue: 68 122 255;
+  --color-blue: 100 137 222;
   --color-violet: 154 140 255;
   --color-coral: 255 106 74;
   --color-success: 19 166 107;
   --color-warning: 245 158 11;
   --color-danger: 221 84 94;
 
-  --background: #080f1c;
-  --foreground: #f4f7fb;
+  --background: #0d0d0f;
+  --foreground: #f5f5f7;
 }
 
 * {
@@ -82,9 +86,9 @@ body {
 
 .dark body {
   background:
-    radial-gradient(circle at 12% 10%, rgba(54, 216, 228, 0.1), transparent 30%),
-    radial-gradient(circle at 88% 8%, rgba(154, 140, 255, 0.1), transparent 28%),
-    linear-gradient(180deg, #0b1526 0%, #080f1c 42%, #060b16 100%);
+    radial-gradient(circle at 12% 10%, rgba(54, 216, 228, 0.08), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(154, 140, 255, 0.07), transparent 28%),
+    linear-gradient(180deg, #131315 0%, #0d0d0f 42%, #08080a 100%);
 }
 
 a {
