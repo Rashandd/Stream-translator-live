@@ -192,6 +192,81 @@ Operator akışı:
 5. Callback sonrası platform `connected` görünmeli.
 6. Gerçek canlı yayında YouTube Live CC smoke yapılmalı.
 
+## Google/Twitch Login (Sign-in) OAuth İstemcileri
+
+Bunlar **YouTube OAuth Client**'tan (yukarıda) ayrıdır — o istemci yayıncının
+kendi kanalına yayın/caption yazma iznidir (broadcast bağlama, plan gerektirir),
+buradaki ise "Continue with Google/Twitch" ile hesaba giriş kimliğidir (bkz.
+`backend/src/auth/oauth_login.rs` modül dokümanı). İkisini karıştırıp aynı
+istemciyi kullanmak, girişte yayıncıya gereksiz geniş bir consent ekranı
+gösterir ("kanalını yönetme izni ver, sadece giriş yapmak için").
+
+Callback backend'e gider (`api.strovak.com`), frontend'e (`strovak.com`) değil
+— `/api/auth/oauth/{provider}/callback` bir Axum route'u, Next.js sayfası
+değil. Yanlışlıkla frontend domain'i veya `/auth/{provider}/callback` gibi
+kısaltılmış bir path girmek `redirect_uri_mismatch` ile sonuçlanır.
+
+### Google Login Client
+
+1. Google Cloud Console > APIs & Services > Credentials > Create OAuth client
+   (ayrı bir client — YouTube client'ıyla paylaşma).
+2. Application type: Web application.
+3. Authorized redirect URI:
+
+```text
+https://api.strovak.com/api/auth/oauth/google/callback
+```
+
+Staging/local için ayrıca:
+
+```text
+http://localhost:8080/api/auth/oauth/google/callback
+```
+
+4. OAuth consent screen (branding) — bu YouTube client'ıyla PAYLAŞILIR, proje
+   başına tektir: Authorized domain `strovak.com` (alt domain `api.strovak.com`
+   otomatik kapsanır), Homepage/Privacy/Terms linkleri `strovak.com` altında.
+5. Client ID/Secret admin panelden:
+
+```text
+Admin > Secrets > GOOGLE_LOGIN_CLIENT_ID
+Admin > Secrets > GOOGLE_LOGIN_CLIENT_SECRET
+```
+
+### Twitch Login Client
+
+1. Twitch Developer Console > Register Your Application.
+2. OAuth Redirect URLs:
+
+```text
+https://api.strovak.com/api/auth/oauth/twitch/callback
+http://localhost:8080/api/auth/oauth/twitch/callback
+```
+
+3. Client ID/Secret admin panelden:
+
+```text
+Admin > Secrets > TWITCH_CLIENT_ID
+Admin > Secrets > TWITCH_CLIENT_SECRET
+```
+
+### Redirect Base (her iki sağlayıcı için ortak)
+
+Backend authorize URL'i kurarken `auth.oauth_redirect_base` config'inden
+`redirect_uri`'yi türetir (varsayılan `http://localhost:8080/api/auth/oauth`,
+dev içindir). Production'da admin config'te:
+
+```text
+auth.oauth_redirect_base = https://api.strovak.com/api/auth/oauth
+integration.frontend_base = https://strovak.com
+```
+
+Google/Twitch redirect URI birebir eşleşme ister — şema, domain, path,
+trailing slash farklıysa `redirect_uri_mismatch` alınır. `integration.frontend_base`
+zaten yayın-hedefi bağlama akışıyla paylaşılan aynı config anahtarı; login
+callback'i de başarı/hata sonrası buraya (`/login/oauth-complete` veya hesap
+linkleme için `/dashboard/account`) 302 ile döner.
+
 ## Stripe Production Bağlantısı
 
 1. Stripe Dashboard'da ürün/fiyatları oluştur:

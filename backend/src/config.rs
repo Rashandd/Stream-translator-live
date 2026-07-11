@@ -208,6 +208,15 @@ impl ServiceConfig {
             // dağıtık/çoklu-kimlik brute-force'u önler. Restart gerekmez.
             ("auth.login.rate_limit_per_min", "10"),
             ("auth.signup.rate_limit_per_min", "20"),
+            // Google/Twitch login (hesap linkleme dahil) authorize/callback
+            // taban URL'i — integration.redirect_base ile aynı desen, ayrı
+            // anahtar (bkz. auth/oauth_login.rs modül dokümanı: login kimliği
+            // bağlama akışı ayrı bir OAuth registry). Prod'da admin panelden
+            // `https://api.strovak.com/api/auth/oauth` yapılır.
+            (
+                "auth.oauth_redirect_base",
+                "http://localhost:8080/api/auth/oauth",
+            ),
             // "Founding 5" kapalı beta (Faz 1 ilk test — sadece STT altyazı,
             // tek GPU worker): kapalıyken (varsayılan) herkes normal plan
             // limitleriyle yayın açabilir; admin betayı başlatırken "true"
@@ -405,6 +414,24 @@ mod tests {
         let cfg = ServiceConfig::with_defaults();
         assert!(cfg.set_existing("stt.provider", "whisper"));
         assert_eq!(cfg.get("stt.provider").as_deref(), Some("whisper"));
+    }
+
+    #[test]
+    fn oauth_login_redirect_base_is_seeded_and_admin_settable() {
+        // Regression: this key backs auth/oauth_login.rs's authorize URL
+        // construction. If it's missing from the seed, PUT /admin/config
+        // 404s on it (set_existing only writes pre-seeded keys) and
+        // production can never point Google/Twitch login callbacks at
+        // api.strovak.com instead of the localhost:8080 dev default.
+        let cfg = ServiceConfig::with_defaults();
+        assert_eq!(
+            cfg.get("auth.oauth_redirect_base").as_deref(),
+            Some("http://localhost:8080/api/auth/oauth")
+        );
+        assert!(cfg.set_existing(
+            "auth.oauth_redirect_base",
+            "https://api.strovak.com/api/auth/oauth"
+        ));
     }
 
     #[test]
