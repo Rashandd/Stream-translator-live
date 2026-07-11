@@ -12,6 +12,10 @@ use streamdubber_sdk::{DesktopShellConfig, ShellStatus};
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::watch;
 
+/// The production service address stays behind the Tauri command boundary so
+/// the desktop UI never displays or accepts infrastructure details.
+const BACKEND_URL: &str = "https://api.strovak.com";
+
 /// Local OBS-facing RTMP listener address. Not exposed in the UI yet — the
 /// happy path never needs it changed; power users can still override via
 /// `STREAMDUBBER_RELAY_LISTEN_ADDR` if `start()` picks it up in a future pass.
@@ -22,7 +26,6 @@ const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:19350";
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct StatusDto {
     pub paired: bool,
-    pub backend_url: Option<String>,
     pub relay_listening: bool,
     pub mic_capture_ok: Option<bool>,
     pub targets_synced: usize,
@@ -66,13 +69,11 @@ impl AppState {
         }
 
         let mut status_rx = self.status_tx.subscribe();
-        let event_backend_url = session.backend_url.clone();
         tauri::async_runtime::spawn(async move {
             while status_rx.changed().await.is_ok() {
                 let shell = status_rx.borrow_and_update().clone();
                 let dto = StatusDto {
                     paired: true,
-                    backend_url: Some(event_backend_url.clone()),
                     relay_listening: shell.relay_listening,
                     mic_capture_ok: shell.mic_capture_ok,
                     targets_synced: shell.targets_synced,
@@ -106,7 +107,6 @@ pub fn get_status(state: State<AppState>) -> StatusDto {
     let shell = state.status_tx.borrow().clone();
     StatusDto {
         paired: session.is_some(),
-        backend_url: session.map(|s| s.backend_url),
         relay_listening: shell.relay_listening,
         mic_capture_ok: shell.mic_capture_ok,
         targets_synced: shell.targets_synced,
@@ -120,15 +120,11 @@ pub fn get_status(state: State<AppState>) -> StatusDto {
 pub async fn submit_pairing_code(
     app: AppHandle,
     state: State<'_, AppState>,
-    backend_url: String,
     code: String,
     device_name: String,
 ) -> Result<(), String> {
     let parsed = PairingCode::parse(&code).map_err(|e| e.to_string())?;
-    let backend_url = backend_url.trim().trim_end_matches('/').to_string();
-    if backend_url.is_empty() {
-        return Err("backend URL is required".to_string());
-    }
+    let backend_url = BACKEND_URL.trim().trim_end_matches('/').to_string();
     let request = PairingRequest::new(&parsed, device_name);
 
     let http = reqwest::Client::new();
@@ -182,4 +178,23 @@ pub fn unpair(state: State<AppState>) -> Result<(), String> {
 #[tauri::command]
 pub fn restart_app(app: AppHandle) {
     app.restart();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StatusDto;
+
+    #[test]
+    fn status_payload_does_not_expose_backend_url() {
+        let status = StatusDto {
+            paired: true,
+            relay_listening: true,
+            mic_capture_ok: Some(true),
+            targets_synced: 2,
+        };
+
+        let json = serde_json::to_value(status).expect("status should serialize");
+        assert!(json.get("backend_url").is_none());
+        assert!(json.get("backendUrl").is_none());
+    }
 }

@@ -15,7 +15,6 @@ function render(status) {
   if (status.paired) {
     pairingView.hidden = true;
     statusView.hidden = false;
-    document.getElementById("status-backend").textContent = status.backend_url ?? "—";
     document.getElementById("status-relay").textContent = status.relay_listening
       ? "Listening for OBS"
       : "Starting…";
@@ -105,7 +104,6 @@ pairForm.addEventListener("submit", async (event) => {
   pairSubmit.textContent = "Pairing…";
   try {
     await invoke("submit_pairing_code", {
-      backendUrl: document.getElementById("backend-url").value.trim(),
       code: document.getElementById("pair-code").value.trim(),
       deviceName: document.getElementById("device-name").value.trim() || "Desktop",
     });
