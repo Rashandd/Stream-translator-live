@@ -69,6 +69,61 @@ fn get_with_token(path: &str, token: &str) -> String {
     )
 }
 
+const TEST_ORIGIN: &str = "http://localhost:3000";
+
+/// A same-site browser fetch: carries `Origin`, which is what flips
+/// `finish_principal_login` from the legacy Bearer-JSON response to the
+/// HttpOnly cookie session (`auth::session::create_browser_session`).
+fn post_login_browser(json: &str) -> String {
+    format!(
+        "POST /api/auth/login HTTP/1.1\r\nHost: t\r\nOrigin: {TEST_ORIGIN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len()
+    )
+}
+
+fn get_with_cookie(path: &str, cookie: &str) -> String {
+    format!("GET {path} HTTP/1.1\r\nHost: t\r\nCookie: {cookie}\r\nConnection: close\r\n\r\n")
+}
+
+fn put_with_cookie(path: &str, cookie: &str, csrf: Option<&str>, json: &str) -> String {
+    let csrf_header = csrf
+        .map(|value| format!("x-csrf-token: {value}\r\n"))
+        .unwrap_or_default();
+    format!(
+        "PUT {path} HTTP/1.1\r\nHost: t\r\nOrigin: {TEST_ORIGIN}\r\nCookie: {cookie}\r\n{csrf_header}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len()
+    )
+}
+
+/// Extracts every `Set-Cookie` header's `name=value` pair (dropping
+/// attributes like `Path`/`HttpOnly`) from a raw HTTP/1.1 response.
+fn set_cookies(raw_response: &str) -> std::collections::HashMap<String, String> {
+    raw_response
+        .lines()
+        .filter_map(|line| line.strip_prefix("set-cookie: ").or_else(|| line.strip_prefix("Set-Cookie: ")))
+        .filter_map(|value| value.split(';').next())
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(name, value)| (name.trim().to_string(), value.trim().to_string()))
+        .collect()
+}
+
+async fn http_raw(addr: SocketAddr, request: &str) -> (u16, String, String) {
+    let mut stream = TcpStream::connect(addr).await.expect("connect");
+    stream.write_all(request.as_bytes()).await.expect("write");
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await.expect("read");
+    let text = String::from_utf8_lossy(&buf).to_string();
+    let status: u16 = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("status line");
+    let split = text.split("\r\n\r\n").collect::<Vec<_>>();
+    let headers = split.first().copied().unwrap_or("").to_string();
+    let body = split.get(1).copied().unwrap_or("").to_string();
+    (status, headers, body)
+}
+
 #[tokio::test]
 async fn login_issues_admin_token_that_opens_admin_endpoints() {
     let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
@@ -142,4 +197,94 @@ async fn unconfigured_bootstrap_falls_through_to_401() {
     )
     .await;
     assert_eq!(status, 401);
+}
+
+/// Regression for the browser-session migration (c76149d): a browser login
+/// (Origin header present) must set the HttpOnly cookie trio and must NOT
+/// leak a bearer token in the body — the admin frontend used to blindly
+/// store `data.token` (`undefined`) from this exact response, sending
+/// `Authorization: Bearer undefined` on the very next request and showing
+/// "session expired" seconds after a successful login.
+#[tokio::test]
+async fn browser_login_sets_cookies_and_omits_bearer_token() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+
+    let (status, headers, body) = http_raw(
+        addr,
+        &post_login_browser(r#"{"email":"ops@sd.io","password":"dev-pass"}"#),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+
+    let json: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert!(json.get("token").is_none(), "browser response must not carry a bearer token");
+    assert_eq!(json["authenticated"], true);
+    assert_eq!(json["role"], "admin");
+    assert!(json["csrf_token"].as_str().is_some_and(|v| !v.is_empty()));
+
+    let cookies = set_cookies(&headers);
+    assert!(cookies.contains_key("sd_access"));
+    assert!(cookies.contains_key("sd_refresh"));
+    assert!(cookies.contains_key("sd_csrf"));
+    assert_eq!(cookies["sd_csrf"], json["csrf_token"].as_str().unwrap());
+}
+
+/// The cookie set by a browser login must actually authenticate
+/// `GET /api/auth/session` — this is the route `AuthGuard` polls instead of
+/// trusting a client-side token that may not exist.
+#[tokio::test]
+async fn cookie_from_browser_login_authenticates_session_endpoint() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+    let (_, headers, _) = http_raw(
+        addr,
+        &post_login_browser(r#"{"email":"ops@sd.io","password":"dev-pass"}"#),
+    )
+    .await;
+    let cookies = set_cookies(&headers);
+    let cookie_header = format!("sd_access={}", cookies["sd_access"]);
+
+    let (status, _, body) = http_raw(addr, &get_with_cookie("/api/auth/session", &cookie_header)).await;
+    assert_eq!(status, 200, "body: {body}");
+    let json: serde_json::Value = serde_json::from_str(&body).expect("json");
+    assert_eq!(json["authenticated"], true);
+    assert_eq!(json["role"], "admin");
+}
+
+/// `GET /api/auth/session` without any cookie must not authenticate —
+/// AuthGuard relies on this to redirect unauthenticated visitors to login.
+#[tokio::test]
+async fn session_endpoint_without_cookie_is_401() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+    let (status, _, _) = http_raw(
+        addr,
+        "GET /api/auth/session HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    assert_eq!(status, 401);
+}
+
+/// Cookie-authenticated mutations must carry a matching double-submit CSRF
+/// header (`require_cookie_request`); the cookie alone is not enough,
+/// otherwise any cross-site page could ride the admin's cookies.
+#[tokio::test]
+async fn cookie_mutation_without_csrf_header_is_forbidden_but_with_it_succeeds() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+    let (_, headers, _) = http_raw(
+        addr,
+        &post_login_browser(r#"{"email":"ops@sd.io","password":"dev-pass"}"#),
+    )
+    .await;
+    let cookies = set_cookies(&headers);
+    let cookie_header = format!("sd_access={}; sd_csrf={}", cookies["sd_access"], cookies["sd_csrf"]);
+    let body = r#"{"key":"log.level","value":"debug"}"#;
+
+    let (status, _, resp_body) = http_raw(addr, &put_with_cookie("/admin/config", &cookie_header, None, body)).await;
+    assert_eq!(status, 403, "body: {resp_body}");
+
+    let (status, _, resp_body) = http_raw(
+        addr,
+        &put_with_cookie("/admin/config", &cookie_header, Some(&cookies["sd_csrf"]), body),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {resp_body}");
 }
