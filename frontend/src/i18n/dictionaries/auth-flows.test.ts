@@ -96,6 +96,11 @@ describe("auth flow dictionary contract", () => {
     }
   });
 
+  it("explains why an authenticated dashboard visit returned to sign-in", () => {
+    expect(en.auth.errors.sessionExpired).toBeTruthy();
+    expect(en.auth.errors.sessionUnavailable).toBeTruthy();
+  });
+
   it("auth copy contains no emoji (DESIGN.md)", () => {
     const flat = JSON.stringify(en.auth);
     expect(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(flat)).toBe(false);

@@ -17,8 +17,10 @@ describe("AuthGuard", () => {
     expect(source).toContain('tokenKind === "admin" ? data.role === "admin" : true');
   });
 
-  it("redirects to the login page instead of rendering children when the session is missing or invalid", () => {
-    expect(source).toContain("window.location.assign(loginHref)");
+  it("redirects with a reason when the session is rejected or the API is unreachable", () => {
+    expect(source).toContain('redirectToLogin("session")');
+    expect(source).toContain('redirectToLogin("network")');
+    expect(source).toContain('url.searchParams.set("auth_error", reason)');
     expect(source).toContain("if (!authorized) {\n    return null;\n  }");
   });
 });

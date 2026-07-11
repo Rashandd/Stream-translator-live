@@ -7,7 +7,10 @@ import { OAuthButtons } from "@/src/components/oauth-buttons";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
-type Props = { params: Promise<{ locale: string }> };
+type Props = {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ auth_error?: string }>;
+};
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -20,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: config.auth.login.title };
 }
 
-export default async function LoginPage({ params }: Props) {
+export default async function LoginPage({ params, searchParams }: Props) {
   const { locale: rawLocale } = await params;
   if (!isLocale(rawLocale)) {
     notFound();
@@ -28,6 +31,13 @@ export default async function LoginPage({ params }: Props) {
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
   const { login } = config.auth;
+  const { auth_error: authError } = await searchParams;
+  const returnMessage =
+    authError === "session"
+      ? config.auth.errors.sessionExpired
+      : authError === "network"
+        ? config.auth.errors.sessionUnavailable
+        : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
@@ -45,6 +55,15 @@ export default async function LoginPage({ params }: Props) {
         <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
           <h1 className="text-2xl font-semibold text-ink">{login.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{login.subtitle}</p>
+
+          {returnMessage ? (
+            <p
+              className="mt-4 rounded-lg border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-ink"
+              role="alert"
+            >
+              {returnMessage}
+            </p>
+          ) : null}
 
           <LoginForm
             adminHref={localizePath(locale, "/admin")}

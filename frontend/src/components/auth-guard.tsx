@@ -28,6 +28,12 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
   useEffect(() => {
     let cancelled = false;
 
+    function redirectToLogin(reason: "session" | "network") {
+      const url = new URL(loginHref, window.location.origin);
+      url.searchParams.set("auth_error", reason);
+      window.location.assign(`${url.pathname}${url.search}`);
+    }
+
     async function check() {
       if (tokenKind === "user" && getUserToken()) {
         if (!cancelled) {
@@ -42,7 +48,7 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
           return;
         }
         if (!response.ok) {
-          window.location.assign(loginHref);
+          redirectToLogin("session");
           return;
         }
         const data = (await response.json()) as { authenticated?: boolean; role?: string };
@@ -50,11 +56,11 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
         if (data.authenticated && roleAllowed) {
           setAuthorized(true);
         } else {
-          window.location.assign(loginHref);
+          redirectToLogin("session");
         }
       } catch {
         if (!cancelled) {
-          window.location.assign(loginHref);
+          redirectToLogin("network");
         }
       }
     }

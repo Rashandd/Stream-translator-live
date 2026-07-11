@@ -1496,6 +1496,8 @@
       "invalid": "Email or password is incorrect.",
       "network": "Network error. Please try again.",
       "unavailable": "Sign-in is temporarily unavailable. Please try again later.",
+      "sessionExpired": "Your session could not be verified. Please sign in again.",
+      "sessionUnavailable": "Your sign-in succeeded, but the session service could not be reached. Please try again in a moment.",
       "emailTaken": "This email is already registered. Try signing in instead.",
       "invalidFields": "Check your email address and use a password of at least 8 characters.",
       "weakPassword": "Password must be at least 8 characters.",
