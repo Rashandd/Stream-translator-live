@@ -75,3 +75,4 @@ docker-compose.override.yml
 codex.md
 claude.md
 twitch-keys
+/.claude
