@@ -59,9 +59,11 @@ let refreshInFlight: Promise<boolean> | null = null;
 
 async function refreshSession(): Promise<boolean> {
   if (!refreshInFlight) {
+    const csrf = csrfCookie();
     refreshInFlight = fetch(`${API_URL}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      headers: csrf ? { "x-csrf-token": csrf } : undefined,
     })
       .then((response) => response.ok)
       .catch(() => false)
@@ -93,6 +95,12 @@ async function cookieFetch(path: string, init: RequestInit = {}): Promise<Respon
   const refreshed = await refreshSession();
   if (!refreshed) {
     return response;
+  }
+  if (!isSafeMethod(method)) {
+    const csrf = csrfCookie();
+    if (csrf) {
+      headers.set("x-csrf-token", csrf);
+    }
   }
   return fetch(`${API_URL}${path}`, request);
 }
