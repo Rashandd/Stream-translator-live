@@ -48,7 +48,7 @@ export default async function PricingPage({ params }: Props) {
 
         {promoActive && promo?.message ? (
           <div className="mt-6 flex flex-wrap items-center gap-2 rounded-xl border border-blue/25 bg-blue/10 px-4 py-3">
-            <span className="rounded-full bg-blue px-2.5 py-0.5 text-xs font-semibold text-white">
+            <span className="rounded-full bg-blue px-2.5 py-0.5 text-xs font-semibold text-white dark:text-on-primary">
               {pricing.promo.badge}
             </span>
             <p className="text-sm font-medium text-ink">{promo.message}</p>

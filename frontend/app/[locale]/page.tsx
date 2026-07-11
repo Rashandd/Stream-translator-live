@@ -63,10 +63,7 @@ export default async function HomePage({ params }: HomePageProps) {
         <div className="relative min-h-[360px]">
           <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_30%_25%,rgba(54,216,228,0.34),transparent_32%),radial-gradient(circle_at_68%_70%,rgba(154,140,255,0.24),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.92),rgba(238,246,251,0.86))] shadow-panel" />
           <div className="relative flex min-h-[360px] flex-col justify-between rounded-[32px] border border-border bg-surface/58 p-6 backdrop-blur">
-            <div className="flex items-center justify-between">
-              <span className="rounded-full border border-cyan/25 bg-surface/80 px-3 py-1.5 text-sm font-semibold text-ink">
-                {config.home.scene.label}
-              </span>
+            <div className="flex items-center justify-end">
               <Icon className="h-6 w-6 text-blue" name="AudioLines" />
             </div>
             <div className="mx-auto flex h-36 w-full max-w-md items-center justify-center rounded-full border border-white/70 bg-surface/42">
@@ -104,7 +101,7 @@ export default async function HomePage({ params }: HomePageProps) {
         </div>
       </section>
 
-      <section className="bg-emphasis text-white">
+      <section className="bg-emphasis-green text-white">
         <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <p className="text-sm font-semibold uppercase tracking-wide text-cyan">{config.home.edge.eyebrow}</p>
           <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-white sm:text-4xl">{config.home.edge.title}</h2>
@@ -121,12 +118,12 @@ export default async function HomePage({ params }: HomePageProps) {
       </section>
 
       <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-        <p className="text-sm font-semibold uppercase tracking-wide text-coral">{config.home.audience.eyebrow}</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue">{config.home.audience.eyebrow}</p>
         <h2 className="mt-3 max-w-2xl text-3xl font-semibold text-ink sm:text-4xl">{config.home.audience.title}</h2>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {config.home.audience.items.map((item) => (
             <div className="rounded-xl border border-border bg-surface p-6" key={item.title}>
-              <Icon className="h-6 w-6 text-coral" name={item.icon} />
+              <Icon className="h-6 w-6 text-blue" name={item.icon} />
               <h3 className="mt-4 text-lg font-semibold text-ink">{item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-muted">{item.body}</p>
             </div>

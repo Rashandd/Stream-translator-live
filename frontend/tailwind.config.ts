@@ -26,6 +26,7 @@ const config: Config = {
         "primary-hover": withOpacity("--color-primary-hover"),
         "on-primary": withOpacity("--color-on-primary"),
         emphasis: withOpacity("--color-emphasis"),
+        "emphasis-green": withOpacity("--color-emphasis-green"),
         cyan: withOpacity("--color-cyan"),
         blue: withOpacity("--color-blue"),
         violet: withOpacity("--color-violet"),
