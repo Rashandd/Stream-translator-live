@@ -160,6 +160,17 @@ Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Mer
 `docs/SESSION.md`'dir — agent-bazli session dosyasi (`docs/sessions/*.md`) KULLANILMAZ, o dosyalar artik
 pasif/arsiv. Yeni oturuma baslarken `docs/SESSION.md`'yi oku, biterken orayi guncelle (bkz. BAŞLARKEN/BİTERKEN).
 
+**Worktree izolasyonu (zorunlu):** Aynı anda birden fazla agent çalışıyorsa her agent KENDİ git worktree'sinde
+çalışır — aynı çalışma dizininde/branch'te paralel agent çalıştırılmaz. Yeni bir agent/görev başlarken önce
+ayrı bir worktree aç (örn. `git worktree add ../streamdubber-<konu> -b <branch-adı>`, veya harness'ın kendi
+worktree izolasyon mekanizması varsa onu kullan — bkz. `.claude/worktrees/`). Bu, dosya çakışmalarını ve bir
+agent'ın yarım bıraktığı değişikliğin diğerini bozmasını önler. İş bitip merge/PR edildikten sonra worktree'yi
+temizle (`git worktree remove`).
+
+**Agent'lar kendi commit'ini atar:** Her agent kendi worktree'sinde kendi işini bitirince kendi commit'ini
+oluşturur (bkz. "Task Tamamlama Protokolü") — değişiklikleri commit'lenmemiş, "kullanıcı commit'lesin" diye
+bırakılmış hâlde devretme. Push yalnızca kullanıcı açıkça isterse yapılır (bu kural değişmedi).
+
 Handoff gerekiyorsa calisma sonunda final cevapta kisa ve somut ozet ver: neredesin, son kararlar, sonraki adim ve blokerlar.
 
 ## Faz Durumu — Şu An Kapsam Dışı Olanlar
