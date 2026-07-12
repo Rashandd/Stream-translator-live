@@ -1,6 +1,9 @@
 # Browser Auth Workflow Hardening Plan
 
-**Durum:** Planlandı — implementasyon başlamadı  
+**Durum:** Uygulanıyor — cookie session çekirdeği (`auth::session`: HttpOnly
+`sd_access`/`sd_refresh`/`sd_csrf`, refresh rotation, family revoke; commit
+`c76149d`) koddadır; OAuth/signup/2FA/consent/logout fazları roadmap 2.9
+maddelerinde izlenir  
 **Tarih:** 2026-07-12  
 **Kapsam:** Frontend login/signup, Google/Twitch OAuth callback, browser session,
 email 2FA, consent ve logout
@@ -128,6 +131,9 @@ source = password_signup | google_signup | twitch_signup | settings
   kullanıcı store snapshot'ında doğruluk kaynağı olarak kalıcı tutulur;
   PostgreSQL migration'ı mevcut mimariye uygun sorgulanabilir aynayı sağlar.
 - Consent yazılamazsa yeni hesap başarıyla tamamlanmış sayılmaz.
+- Consent ledger'ın tek doğruluk kaynağı bu plandır; hesap silme akışındaki
+  retention/anonymization kararı backend-hardening planının BH-12'sinde ele
+  alınır ve ledger'ın modelini yeniden tanımlamaz.
 
 ### A-07 — Signup tek auth sonucuyla biter
 
@@ -231,7 +237,10 @@ ulaşır; admin 2FA production modunda çalışır.
 
 1. Consent veri modeli, şifreli file snapshot uyumluluğu ve PostgreSQL migration
    eklenir.
-2. Güncel legal doküman version anahtarları runtime config'ten okunur.
+2. Güncel legal doküman version anahtarları runtime config'ten okunur;
+   backend-hardening planının BH-02 `ConfigSpec` registry'si mevcutsa key'ler o
+   formatta (tip + validator + visibility) tanımlanır (bkz.
+   `docs/backend-hardening-captions-plan.md` §13).
 3. Password ve OAuth signup aynı consent servisini kullanır.
 4. Marketing seçimi kaydedilir; daha sonra settings'ten değiştirilebilir.
 5. Audit log yalnız consent türü/version/zaman/source içerir; IP/e-posta gibi
@@ -364,6 +373,9 @@ bu çalışma “production-ready” sayılmaz.
 - Çoklu backend instance için OAuth/2FA state'in Redis'e taşınması; bu konu
   backend hardening BH-04/BH-06 ile koordine edilir. Ancak bu planın state
   arayüzü daha sonra Redis implementasyonuna geçirilebilir olmalıdır.
+  (BH-04'ün Redis taşıma listesine bu planın OAuth-login state'i ve 2FA challenge
+  store'u 2026-07-12'de açıkça eklendi — bkz.
+  `docs/backend-hardening-captions-plan.md` §15.)
 
 ## 9. Önerilen atomik commit sırası
 
