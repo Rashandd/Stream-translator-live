@@ -275,14 +275,9 @@
           "label": "Account",
           "items": [
             {
-              "label": "Platforms",
-              "href": "/dashboard/platforms",
-              "icon": "Share2"
-            },
-            {
-              "label": "Sign-in accounts",
+              "label": "Account details",
               "href": "/dashboard/account",
-              "icon": "KeyRound"
+              "icon": "UserCog"
             },
             {
               "label": "Desktop app",
@@ -623,8 +618,10 @@
       }
     },
     "account": {
-      "title": "Sign-in accounts",
-      "subtitle": "Manage which providers can log you into Strovak — link a second one so you're never locked out.",
+      "title": "Account details",
+      "subtitle": "Manage the providers that sign you into Strovak, the platforms that receive your stream, and your viewer captions channel.",
+      "signInTitle": "Sign-in providers",
+      "signInSubtitle": "Manage which providers can log you into Strovak — link a second one so you're never locked out.",
       "passwordLabel": "Password",
       "passwordSetHint": "You can sign in with your email and password.",
       "passwordNotSetHint": "No password set — you sign in only through the providers below.",
