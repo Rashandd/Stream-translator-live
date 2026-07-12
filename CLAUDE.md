@@ -1,16 +1,60 @@
 # StreamDubber — Agent Kuralları
 
+> Bu dosya Codex ve Claude dahil bütün agent'lar için tek kanonik kural
+> kaynağıdır. `AGENTS.md` yalnız bu dosyaya yönlendirir; kurallar iki dosyada
+> kopyalanmaz.
+
 ## BAŞLARKEN
-Çalışmaya başlamadan önce hangi alandaysan onun regression testlerini çalıştır:
+
+Her yeni kullanıcı görevi/işlemi için, salt dokümantasyon işi olsa bile, önce
+ayrı bir branch ve ayrı bir git worktree kullan:
+
+```bash
+git status --short
+git worktree add ../streamdubber-<konu> -b <prefix>/<konu>
+cd ../streamdubber-<konu>
+```
+
+- Ana çalışma dizininde veya başka bir görevin worktree'sinde çalışma yapma.
+- Mevcut bir task worktree'sini yeni görev için yeniden kullanma.
+- Harness zaten bu görev için izole worktree sağladıysa ikinci worktree açma;
+  sağlanan izolasyonu kullan.
+- Başlangıç çalışma ağacı kirliyse kullanıcı değişikliklerine dokunma; güvenli
+  bir başlangıç noktası seçilemiyorsa kullanıcıya bildir.
+- Branch adı görev kapsamını anlatmalı ve `feat/`, `fix/`, `docs/`, `test/` veya
+  `chore/` prefix'lerinden birini kullanmalı.
+
+Worktree kökünde agent'a özel, gitignore'lu çalışma notunu oluştur:
+
+- Codex: `codex.md`
+- Claude: `claude.md`
+
+Not en az `Neredeyim?`, `Son Kararlar`, `Sonraki Adım` ve `Blokerlar`
+bölümlerini içermeli; çalışma boyunca güncel tutulmalı. Bu dosya worktree-local
+geçici hafızadır, commit'e eklenmez. `docs/SESSION.md` ve
+`docs/sessions/*.md` kullanılmaz, okunmaz veya güncellenmez.
+Eski merkezi/agent-session akışını kullanan `scripts/session-start.sh` ve
+`scripts/session-end.sh` de çalıştırılmaz; bunlar temizlenene kadar legacy
+artefakt kabul edilir.
+
+Worktree hazırlandıktan sonra hangi alandaysan onun regression testlerini çalıştır:
+
 - Backend'e dokunacaksan: `cargo test` (+ değiştirdiğin crate'e özel `cargo test -p streamdubber-backend <modül>`)
 - Frontend'e dokunacaksan: `cd frontend && npm run test && npm run lint`
 - SDK'ya dokunacaksan: `cargo test -p streamdubber-sdk` (veya `cd sdk/src-tauri && cargo test`)
-- `docs/SESSION.md`'yi oku — nerede kalındığını ve son kararları gösterir.
 
 ## BİTERKEN
+
 - Değiştirdiğin alanın regression testlerini (yukarıdaki liste) + eklediğin yeni testleri çalıştır, hepsi yeşil olmadan bitirme.
-- `docs/SESSION.md`'yi güncelle (Neredeyim / Son Kararlar / Sonraki Adım).
+- Worktree-local `codex.md`/`claude.md` notunu son durum, kararlar, sonraki adım
+  ve blokerlarla güncelle.
 - Roadmap'te ilgili satırı tikle (bkz. "Task Tamamlama Protokolü").
+- Değişiklikleri kendi task branch'inde commit'le; commit edilmemiş iş bırakma.
+- Final handoff'ta worktree yolu, branch, commit, test sonucu, sonraki adım ve
+  blokerları kısa ve somut yaz.
+- Push, merge ve ana branch'e entegrasyon yalnız kullanıcı açıkça isterse
+  yapılır. Entegrasyon tamamlanınca worktree-local notu sil ve worktree'yi
+  temizle; henüz merge edilmemiş branch'in worktree'sini erken kaldırma.
 
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
@@ -51,7 +95,7 @@ docker compose -f infra/docker-compose.yml --env-file .env up  # local dev ortam
 /sdk/src/audio  → platform adaptörleri: wasapi.rs (Windows), cpal_capture.rs (macOS+Linux)
 /stt-server     → self-hosted GPU STT worker (Python/FastAPI + faster-whisper, roadmap 2.6)
 /extension      → Twitch component overlay extension (viewer bar, roadmap 2.4)
-/scripts        → session/smoke/vault-seed yardımcı script'leri
+/scripts        → smoke/vault-seed yardımcıları; session-start/end legacy ve kullanılmaz
 /infra          → Dockerfile'lar, docker-compose, TLS/Vault config, deploy rehberleri
 /docs           → mimari kararlar ve referans dökümanlar
 ```
@@ -156,22 +200,25 @@ Komut başarısız olursa ne yapılır:
 
 ## Multi-Agent Handoff Protokolü
 
-Bu repo ayni anda Codex ve Claude gibi birden fazla agent ile calisilabilir. Merkezi koordinasyon dosyasi
-`docs/SESSION.md`'dir — agent-bazli session dosyasi (`docs/sessions/*.md`) KULLANILMAZ, o dosyalar artik
-pasif/arsiv. Yeni oturuma baslarken `docs/SESSION.md`'yi oku, biterken orayi guncelle (bkz. BAŞLARKEN/BİTERKEN).
+Bu repo aynı anda Codex, Claude veya başka agent'larla çalışılabilir; izolasyon
+yalnız paralel kullanımda değil **her görevde zorunludur**.
 
-**Worktree izolasyonu (zorunlu):** Aynı anda birden fazla agent çalışıyorsa her agent KENDİ git worktree'sinde
-çalışır — aynı çalışma dizininde/branch'te paralel agent çalıştırılmaz. Yeni bir agent/görev başlarken önce
-ayrı bir worktree aç (örn. `git worktree add ../streamdubber-<konu> -b <branch-adı>`, veya harness'ın kendi
-worktree izolasyon mekanizması varsa onu kullan — bkz. `.claude/worktrees/`). Bu, dosya çakışmalarını ve bir
-agent'ın yarım bıraktığı değişikliğin diğerini bozmasını önler. İş bitip merge/PR edildikten sonra worktree'yi
-temizle (`git worktree remove`).
-
-**Agent'lar kendi commit'ini atar:** Her agent kendi worktree'sinde kendi işini bitirince kendi commit'ini
-oluşturur (bkz. "Task Tamamlama Protokolü") — değişiklikleri commit'lenmemiş, "kullanıcı commit'lesin" diye
-bırakılmış hâlde devretme. Push yalnızca kullanıcı açıkça isterse yapılır (bu kural değişmedi).
-
-Handoff gerekiyorsa calisma sonunda final cevapta kisa ve somut ozet ver: neredesin, son kararlar, sonraki adim ve blokerlar.
+- Her görev kendi worktree + branch çiftine sahip olur. İki agent veya iki görev
+  aynı worktree/branch üzerinde çalışmaz.
+- Merkezi session dosyası yoktur. Koordinasyon kaynağı git branch/commit durumu,
+  task worktree'sindeki ignore'lu `codex.md`/`claude.md` notu ve final handoff'tur.
+- Başka agent'ın worktree'sine girme, dosyasını değiştirme veya yarım commit'ini
+  kendi branch'ine alma.
+- Bağımlı işler için önce gereken commit hash'ini handoff'tan al; kullanıcı
+  yetkisi varsa cherry-pick/merge et, yoksa kendi scope'unda bekle ve blokeri
+  yaz.
+- Her agent kendi testini çalıştırır ve kendi commit'ini oluşturur. Push veya
+  entegrasyon kullanıcı açıkça istemedikçe yapılmaz.
+- Handoff şu alanları içerir: worktree yolu, branch, commit hash'i, değişen
+  kapsam, testler, son kararlar, sonraki adım ve blokerlar.
+- Merge/PR tamamlandıktan sonra ilgili worktree kaldırılır:
+  `git worktree remove <worktree-yolu>`; artık gerekmeyen local branch ancak
+  entegrasyon doğrulandıktan sonra silinir.
 
 ## Faz Durumu — Şu An Kapsam Dışı Olanlar
 
@@ -216,7 +263,6 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | SDK dağıtım (code signing, auto-update, release) | `docs/sdk-distribution.md` |
 | Twitch Extension policy + uygulama planı | `docs/twitch-extension-policy.md`, `docs/twitch-extension-plan.md`, `docs/twitch-extension-production-readiness-plan.md` |
 | Overlay builder (altyazı görünüm özelleştirme) | `docs/overlay-builder-plan.md` |
-| Aktif multi-agent koordinasyon durumu | `docs/SESSION.md` |
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
