@@ -980,6 +980,14 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 > Yayıncı sadece e-posta/şifreyle değil, mevcut YouTube (Google) veya Twitch hesabıyla da giriş/kayıt olabilmeli.
 - [x] Backend: Google + Twitch OAuth login (ayrı `client_id`/`client_secret` — mevcut YouTube captions/Twitch Extension entegrasyonlarından bağımsız) <!-- Claude 2026-07-07: backend/src/auth/oauth_login.rs — integrations::oauth çekirdeğini (authorize URL, CSRF state, token exchange) reuse eden ayrı registry. GET /api/auth/oauth/{provider}/start|callback. UserRecord.password_hash: String → Option<String> + oauth_provider/oauth_external_id (migration 0004). E-posta çakışması OTOMATİK BAĞLAMA YAPMADAN reddedilir (hesap ele geçirme riski sıfır — kullanıcı kararı). 21 yeni test, hepsi mock-server ile (gerçek Google/Twitch hesabıyla hiç denenmedi — GOOGLE_LOGIN_CLIENT_ID/SECRET, TWITCH_CLIENT_ID/SECRET admin panelden girilmeli). -->
 - [x] Frontend: `/login` + `/signup` sosyal butonlar + `/login/oauth-complete` <!-- Claude 2026-07-07: oauth-buttons.tsx (düz <a href>, backend'e doğrudan), oauth-complete.tsx (URL fragment'ından token okur, setUserToken). /signup'a eklendi; /login'e de eklendi ama dosyadaki pre-existing bir legal-note değişikliğiyle satır satır iç içe geçtiği için o dosya bu oturumda commit'lenmedi (kullanıcı kendi legal-pages işiyle birlikte commit'lemeli). -->
+- [x] Browser auth workflow hardening uygulama planı <!-- Codex 2026-07-12: `docs/auth-workflow-hardening-plan.md` — OAuth/password/signup/2FA'yı tek HttpOnly cookie session'da birleştirme; locale-aware callback; URL'siz auth notice; role-aware admin 2FA; tek auth sonucuyla biten signup; versioned consent; güvenilir logout; kesintisiz rollout ve davranışsal E2E kapıları. Implementasyon aşağıdaki maddelerde ayrıca izlenir. -->
+- [ ] OAuth callback'i locale-aware, allowlist `return_to` ve opaque hata kodlarına geçir
+- [ ] OAuth browser login'ini fragment/localStorage bearer'dan HttpOnly cookie session'a taşı
+- [ ] Password signup'ı tek session/2FA sonucuyla bitir; ikinci login isteğini kaldır
+- [ ] Admin + broadcaster 2FA'yı opaque challenge ve role-aware yönlendirmeyle birleştir
+- [ ] Password/OAuth signup için versiyonlu legal + marketing consent'i kalıcılaştır
+- [ ] `auth_error` query'sini tek-kullanımlık frontend notice ile değiştir; logout'u await + revoke garantili yap
+- [ ] Ayrı frontend/backend origin'leriyle gerçek browser auth E2E paketi ekle
 - [ ] Kick login — OAuth 2.1 + PKCE gerektiriyor (mevcut `exchange_code` sadece client_secret akışını biliyor, ek plumbing lazım) ve endpoint'leri (id.kick.com/api.kick.com) canlı doğrulanmadı; kullanıcı kararıyla bu pass'in dışında bırakıldı, ayrı bir task
 - [ ] OAuth-bağlı hesabı sonradan var olan şifreli hesaba bağlama (settings'ten) — e-posta çakışması şu an sadece reddediliyor, "linkleme" akışı yok
 - [ ] Gerçek bir Google/Twitch hesabıyla uçtan uca canlı test (şu an sadece mock-server testli)
