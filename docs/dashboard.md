@@ -11,7 +11,9 @@
 ## Admin Dashboard — Faz 1 Temeli
 1. Genel Bakış: aktif yayın, latency, hata oranı
 2. Kullanıcı Yönetimi: filtre, detay, plan değiştirme
-3. Servis Toggle: STT/Çeviri/TTS provider anlık geçiş (restart yok)
+3. Servis Toggle: STT/Çeviri/TTS provider config API üzerinden restart'sız geçiş
+   (`PUT /admin/config`) — ayrı bir toggle sayfası yok (eski `/admin/routing`
+   kaldırıldı, commit `00a7c90`)
 4. Fiyatlandırma Yönetimi: plan fiyatları, limitler, özellikler DB'den
 5. Maliyet Özeti: servis bazlı harcama
 

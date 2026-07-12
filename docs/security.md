@@ -14,7 +14,13 @@ MVP'de ve muhtemelen sonrasında da gerek yok.
 
 ## mTLS
 - SDK ↔ bulut karşılıklı sertifika doğrulaması
-- Faz 1'de kurulur
+- **Durum (2026-07-12): ERTELENDİ.** Sunucu tarafı hazır (`backend/src/tls.rs`,
+  `TLS_CLIENT_CA_PATH` verilirse istemci sertifikası zorunlu kılar), ama SDK
+  istemci sertifikası sunmuyor (`sdk/src/core/cloud.rs` — connector TODO).
+  Bugünkü SDK ↔ bulut karşılıklı doğrulaması **TLS 1.3 + cihaz JWT'sidir**
+  (pairing/claim akışı, 30 gün geçerli token) — gömülü sertifika değil.
+  mTLS connector bağlanınca bu not güncellenir; bkz. roadmap "Faz 1 — MVP
+  Öncesi Canlı Doğrulama Listesi" (SDK bölümü).
 
 ## GDPR/KVKK
 - Hesap silinince ses modeli kalıcı silinir

@@ -33,13 +33,16 @@ key: "stt.fallback"     value: "assemblyai"
 ```
 Kod her zaman `config::get("stt.provider")` ile okur, restart gerektirmez.
 
-## Fallback Kuralları (admin panelden)
+## Fallback Kuralları (config API, `PUT /admin/config` — ayrı bir panel sayfası yok)
+Bugün implemente + kayıtlı (`backend/src/main.rs` gateway registration):
 ```
-STT:     deepgram → assemblyai → whisper
+STT:     deepgram → assemblyai   (+ selfhosted: elle `stt.provider=selfhosted`, roadmap 2.6)
 Çeviri:  deepl → google
-TTS:     elevenlabs → cartesia → xtts
+TTS:     elevenlabs               (tek sağlayıcı — cartesia/xtts henüz kayıtlı değil)
 ```
-Kural değişince anında devreye girer.
+Planlı, henüz kod yok: `whisper.cpp` (düşük maliyet STT yedek), `cartesia`
+(TTS hız alternatifi), `xtts-v2` self-hosted (Faz 3).
+Kural değişince (implemente edilenler için) anında devreye girer.
 
 ## Env Var Listesi (hard-coded olmaması gerekenler)
 ```

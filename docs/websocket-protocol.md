@@ -42,10 +42,12 @@ Bağlantı kurulunca ilk mesaj `auth` olmalı. 5 saniye içinde `auth` gelmezse 
     "sample_rate": 16000,
     "channels": 1
   },
-  "stt_source": "cloud"
+  "stt_source": "cloud",
+  "tts_source": "cloud"
 }
 ```
-**Yanıt:** `stream_ack` veya `error` (kod `4007` — plan lokal STT'ye izin vermiyor)
+**Yanıt:** `stream_ack` veya `error` (kod `4007` — plan lokal STT'ye izin vermiyor;
+`4008`/`4009` — hedef dil sayısı/kodu reddi; `4010` — founding-beta onayı bekliyor)
 
 `audio_format.codec` değerleri: `"opus"` (tercih) veya `"pcm_s16le"`  
 `sample_rate`: `16000` sabit (STT için yeterli, 48kHz gereksiz)
@@ -57,6 +59,12 @@ Bağlantı kurulunca ilk mesaj `auth` olmalı. 5 saniye içinde `auth` gelmezse 
   kullanabileceği `stt.local.plans` config'iyle belirlenir (admin panel).
   `local` session'da binary ses frame'i göndermek de geçerlidir (bulut STT
   fallback'i) — tersi geçerli değildir (aşağıya bkz.).
+
+`tts_source` (Faz 2.2b, opsiyonel — varsayılan `"cloud"`):
+- `"cloud"` → final altyazı çevirisi ElevenLabs ile sentezlenir, `subtitle`
+  mesajının `dubbed_audio` alanında SDK'ya döner (bkz. aşağıda)
+- `"local"` → SDK kendi XTTS-v2 motoruyla sentezler, backend ses baytı hiç
+  üretmez/göndermez (`dubbed_audio` boş kalır)
 
 ---
 
@@ -167,6 +175,9 @@ key'le aynı güven modeli.
     { "lang": "en", "text": "Today is a very good day." },
     { "lang": "de", "text": "Heute ist ein sehr guter Tag." }
   ],
+  "dubbed_audio": [
+    { "lang": "en", "audio_base64": "<mp3_44100_128 base64>" }
+  ],
   "ts_start_ms": 1719600003120,
   "ts_end_ms": 1719600004850
 }
@@ -174,7 +185,10 @@ key'le aynı güven modeli.
 
 `is_final: false` → geçici (Deepgram interim result), SDK overlay'de italik gösterebilir  
 `is_final: true` → kesinleşmiş, overlay'e yaz  
-`sequence` → SDK sıra dışı gelen paketi algılar (drop etmez, sıraya koyar)
+`sequence` → SDK sıra dışı gelen paketi algılar (drop etmez, sıraya koyar)  
+`dubbed_audio` (Faz 2.2, opsiyonel — yalnız `tts_source: "cloud"` ve final çeviri
+varsa dolu) → hedef dil başına sentezlenmiş dublaj sesi (ElevenLabs `mp3_44100_128`,
+base64). Eski SDK'lar bu alanı yok sayar (serde default davranışı).
 
 ---
 
@@ -223,6 +237,9 @@ kapatılıyor (bkz. `pipeline::StreamSession::process_audio`).
 | `4005` | STT sağlayıcı hatası | Log'a yaz, 3 saniye bekle, yeniden dene |
 | `4006` | Çeviri sağlayıcı hatası | Log'a yaz, fallback devreye giriyor |
 | `4007` | Lokal STT reddi (`local_stt_not_allowed` / `stt_source_not_local` / `transcript_too_long`) | Planı kontrol et; `stream_start`'ı `stt_source:"local"` ile aç; metni cümle cümle gönder |
+| `4008` | `target_langs` sayısı planın `max_languages` sınırını aşıyor | Hedef dil sayısını azalt veya plan yükselt |
+| `4009` | `target_langs` içinde admin'in kapattığı/katalogda olmayan bir kod var | `GET /api/translate/catalog`'tan güncel listeyi çek |
+| `4010` | "Founding 5" kapalı beta: `founding.gate.enabled=true` iken admin henüz onaylamadı | Kullanıcıya "başvurun onay bekliyor" göster, `stream_start` gönderme |
 | `5000` | Beklenmedik sunucu hatası | 5 saniye bekle, yeniden bağlan |
 
 ---
@@ -259,14 +276,21 @@ SDK                          Backend
 
 ```
 cloud STT (varsayılan):                local STT (Faz 2.6b):
-binary frame gelir                     transcript mesajı gelir (text)
+binary frame gelir (VAD kesiti)        transcript mesajı gelir (text)
   → header parse (magic, codec, len)     → session stt_source=local mi? değilse 4007
-  → Deepgram WebSocket'e ilet            → uzunluk sınırı (stt.local.max_chars)
-  → Deepgram → transcript JSON           → STT adımı ATLANIR
-  → DeepL API (paralel) ────────────┬────┘
+  → Deepgram REST /v1/listen'e POST      → uzunluk sınırı (stt.local.max_chars)
+    (prerecorded — kesit tamamlanınca)     → STT adımı ATLANIR
+  → Deepgram → transcript JSON      ─────┘
+  → DeepL API
   → subtitle mesajı paketle         ← iki yol da aynı Subtitle çıktısını üretir
   → SDK WebSocket'e + overlay'e gönder
 ```
+
+**Not:** STT bugün gerçek zamanlı streaming WebSocket değil, VAD-kesiti başına
+prerecorded REST çağrısıdır (`gateway::deepgram::DeepgramStt`). Gerçek zamanlı
+streaming STT ayrı bir trait+pipeline değişikliği gerektirir ve henüz planlı
+değil — gecikme kesit uzunluğu + HTTP round-trip'e bağlıdır, "<2sn" hedefi
+canlı ölçülene kadar doğrulanmamış sayılmalı.
 
 Deepgram ve DeepL çağrıları Tokio task'larıyla paralel — çeviri beklenirken STT bloklanmaz.
 Kullanım (plan saati) takibi iki yolda da duvar saatiyle işlenir; fark tarifededir:
@@ -278,6 +302,7 @@ dakikaları otomatik olarak tam tarifeye döner (bkz. `docs/local-stt-plan.md` �
 
 ## Notlar
 
-- mTLS Faz 1'den itibaren zorunlu — SDK ve backend karşılıklı sertifika doğrular
+- mTLS ERTELENDİ — sunucu tarafı hazır ama SDK istemci sertifikası sunmuyor;
+  bugünkü karşılıklı doğrulama TLS 1.3 + cihaz JWT'sidir (bkz. `docs/security.md`)
 - JWT `exp` kontrolü her mesajda değil, sadece `auth` ve `stream_start`'ta yapılır (overhead'i azaltır)
 - Binary frame boyutu maksimum 4096 byte (Opus frame için yeterli, büyükse chunk'la)

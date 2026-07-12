@@ -80,6 +80,9 @@ TLS'i Caddy Let's Encrypt ile üstlenir ve WebSocket'i şeffaf geçirir:
 ```caddyfile
 # /etc/caddy/Caddyfile — host'ta veya compose'a caddy servisi olarak
 api.strovak.com {
+    tls {
+        protocols tls1.3
+    }
     reverse_proxy 127.0.0.1:8080
 }
 ```
@@ -108,7 +111,6 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `BIND_ADDR` | `0.0.0.0:8080` |
 | `JWT_SECRET` | En az 32 byte rastgele dize |
 | `DATABASE_URL` | compose içi: `postgres://streamdubber:...@postgres:5432/streamdubber` |
-| `REDIS_URL` | compose içi: `redis://redis:6379` |
 | `ADMIN_EMAIL` | Panel girişi için bootstrap admin e-postası |
 | `ADMIN_PASSWORD_HASH` | `cargo run --bin hash_password` çıktısı (argon2id) |
 | `CORS_ALLOWED_ORIGINS` | `https://strovak.com,https://www.strovak.com` |
@@ -122,11 +124,20 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `SDK_SESSIONS_FILE` | `/data/sdk-sessions.enc` — eşleşmiş cihazların canlı presence kaydı (heartbeat secret) şifreli kalıcı |
 | `FOUNDING_APPS_FILE` | `/data/founding-apps.json` — founding beta başvuruları + onay durumu (düz JSON); boşsa onaylar restart'ta kaybolur |
 | `STT_SERVERS_FILE` | `/data/stt-servers.enc` — self-hosted GPU STT worker kayıtları (endpoint + bearer token) şifreli kalıcı; boşsa her backend redeploy'unda worker'ı admin panelden yeniden eklemen/provizyon etmen gerekir (bkz. §8) |
+| `STREAM_SETTINGS_FILE` | `/data/stream-settings.json` — yayıncının konuşma/hedef dil seçimi (2.0) düz JSON kalıcı; boşsa restart'ta yeniden seçilmesi gerekir |
+| `VOICE_MODELS_FILE` | `/data/voice-models.json` — ses klonlama model kayıtları (2.1) düz JSON kalıcı; boşsa restart'ta kayıtlar kaybolur |
+| `TTS_SETTINGS_FILE` | `/data/tts-settings.json` — yerel TTS modu + benchmark sonucu (2.2b) düz JSON kalıcı; boşsa restart'ta varsayılana döner |
+| `VOICE_SAMPLES_FILE` | `/data/voice-samples.enc` — ham ses örneği (2026-07-06 kararı) AES-256-GCM şifreli kalıcı; boşsa restart'ta kaybolur (dev/test kabul edilebilir, betada mutlaka set et) |
 | `RUST_LOG` | `info` |
 
 Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
 kimlikleri...) env'e KOYMAK ZORUNDA DEĞİLSİN — deploy sonrası admin panelden
 girilir (adım 4). Env'e koyarsan da çalışır; panel girişleri env'in önüne geçer.
+
+**Not — `REDIS_URL`:** compose'da `redis` servisi hazır bekliyor ama backend
+HENÜZ ona bağlanmıyor (kodda hiçbir referans yok) — hardening planı BH-04/06
+(`docs/backend-hardening-captions-plan.md`) bağlanınca zorunlu env listesine
+eklenecek. Bugün ayarlaman gerekmiyor.
 
 ### 2d. Kalıcılık ve yedek
 

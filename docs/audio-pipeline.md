@@ -38,6 +38,12 @@ mimarisi; ileride whisper.cpp bağlanacağı zaman (2.6b, local-STT) da bakılab
 
 ## Latency Hedefi
 - STT: <300ms | Çeviri: <100ms | Toplam: <2sn
+- **Not (2026-07-12):** Bugünkü STT entegrasyonu VAD-kesiti başına prerecorded
+  REST'tir (`gateway::deepgram`, `/v1/listen`), gerçek zamanlı streaming
+  WebSocket DEĞİL — gerçek gecikme kesit uzunluğu + HTTP round-trip'e bağlıdır
+  ve HENÜZ canlı ölçülmedi (roadmap 1.9 "2 sn altı latency" hâlâ doğrulama
+  bekliyor). Streaming STT ayrı bir trait+pipeline değişikliği gerektirir,
+  planlı değil.
 
 ## STT Seçenekleri
 | Sağlayıcı | Tür | Latency | Maliyet (1000 kullanıcı/ay) | Faz |
