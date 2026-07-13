@@ -660,7 +660,12 @@ Faz P0
 
 Faz P1
 - [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
+  - [ ] BH-03 ADR (`docs/adr/0001-production-state-ownership.md`) — bkz. §14 kapsam notu
+  - [ ] BH-03A minimal: production'da `DATABASE_URL` zorunluluğu (fail-closed startup) — bkz. §14 kapsam notu
+  - [ ] BH-03A repository temeli + BH-03B/C/D: schema/migration + 11 domain cutover + legacy importer (ADR+minimal sonrası, ayrı görev)
 - [ ] BH-04 Redis tabanlı paylaşılan ephemeral state kur
+  - [ ] BH-04 ilk artım: Redis connection manager + `AuthLimiter`/`ClaimLimiter` rate limiter'larının Redis'e taşınması — bkz. §15 kapsam notu
+  - [ ] BH-04 kalan 7 kategori: OAuth state, pairing code, 2FA/reset code, SDK command queue, active-stream presence, overlay snapshot+Pub/Sub, entitlement/revocation cache
 - [ ] BH-05 Trusted proxy ve güvenilir client IP çözümlemesi ekle
 - [ ] BH-06 Rate-limit, OAuth state, overlay ve WS kaynaklarını sınırla
 - [ ] BH-13 Faz dışı backend özelliklerini feature gate arkasına al
@@ -892,6 +897,23 @@ fix: validate plan mutations before persistence
 
 ## 14. BH-03 — PostgreSQL tek kaynak
 
+> **Kapsam notu (2026-07-13, ilk geçiş daraltıldı):** BH-03 tek commit/PR'a
+> sığmayacak kadar büyük (ADR + 8 migration + 11 domain cutover + legacy importer,
+> bkz. §9.1). İlk geçiş şu şekilde daraltıldı: yalnız **ADR** (aşağıdaki "İlk iş") +
+> **BH-03A'nın yalnız DB zorunluluğu kısmı** — production'da `DATABASE_URL` yoksa
+> backend'in başlamayı reddetmesi. Somut tasarım: `config.rs`'e ham, tipsiz bir
+> `app_env_label() -> String` eklenir (yalnız `APP_ENV` okur, boşsa/yoksa default
+> `"development"`); `main.rs`'e saf, test edilebilir bir
+> `enforce_production_database_requirement(env_label, database_url)` fonksiyonu
+> eklenip `Config::from_env()` sonrası `run()` içinde çağrılır (3 test:
+> production+DB-yok → hata, production+DB-var → ok, development+DB-yok → ok). Bu,
+> BH-08'in kapsamladığı tipli `Environment` modelinin **yerine geçmez** — BH-08
+> tamamlanana kadar bilinçli olarak ham string kalır. BH-03A'nın repository-temeli
+> kısmı ve BH-03B/C/D (schema/migration, 11 domain cutover, legacy importer) bu
+> geçişte YOK, ayrı bir göreve bırakıldı. Bu daraltma BH-04'ün ilk artımıyla (bkz.
+> §15 kapsam notu) tek bir geçişte ele alınacak şekilde eşleştirildi — aralarında sıra
+> zorunluluğu yoktur, BH-04'ün rate-limit taşıması BH-03'ten bağımsız çalışır.
+
 ### Amaç
 
 Production'da kalıcı domain verisinin tek kaynağını PostgreSQL yapmak ve süresiz
@@ -899,7 +921,9 @@ memory/file/DB ayrışmasını kaldırmak.
 
 ### İlk iş: ADR
 
-`docs/adr/00xx-production-state-ownership.md` oluştur. Her store için:
+`docs/adr/0001-production-state-ownership.md` oluştur (reponun ilk ADR'ı — henüz
+şablon yok, düz Context/Decision/Consequences yapısı kullanılabilir). §7.1'deki veri
+sahipliği tablosunu store başına genişletir: her store için
 
 - veri sahibi
 - durability
@@ -1008,6 +1032,31 @@ chore: disable file state stores in production
 ```
 
 ## 15. BH-04 — Redis paylaşılan ephemeral state
+
+> **Kapsam notu (2026-07-13, ilk artım):** BH-04'ün 8 kategorisi (rate-limit, OAuth
+> state, pairing code, 2FA/reset code, SDK command queue, active-stream presence,
+> overlay snapshot+Pub/Sub, entitlement cache) tek geçişte bitecek boyutta değil. İlk
+> artım yalnız **Redis connection manager** (`backend/src/cache.rs`, `redis` crate,
+> `ConnectionManager` — auto-reconnect) + **rate limiter'ların** (`AuthLimiter`,
+> `pairing::ClaimLimiter`) Redis'e taşınması: ortak `RateLimiter` çekirdeği,
+> `streamdubber:{env}:...` key formatı, tek round-trip'lik atomik `INCR`+`EXPIRE`
+> (Lua script, `redis::Script` + `LazyLock`). Kalan 7 kategori (OAuth state, pairing
+> code, 2FA/reset code, SDK command queue, active-stream presence, overlay
+> snapshot+Pub/Sub, entitlement/revocation cache) ayrı takip görevlerine bırakıldı.
+> Politika bu artımda da geçerli: **startup**'ta `REDIS_URL` opsiyonel kalır (yoksa
+> mevcut bellek-içi limiter kullanılır — tek-instance ölçek sınırı, güvenlik
+> regresyonu değil); var-ama-erişilemez ise `cache::connect` `?` ile sert başlangıç
+> hatası verir (aynı `db::connect`/`DATABASE_URL` deseni). `REDIS_URL`'i production'da
+> zorunlu kılmak tipli `Environment` modelini gerektirdiği için BH-08'e bırakıldı.
+> **Runtime**'da Redis yapılandırılıyken herhangi bir rate-limit hatası (timeout,
+> bağlantı reddi, script hatası) her ortamda `503` döner — asla sessiz `allow`
+> (`SessionStore::rotate`'in Postgres hatası → `401` hassas emsalini izler,
+> bellek-içi `ChannelBindingStore`'un permissive emsalini değil, çünkü rate limiter
+> bir durability cache'i değil güvenlik kontrolüdür). `pairing::ClaimLimiter`'ın
+> kendi ~15 satırlık sabit-pencere mantığı bu geçişte aynı `RateLimiter` çekirdeğine
+> devredilir (mükerrer mantığı ikinci kez kopyalamamak için); `WaitlistLimiter` ve
+> `ExtTwitch::check_rate` kasıtlı olarak dışarıda bırakıldı (ayrı, gelecekteki bir
+> fold-in görevi).
 
 ### Amaç
 
