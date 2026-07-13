@@ -1495,14 +1495,19 @@
       "codePlaceholder": "______",
       "submitLabel": "Verify and sign in",
       "submittingLabel": "Verifying...",
+      "resendLabel": "Resend code",
+      "resendingLabel": "Sending...",
+      "resendSent": "A new verification code was sent.",
       "backLabel": "Back to sign in"
     },
     "errors": {
       "invalid": "Email or password is incorrect.",
       "network": "Network error. Please try again.",
       "unavailable": "Sign-in is temporarily unavailable. Please try again later.",
+      "signInRequired": "Please sign in to continue.",
       "sessionExpired": "Your session could not be verified. Please sign in again.",
       "sessionUnavailable": "Your sign-in succeeded, but the session service could not be reached. Please try again in a moment.",
+      "logoutFailed": "Sign-out could not be completed. Please try again.",
       "emailTaken": "This email is already registered. Try signing in instead.",
       "invalidFields": "Check your email address and use a password of at least 8 characters.",
       "weakPassword": "Password must be at least 8 characters.",
@@ -1537,9 +1542,11 @@
       "codeLabel": "Verification code",
       "codePlaceholder": "______",
       "submitLabel": "Verify and sign in",
+      "submittingLabel": "Verifying...",
       "resendLabel": "Resend code",
-      "backLabel": "Back to sign in",
-      "devNotice": "Email delivery is not configured yet. Set the noreply sender via the config API (mail.* keys); until then this step is a stub for development."
+      "resendingLabel": "Sending...",
+      "resendSent": "A new verification code was sent.",
+      "backLabel": "Back to sign in"
     },
     "nav": {
       "ariaLabel": "Admin navigation",

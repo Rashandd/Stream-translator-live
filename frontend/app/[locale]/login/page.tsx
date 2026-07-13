@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BrandLogo } from "@/src/components/brand-logo";
+import { AuthNotice } from "@/src/components/auth-notice";
 import { LoginForm } from "@/src/components/login-form";
 import { OAuthButtons } from "@/src/components/oauth-buttons";
 import { getPublicConfig } from "@/src/lib/config";
@@ -9,7 +10,6 @@ import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ auth_error?: string }>;
 };
 
 export function generateStaticParams() {
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: config.auth.login.title };
 }
 
-export default async function LoginPage({ params, searchParams }: Props) {
+export default async function LoginPage({ params }: Props) {
   const { locale: rawLocale } = await params;
   if (!isLocale(rawLocale)) {
     notFound();
@@ -31,13 +31,6 @@ export default async function LoginPage({ params, searchParams }: Props) {
   const locale: Locale = rawLocale;
   const config = await getPublicConfig(locale);
   const { login } = config.auth;
-  const { auth_error: authError } = await searchParams;
-  const returnMessage =
-    authError === "session"
-      ? config.auth.errors.sessionExpired
-      : authError === "network"
-        ? config.auth.errors.sessionUnavailable
-        : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-12">
@@ -56,14 +49,13 @@ export default async function LoginPage({ params, searchParams }: Props) {
           <h1 className="text-2xl font-semibold text-ink">{login.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{login.subtitle}</p>
 
-          {returnMessage ? (
-            <p
-              className="mt-4 rounded-lg border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-ink"
-              role="alert"
-            >
-              {returnMessage}
-            </p>
-          ) : null}
+          <AuthNotice
+            labels={{
+              sign_in_required: config.auth.errors.signInRequired,
+              session_expired: config.auth.errors.sessionExpired,
+              session_unavailable: config.auth.errors.sessionUnavailable,
+            }}
+          />
 
           <LoginForm
             adminHref={localizePath(locale, "/admin")}

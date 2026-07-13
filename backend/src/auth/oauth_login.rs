@@ -58,7 +58,7 @@ use crate::integrations::{urlencoding_light, CallbackQuery};
 use crate::logging::LogLevel;
 use crate::secrets::{names, SecretRef, SecretStore};
 use crate::state::AppState;
-use crate::users::{user_principal, OAuthIdentityInfo, UserError};
+use crate::users::{signup_consents, user_principal, ConsentRecord, OAuthIdentityInfo, UserError};
 #[cfg(test)]
 use crate::users::UserStore;
 
@@ -103,6 +103,9 @@ struct LoginState {
     redirect_uri: String,
     /// Link akışında bağlanacak mevcut kullanıcı; login/signup'ta `None`.
     existing_user_id: Option<String>,
+    /// Signup authorize anındaki legal version snapshot'ı. Callback sırasında
+    /// config değişse bile kullanıcıya gösterilen sürüm kaydedilir.
+    signup_consents: Option<Vec<ConsentRecord>>,
     created: Instant,
 }
 
@@ -120,29 +123,10 @@ impl LoginStateStore {
         }
     }
 
-    fn issue(
-        &self,
-        provider: &str,
-        intent: OAuthIntent,
-        locale: &str,
-        return_to: Option<String>,
-        redirect_uri: &str,
-        existing_user_id: Option<String>,
-    ) -> String {
+    fn issue(&self, entry: LoginState) -> String {
         let state = uuid::Uuid::new_v4().simple().to_string();
         if let Ok(mut map) = self.inner.lock() {
-            map.insert(
-                state.clone(),
-                LoginState {
-                    provider: provider.to_string(),
-                    intent,
-                    locale: locale.to_string(),
-                    return_to,
-                    redirect_uri: redirect_uri.to_string(),
-                    existing_user_id,
-                    created: Instant::now(),
-                },
-            );
+            map.insert(state.clone(), entry);
         }
         state
     }
@@ -316,14 +300,19 @@ impl LoginProviders {
             .get("auth.oauth_redirect_base")
             .unwrap_or_else(|| "http://localhost:8080/api/auth/oauth".to_string());
         let redirect_uri = format!("{base}/{provider_name}/callback");
-        let state = self.states.issue(
-            provider_name,
+        let consent_snapshot = (intent == OAuthIntent::Signup).then(|| {
+            signup_consents(cfg, false, &format!("{provider_name}_signup"))
+        });
+        let state = self.states.issue(LoginState {
+            provider: provider_name.to_string(),
             intent,
-            locale,
+            locale: locale.to_string(),
             return_to,
-            &redirect_uri,
+            redirect_uri: redirect_uri.clone(),
             existing_user_id,
-        );
+            signup_consents: consent_snapshot,
+            created: Instant::now(),
+        });
         Ok(creds.provider.authorize_redirect(&client_id, &redirect_uri, &state))
     }
 
@@ -407,9 +396,14 @@ impl LoginProviders {
             .service_config
             .get("auth.default_plan")
             .unwrap_or_else(|| "free".to_string());
-        let user = app
-            .users
-            .create_oauth_user(provider_name, &identity.external_id, &identity.email, &plan)?;
+        let consents = st.signup_consents.ok_or(OAuthLoginError::InvalidState)?;
+        let user = app.users.create_oauth_user_with_consents(
+            provider_name,
+            &identity.external_id,
+            &identity.email,
+            &plan,
+            consents,
+        )?;
         app.logger.log(
             LogLevel::Info,
             "auth",
@@ -971,6 +965,13 @@ mod tests {
         assert_eq!(user.email, "streamer@example.com");
         assert!(user.password_hash.is_none());
         assert!(user.email_verified);
+        assert_eq!(user.consents.len(), 6);
+        assert!(user.consents.iter().all(|record| record.source == "google_signup"));
+        assert!(user
+            .consents
+            .iter()
+            .find(|record| record.kind == "marketing")
+            .is_some_and(|record| !record.accepted));
     }
 
     #[tokio::test]

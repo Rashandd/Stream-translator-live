@@ -245,11 +245,17 @@ impl ServiceConfig {
             // metinlerini gösterir; admin panelden doldurulunca public
             // /legal/{slug} sayfaları bu HTML'i render eder.
             ("legal.terms.html", ""),
+            ("legal.terms.version", "2026-07-12"),
             ("legal.privacy.html", ""),
+            ("legal.privacy.version", "2026-07-12"),
             ("legal.kvkk.html", ""),
+            ("legal.kvkk.version", "2026-07-12"),
             ("legal.cookies.html", ""),
+            ("legal.cookies.version", "2026-07-12"),
             ("legal.dpa.html", ""),
+            ("legal.dpa.version", "2026-07-12"),
             ("legal.communications.html", ""),
+            ("legal.communications.version", "2026-07-12"),
             // Tüzel kişilik bilgileri (Faz 1 — Litvanya şahıs kaydı henüz
             // tamamlanmadı). Boşken public /legal/{slug} sayfaları "kayıt
             // tamamlanınca yayınlanacak" notunu gösterir; admin panelden

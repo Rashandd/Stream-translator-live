@@ -10,6 +10,15 @@ const signupFormSource = readFileSync(
   new URL("../../components/signup-form.tsx", import.meta.url),
   "utf8",
 );
+const authClientSource = readFileSync(new URL("../../lib/auth-client.ts", import.meta.url), "utf8");
+const verifyFormSource = readFileSync(
+  new URL("../../components/verify-code-form.tsx", import.meta.url),
+  "utf8",
+);
+const adminVerifySource = readFileSync(
+  new URL("../../../app/[locale]/admin/login/verify/page.tsx", import.meta.url),
+  "utf8",
+);
 
 /**
  * Yayıncı auth akışı (1.4) sözlük sözleşmesi — login/signup/verify/reset
@@ -58,6 +67,27 @@ describe("auth flow dictionary contract", () => {
     expect(signupFormSource).toContain("optionalConsent");
   });
 
+  it("signup completes authentication in one request", () => {
+    expect(signupFormSource).toContain("/api/auth/signup");
+    expect(signupFormSource).not.toContain("await login(");
+    expect(signupFormSource).toContain("outcome.two_factor_required");
+    expect(signupFormSource).toContain("outcome.authenticated");
+  });
+
+  it("2fa keeps identity in an HttpOnly challenge instead of sessionStorage", () => {
+    expect(authClientSource).not.toContain("sessionStorage");
+    expect(authClientSource).not.toContain("PENDING_2FA");
+    expect(verifyFormSource).toContain("JSON.stringify({ code })");
+    expect(verifyFormSource).not.toContain("email");
+    expect(verifyFormSource).toContain("/api/auth/2fa/resend");
+  });
+
+  it("admin verify page uses the real shared verify form", () => {
+    expect(adminVerifySource).toContain("<VerifyCodeForm");
+    expect(adminVerifySource).not.toContain("devNotice");
+    expect(adminVerifySource).not.toContain("<form action=");
+  });
+
   it("public auth forms do not render email or password placeholders", () => {
     expect(loginFormSource).not.toContain("placeholder=");
     expect(signupFormSource).not.toContain("placeholder=");
@@ -85,6 +115,8 @@ describe("auth flow dictionary contract", () => {
       "invalid",
       "network",
       "unavailable",
+      "signInRequired",
+      "logoutFailed",
       "emailTaken",
       "invalidFields",
       "weakPassword",

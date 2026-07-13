@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { API_URL } from "@/src/lib/api";
-import { clearPending2faEmail, readPending2faEmail } from "@/src/lib/auth-client";
 
 type Labels = {
   codeLabel: string;
   codePlaceholder: string;
   submitLabel: string;
   submittingLabel: string;
+  resendLabel: string;
+  resendingLabel: string;
+  resendSent: string;
   errorInvalid: string;
   errorTooMany: string;
   errorNetwork: string;
@@ -17,60 +19,85 @@ type Labels = {
 
 type Props = {
   labels: Labels;
-  /** Başarılı doğrulamada gidilecek yol (locale'li dashboard). */
   dashboardHref: string;
+  adminHref: string;
 };
 
-export function VerifyCodeForm({ labels, dashboardHref }: Props) {
+/**
+ * Ortak broadcaster/admin 2FA formu. Pending identity yalnız HttpOnly
+ * `sd_auth_challenge` cookie'sindedir; body yalnız 6 haneli kodu taşır.
+ */
+export function VerifyCodeForm({ labels, dashboardHref, adminHref }: Props) {
   const [code, setCode] = useState("");
-  const [email, setEmail] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // sessionStorage sadece client'ta var — hydration sonrası oku.
-  useEffect(() => {
-    setEmail(readPending2faEmail());
-    setReady(true);
-  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!email) {
-      setError(labels.errorSessionMissing);
-      return;
-    }
     setPending(true);
     setError(null);
+    setMessage(null);
     try {
       const response = await fetch(`${API_URL}/api/auth/2fa`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ code }),
       });
       if (response.ok) {
-        const data = (await response.json()) as { authenticated?: boolean };
-        if (data.authenticated) {
-          clearPending2faEmail();
+        const data = (await response.json()) as { authenticated?: boolean; role?: string };
+        if (data.authenticated && data.role === "admin") {
+          window.location.assign(adminHref);
+          return;
+        }
+        if (data.authenticated && data.role === "broadcaster") {
           window.location.assign(dashboardHref);
           return;
         }
       }
-      setError(response.status === 429 ? labels.errorTooMany : labels.errorInvalid);
+      if (response.status === 429) {
+        setError(labels.errorTooMany);
+      } else if (response.status === 401) {
+        setError(labels.errorInvalid);
+      } else {
+        setError(labels.errorSessionMissing);
+      }
     } catch {
       setError(labels.errorNetwork);
+    } finally {
+      setPending(false);
     }
-    setPending(false);
+  }
+
+  async function handleResend() {
+    setResending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/2fa/resend`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (response.ok) {
+        setMessage(labels.resendSent);
+      } else if (response.status === 429) {
+        setError(labels.errorTooMany);
+      } else if (response.status === 401) {
+        setError(labels.errorSessionMissing);
+      } else {
+        setError(labels.errorNetwork);
+      }
+    } catch {
+      setError(labels.errorNetwork);
+    } finally {
+      setResending(false);
+    }
   }
 
   return (
     <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-      {ready && !email ? (
-        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-ink" role="alert">
-          {labels.errorSessionMissing}
-        </p>
-      ) : null}
       <div>
         <label className="text-sm font-semibold text-ink" htmlFor="code">{labels.codeLabel}</label>
         <input
@@ -88,6 +115,11 @@ export function VerifyCodeForm({ labels, dashboardHref }: Props) {
           value={code}
         />
       </div>
+      {message ? (
+        <p className="rounded-lg border border-success/25 bg-success/10 px-3 py-2 text-sm text-ink" role="status">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-lg border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-ink" role="alert">
           {error}
@@ -99,6 +131,14 @@ export function VerifyCodeForm({ labels, dashboardHref }: Props) {
         type="submit"
       >
         {pending ? labels.submittingLabel : labels.submitLabel}
+      </button>
+      <button
+        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-ink transition hover:border-blue disabled:opacity-60"
+        disabled={resending}
+        onClick={() => void handleResend()}
+        type="button"
+      >
+        {resending ? labels.resendingLabel : labels.resendLabel}
       </button>
     </form>
   );

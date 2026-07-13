@@ -10,36 +10,13 @@
  * Faz 2: OAuth ile giren yayıncılar da aynı HttpOnly cookie session'ı kullanır
  * (`oauth_login.rs::callback` artık token fragment'ı yerine Set-Cookie döner);
  * `userFetch` browser'da yalnız cookie oturumuna dayanır. Bearer JWT yalnız
- * SDK/CLI/server-to-server istemciler için backend tarafında kalır. Eski
- * `sd.user.token` yardımcıları geçiş temizliği için hâlâ export edilir (Faz 5
- * tamamen kaldıracak).
+ * SDK/CLI/server-to-server istemciler için backend tarafında kalır.
  */
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(
   /\/+$/,
   "",
 );
-
-const USER_TOKEN_KEY = "sd.user.token";
-
-export function getUserToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.localStorage.getItem(USER_TOKEN_KEY);
-}
-
-export function setUserToken(token: string): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(USER_TOKEN_KEY, token);
-  }
-}
-
-export function clearUserToken(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(USER_TOKEN_KEY);
-  }
-}
 
 function csrfCookie(): string | null {
   if (typeof document === "undefined") {

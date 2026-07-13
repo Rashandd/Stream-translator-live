@@ -17,10 +17,12 @@ describe("AuthGuard", () => {
     expect(source).toContain('tokenKind === "admin" ? data.role === "admin" : true');
   });
 
-  it("redirects with a reason when the session is rejected or the API is unreachable", () => {
-    expect(source).toContain('redirectToLogin("session")');
-    expect(source).toContain('redirectToLogin("network")');
-    expect(source).toContain('url.searchParams.set("auth_error", reason)');
+  it("stores a one-time notice and replaces the URL without auth query parameters", () => {
+    expect(source).toContain('"session_expired" : "sign_in_required"');
+    expect(source).toContain('redirectToLogin("session_unavailable")');
+    expect(source).toContain("storeAuthNotice(reason)");
+    expect(source).toContain("window.location.replace(loginHref)");
+    expect(source).not.toContain("auth_error");
     expect(source).toContain("if (!authorized) {\n    return null;\n  }");
   });
 });

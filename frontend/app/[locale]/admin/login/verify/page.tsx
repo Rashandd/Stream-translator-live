@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BrandLogo } from "@/src/components/brand-logo";
-import { Icon } from "@/src/components/icon";
+import { VerifyCodeForm } from "@/src/components/verify-code-form";
 import { getPublicConfig } from "@/src/lib/config";
 import { isLocale, localizePath, locales, type Locale } from "@/src/i18n/routing";
 
@@ -45,38 +45,25 @@ export default async function AdminVerifyPage({ params }: Props) {
           <h1 className="text-2xl font-semibold text-ink">{verify.title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted">{verify.subtitle}</p>
 
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
-            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-warning" name="Mail" />
-            <p className="text-xs leading-5 text-text">{verify.devNotice}</p>
-          </div>
+          <VerifyCodeForm
+            adminHref={localizePath(locale, "/admin")}
+            dashboardHref={localizePath(locale, "/dashboard")}
+            labels={{
+              codeLabel: verify.codeLabel,
+              codePlaceholder: verify.codePlaceholder,
+              submitLabel: verify.submitLabel,
+              submittingLabel: verify.submittingLabel,
+              resendLabel: verify.resendLabel,
+              resendingLabel: verify.resendingLabel,
+              resendSent: verify.resendSent,
+              errorInvalid: config.auth.errors.codeInvalid,
+              errorTooMany: config.auth.errors.codeTooMany,
+              errorNetwork: config.auth.errors.network,
+              errorSessionMissing: config.auth.errors.sessionMissing,
+            }}
+          />
 
-          <form action={localizePath(locale, "/admin")} className="mt-6 space-y-4" method="get">
-            <div>
-              <label className="text-sm font-semibold text-ink" htmlFor="code">{verify.codeLabel}</label>
-              <input
-                autoComplete="one-time-code"
-                className="mt-1.5 h-12 w-full rounded-lg border border-border bg-surface px-3 text-center font-mono text-lg tracking-[0.4em] text-ink outline-none transition focus:border-blue"
-                id="code"
-                inputMode="numeric"
-                maxLength={6}
-                name="code"
-                pattern="[0-9]*"
-                placeholder={verify.codePlaceholder}
-                type="text"
-              />
-            </div>
-            <button
-              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
-              type="submit"
-            >
-              {verify.submitLabel}
-            </button>
-          </form>
-
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <Link className="font-semibold text-blue hover:text-ink" href={localizePath(locale, "/admin/login/verify")}>
-              {verify.resendLabel}
-            </Link>
+          <div className="mt-4 flex items-center justify-end text-sm">
             <Link className="font-semibold text-muted hover:text-ink" href={localizePath(locale, "/admin/login")}>
               {verify.backLabel}
             </Link>
