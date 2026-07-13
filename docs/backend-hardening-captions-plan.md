@@ -8,6 +8,10 @@
 >
 > **Birleştirme tarihi:** 2026-07-10
 >
+> **Revizyon:** 2026-07-12 — BH-09 ve BH-12'nin browser auth ile çakışan bölümleri,
+> koddaki `auth::session` (commit `c76149d`) ve uygulanmakta olan
+> `docs/auth-workflow-hardening-plan.md` esas alınarak daraltıldı (bkz. §0.1).
+>
 > **Kapsam:** Backend (Rust/Axum) + SDK (Tauri/Rust) + Frontend (Next.js) + stt-server (Python)
 >
 > **Repo kökü:** `/home/adem/Projects/GitHub/Stream-translator-live`
@@ -29,6 +33,27 @@ Bunların dışında **çakışma bulunmadı** — iki plan da usage/kota hesap 
 gerçek streaming STT'yi (Deepgram WS) açıkça kapsam dışı bırakıyor ve birbirine dokunmuyor;
 Twitch Extension tarafında captions planı flag'i açmaya çalışmıyor (zaten `ext.twitch.enabled=false`),
 BH-13 ile çelişmiyor.
+
+### 0.1 Revizyon — 2026-07-12: browser auth çakışması giderildi
+
+Birleştirmeyle aynı gün, bu plan yazılırken görülmeyen bir commit merge edildi:
+`c76149d` (2026-07-10) — HttpOnly `sd_access`/`sd_refresh`/`sd_csrf` cookie'leri,
+15 dk access + 30 gün refresh, her refresh'te rotation ve reuse'da family revoke
+(`backend/src/auth/session.rs` + `backend/migrations/0005_browser_sessions.sql`).
+Yani BH-09'un "kullanıcı token modeli" bölümünün sıfırdan tasarladığı sistem browser
+tarafında **zaten var**. Browser kimlik doğrulamasının kalan işleri (OAuth'un cookie
+session'a taşınması, opaque 2FA challenge, consent ledger, güvenilir logout) ayrı ve
+**uygulanmakta olan** `docs/auth-workflow-hardening-plan.md`'nin sahipliğindedir.
+Bu revizyonda:
+
+- **BH-09** canlı entitlement + SDK token modeli + güvenlik olayı revoke
+  entegrasyonuna daraltıldı; browser session mekaniğini yeniden kurmaz (bkz. §20).
+- **BH-12**'nin consent alt bölümü auth-workflow planının A-06/Faz 4 consent
+  ledger'ına devredildi (bkz. §23).
+- **BH-04**'ün Redis'e taşıyacağı auth state listesi, auth-workflow planının
+  ürettiği OAuth-login state ve 2FA challenge store'unu da kapsar (bkz. §15).
+- **BH-02** ConfigSpec notuna auth-workflow planının ekleyeceği config key'leri
+  eklendi (bkz. §13).
 
 ---
 
@@ -192,6 +217,11 @@ Plan hazırlanırken doğrulanan durum:
   yeni config key'leri bu registry'ye göre yazılmalı, bkz. §8).
 - `stt_servers/mod.rs`'te `mark_ready`/`provision_server` var, `stt.selfhosted.autoactivate`
   diye bir config key henüz yok (Bölge B1'in net başlangıç noktası).
+- `backend/src/auth/session.rs` + migration `0005_browser_sessions.sql` (commit
+  `c76149d`, 2026-07-10): browser için HttpOnly cookie session, refresh rotation ve
+  reuse'da family revoke ZATEN VAR — BH-09'un başlangıç varsayımı buna göre
+  güncellendi (bkz. §0.1 ve §20). Browser auth'un kalan işleri
+  `docs/auth-workflow-hardening-plan.md`'de.
 
 Bu bilgiler başlangıç varsayımıdır. Yeni ajan ilk turda tekrar doğrulamalıdır.
 
@@ -208,8 +238,10 @@ Bu bilgiler başlangıç varsayımıdır. Yeni ajan ilk turda tekrar doğrulamal
 4. Overlay ve OAuth state bilinmeyen/public girdilerle sınırsız büyüyebilir.
 5. Client IP çözümlemesi istemcinin gönderdiği `X-Forwarded-For` değerine güvenir.
 6. Mock provider, email 2FA ve TLS yapılandırmasında production fail-open yolları var.
-7. JWT plan/rol claim'leri uzun süre stale kalabilir; refresh ve merkezi revoke
-   sistemi yoktur.
+7. JWT plan/rol claim'leri uzun süre stale kalabilir. Browser tarafında refresh
+   rotation + family revoke artık var (`auth::session`, bkz. §0.1); SDK cihaz
+   JWT'lerinde refresh/merkezi revoke hâlâ yok ve plan/rol hâlâ token claim'inden
+   okunuyor.
 8. WebSocket provider hataları protokolde tanımlı `4005/4006` kodlarıyla
    iletilmemekte veya sessizce yutulmaktadır.
 9. Hesap silme, voice-data cleanup, key-use audit ve retention akışı eksiktir.
@@ -409,7 +441,8 @@ kesişimler yeniden sıralanıyor.
 
 - **BH-07** Ayrı SDK mTLS listener
 - **BH-08** Fail-closed startup
-- **BH-09** JWT refresh/revoke/canlı entitlement
+- **BH-09** Canlı entitlement + SDK token revoke (browser refresh/rotation zaten
+  `auth::session`'da — bkz. §0.1/§20)
 
 > **Sıra kuralı:** `ws/mod.rs`'in `stream_start`/handshake bölümüne bu üçü **önce**
 > dokunur (yapısal/güvenlik değişikliği), Bölge D ve E **sonra** üstüne biner. Aynı
@@ -550,7 +583,7 @@ Faz P2
 Faz P3
 - [ ] BH-07 Public API ile SDK mTLS listener'larını ayır
 - [ ] BH-08 Production startup kontrollerini fail-closed yap
-- [ ] BH-09 JWT yenileme, iptal ve canlı entitlement kontrolü ekle
+- [ ] BH-09 Canlı entitlement + SDK token revoke ekle (browser refresh/rotation mevcut — bkz. §20)
 
 Faz P4
 - [ ] D3. Panel: sabit overlay URL + token yenileme
@@ -704,7 +737,9 @@ Desteklenen tipler:
 > `stt.selfhosted.autoactivate`/`stt.selfhosted.health_interval_secs`, Bölge E'nin
 > `integrations.youtube.captions.enabled`/`integrations.youtube.captions.retry_secs`)
 > doğrudan bu spec formatında (tip + validator + visibility=internal/admin) tanımlanır —
-> önce ham string key olarak eklenip sonra registry'ye taşınmaz.
+> önce ham string key olarak eklenip sonra registry'ye taşınmaz. Aynı kural
+> `docs/auth-workflow-hardening-plan.md`'nin ekleyeceği key'ler için de geçerlidir
+> (legal doküman versiyon anahtarları, geçici `auth.oauth_legacy_fragment` flag'i vb.).
 
 ### TDD testleri
 
@@ -890,6 +925,13 @@ TTL, tek-kullanım ve multi-instance koordinasyon isteyen state'i Redis'e taşı
 > uygulayan ajan, `register/subscribe/unregister` API yüzeyini BH-06 ile birlikte
 > tasarlarken Bölge D1/D2'nin ihtiyaçlarını (kalıcı token ile tekrar tekrar register
 > edilebilme, snapshot reset) dikkate almalı.
+
+> **Not (2026-07-12 revizyonu, bkz. §0.1):** `docs/auth-workflow-hardening-plan.md`
+> A-03/A-04'ün ürettiği OAuth-login state (intent/locale/return_to) ve opaque 2FA
+> challenge store'u da "Redis'e taşınacaklar" listesine dahildir. O plan store'ları
+> taşınabilir bir arayüz arkasında bırakır (kendi §8'i); Redis implementasyonu bu
+> görevin işidir — taşırken challenge attempt sayacı ve tek-kullanım semantiği
+> atomik kalmalıdır.
 
 ### Testler
 
@@ -1130,33 +1172,34 @@ Security invariant admin runtime mutation ile gevşetilememeli.
 fix: fail closed on insecure production configuration
 ```
 
-## 20. BH-09 — Refresh, revoke ve canlı entitlement
+## 20. BH-09 — Canlı entitlement ve SDK token güvenliği
+
+> **Revizyon (2026-07-12, bkz. §0.1):** Bu görevin eski "kullanıcı token modeli"
+> bölümü (kısa ömürlü access + rotating refresh + reuse'da family revoke) browser
+> tarafında `auth::session` ile zaten uygulanmış durumda
+> (`backend/src/auth/session.rs`, `browser_sessions` migration 0005): 15 dk
+> `sd_access`, SHA-256 hash'li 30 gün refresh, her refresh'te rotation, reuse ve
+> logout'ta family revoke. O bölüm bu plandan çıkarıldı. Browser auth'un devamı
+> (OAuth'un cookie session'a taşınması, 2FA challenge, consent, logout)
+> `docs/auth-workflow-hardening-plan.md`'nin işidir — bu görev browser session
+> mekaniğine DOKUNMAZ, güvenlik olaylarında onun `SessionStore`'una entegre olur.
 
 ### Amaç
 
-Uzun ömürlü stateless tokenların plan, rol, parola veya device değişikliklerinden
-sonra geçerli kalmasını engellemek.
+Plan, rol, parola veya device değişikliklerinden sonra eski yetkilerin (stale JWT
+claim'leri veya açık SDK session'ları üzerinden) geçerli kalmasını engellemek.
 
 ### Schema
 
 Migration ile en az:
 
-- `users.token_version`
-- `auth_tokens.jti`
-- `auth_tokens.family_id`
-- `auth_tokens.revoked_at`
-- `auth_tokens.last_used_at`
-- `auth_tokens.sdk_session_id`
-- gerekli unique/index'ler
+- `users.token_version` (güvenlik olayında kullanıcının tüm access JWT'lerini
+  geçersiz kılmak için)
+- SDK session kayıtlarına revoke alanları (`revoked_at` vb.)
+- SDK JWT `sid`/`jti` eşlemesi için gerekli kolon/index'ler
 
-### Kullanıcı token modeli
-
-- Access token kısa ömürlü; hedef yaklaşık 15 dakika.
-- Refresh token yüksek entropili.
-- DB'de yalnız SHA-256 hash tutulur.
-- Her refresh rotate edilir.
-- Eski refresh reuse edilirse bütün token family revoke edilir.
-- Logout current family'yi revoke eder.
+`browser_sessions` tablosu (migration 0005) family/status/rotated_at/revoked_at
+alanlarını zaten taşıyor — browser için yeni token tablosu YOKTUR.
 
 ### Authorization kaynağı
 
@@ -1164,6 +1207,9 @@ Migration ile en az:
 - Plan ve rol PostgreSQL/çok kısa Redis cache'ten çözülecek.
 - Admin plan/role değişikliği cache invalidation üretecek.
 - Cache/DB arızasında privileged access fail-closed olacak.
+- Bu kural browser session'dan üretilen access JWT'ler için de geçerlidir —
+  `SessionPrincipal` içindeki rol/plan anlık görüntüdür, canlı entitlement DB'den
+  çözülür.
 
 ### SDK token modeli
 
@@ -1174,21 +1220,25 @@ Migration ile en az:
 
 ### Güvenlik olayları
 
-- Password reset: `token_version++`, tüm family revoke.
+- Password reset: `token_version++`; kullanıcının browser session family'leri
+  `SessionStore::revoke` üzerinden, SDK tokenları kendi mekanizmasıyla revoke edilir.
 - Role downgrade: eski admin erişimi anında kapanır.
 - Account deletion request: tüm token/device revoke.
 - Device removal: yalnız ilgili cihaz tokenları revoke.
 
 ### Testler
 
+Mevcut regresyon (yeniden yazılmaz — `auth::session` testleri kapsıyor): refresh
+iki kez kullanılamaz; reuse bütün family'yi revoke eder; logout family'yi revoke
+eder; raw token DB'de tutulmaz.
+
+Bu görevin ekleyeceği testler:
+
 - Plan değişikliği eski access tokenla yeni entitlement verir.
 - Role downgrade eski admin tokenını engeller.
-- Password reset eski tokenları geçersiz kılar.
-- Refresh token iki kez kullanılamaz.
-- Reuse detection bütün family'yi revoke eder.
+- Password reset eski access JWT'leri VE browser refresh family'lerini geçersiz kılar.
 - Device removal ilgili SDK JWT'yi engeller.
 - İki cihaz birbirinden izole kalır.
-- Raw token DB/logda yoktur.
 - DB/cache failure güvenli davranır.
 
 ### P0 sınırı
@@ -1199,7 +1249,6 @@ auth katmanının bunu anında görmesini sağlar.
 ### Önerilen commitler
 
 ```text
-feat: add rotating refresh token sessions
 fix: resolve authorization from live user state
 fix: revoke user and device tokens on security events
 ```
@@ -1376,11 +1425,15 @@ provider response yasaktır.
 
 ### Consent
 
-- Terms version
-- Privacy version
-- Server timestamp
-- Marketing consent ayrı ve opsiyonel
-- Marketing ertelendiyse alanı sessiz yutma; API'den kaldır veya consent ledger'a yaz
+> **Revizyon (2026-07-12, bkz. §0.1):** Versiyonlu consent ledger'ın veri modeli ve
+> implementasyonu `docs/auth-workflow-hardening-plan.md`'nin (A-06, Faz 4)
+> sahipliğindedir — burada yeniden tanımlanmaz. BH-12 yalnız silme akışının
+> consent'e etkisini kapsar:
+
+- Hesap silinirken consent kayıtları için belgelenmiş retention/anonymization
+  kararı uygulanır (yasal kanıt gerekiyorsa anonimize edilerek tutulabilir).
+- Silme talebi ve tamamlanması audit'e yazılır; consent ledger'ın modeli
+  değiştirilmez.
 
 ### Retention belgesi
 
@@ -1410,8 +1463,10 @@ provider response yasaktır.
 feat: persist security audit events
 feat: add idempotent account deletion workflow
 fix: purge rejected and deleted voice samples
-feat: persist versioned legal consent
 ```
+
+(`feat: persist versioned legal consent` bu listeden çıkarıldı — consent ledger
+`docs/auth-workflow-hardening-plan.md` Faz 4'ün commit'idir.)
 
 ## 24. BH-13 — Faz dışı özellikler için gate
 
@@ -1837,8 +1892,8 @@ aboneler kopar).
 ## Bölge E — YouTube Native Caption Pusher
 
 > **Sıra notu (birleştirmede eklendi, bkz. §8 Faz P3→P4):** Bu bölge `ws/mod.rs
-> stream_start`'a dokunur — BH-07 (SDK mTLS listener ayrımı) ve BH-09 (JWT
-> refresh/session) tamamlandıktan, ve Bölge D bittikten sonra uygulanır.
+> stream_start`'a dokunur — BH-07 (SDK mTLS listener ayrımı) ve BH-09 (canlı
+> entitlement/SDK session revoke) tamamlandıktan, ve Bölge D bittikten sonra uygulanır.
 
 ### E1. Aktif broadcast keşfi
 
@@ -2033,7 +2088,7 @@ yapılır.
 ### Tek commit'e konmayacak kombinasyonlar
 
 - PostgreSQL cutover + Redis migration
-- mTLS listener + JWT refresh sistemi
+- mTLS listener + canlı entitlement/SDK revoke sistemi (BH-07 + BH-09)
 - Config validation + bütün config değerlerinin değişmesi
 - Account deletion + unrelated voice feature
 - Format-all + functional değişiklik
