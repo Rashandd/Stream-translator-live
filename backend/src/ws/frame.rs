@@ -4,7 +4,7 @@
 //! ```text
 //! [0..3]  magic: 0x53 0x44 0x41 0x55  ("SDAU")
 //! [4]     codec: 0x01=opus, 0x02=pcm_s16le
-//! [5]     reserved: 0x00
+//! [5]     flags: bit0=utterance_end; 0x00 = işaret yok (eski "reserved", geriye uyumlu)
 //! [6..7]  payload_len: uint16 big-endian
 //! [8..]   payload (ses verisi)
 //! ```
@@ -14,6 +14,11 @@ pub const HEADER_LEN: usize = 8;
 
 /// Sihirli imza: "SDAU".
 pub const MAGIC: [u8; 4] = [0x53, 0x44, 0x41, 0x55];
+
+/// Header byte[5] flag biti: bu frame bir utterance'ın (cümlenin) son frame'i.
+/// SDK VAD cümle sonunu görünce set eder (Bölge A2); backend tamponu bu noktada
+/// flush eder (Bölge A3). Bilinmeyen üst bitler yok sayılır (ileri uyumluluk).
+pub const FLAG_UTTERANCE_END: u8 = 0x01;
 
 /// Bir frame'in toplam maksimum boyutu (header + payload).
 /// Protokol payload için Opus frame'e yetecek ~4096 byte üst sınır koyar.
@@ -40,6 +45,8 @@ impl Codec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioFrame<'a> {
     pub codec: Codec,
+    /// Header byte[5] bit0 — bu frame bir utterance'ın son frame'i (Bölge A2/A3).
+    pub utterance_end: bool,
     pub payload: &'a [u8],
 }
 
@@ -60,7 +67,9 @@ pub enum FrameError {
 
 /// Bir binary frame'i parse eder.
 ///
-/// `reserved` byte'ı yok sayılır (ileri uyumluluk). Header'da bildirilen
+/// Header byte[5] `flags`'tir: `bit0` utterance sonu işareti, bilinmeyen üst
+/// bitler yok sayılır (ileri uyumluluk — eski `reserved: 0x00` frame'leri
+/// `utterance_end=false` olarak parse edilir). Header'da bildirilen
 /// `payload_len`, gerçek payload uzunluğuyla birebir eşleşmelidir.
 pub fn parse(buf: &[u8]) -> Result<AudioFrame<'_>, FrameError> {
     if buf.len() > MAX_FRAME_LEN {
@@ -73,6 +82,7 @@ pub fn parse(buf: &[u8]) -> Result<AudioFrame<'_>, FrameError> {
         return Err(FrameError::BadMagic);
     }
     let codec = Codec::from_byte(buf[4]).ok_or(FrameError::UnknownCodec(buf[4]))?;
+    let utterance_end = buf[5] & FLAG_UTTERANCE_END != 0;
 
     let declared = u16::from_be_bytes([buf[6], buf[7]]) as usize;
     let payload = &buf[HEADER_LEN..];
@@ -83,20 +93,29 @@ pub fn parse(buf: &[u8]) -> Result<AudioFrame<'_>, FrameError> {
         });
     }
 
-    Ok(AudioFrame { codec, payload })
+    Ok(AudioFrame {
+        codec,
+        utterance_end,
+        payload,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Verilen payload + codec ile geçerli bir frame buffer'ı kurar.
+    /// Verilen payload + codec ile geçerli bir frame buffer'ı kurar (flags=0x00).
     fn build(codec: u8, payload: &[u8]) -> Vec<u8> {
+        build_flags(codec, 0x00, payload)
+    }
+
+    /// `build` gibi, ama header byte[5] flags değerini açıkça alır.
+    fn build_flags(codec: u8, flags: u8, payload: &[u8]) -> Vec<u8> {
         let len = payload.len() as u16;
         let mut buf = Vec::with_capacity(HEADER_LEN + payload.len());
         buf.extend_from_slice(&MAGIC);
         buf.push(codec);
-        buf.push(0x00); // reserved
+        buf.push(flags);
         buf.extend_from_slice(&len.to_be_bytes());
         buf.extend_from_slice(payload);
         buf
@@ -108,6 +127,7 @@ mod tests {
         let frame = parse(&buf).expect("valid opus frame");
         assert_eq!(frame.codec, Codec::Opus);
         assert_eq!(frame.payload, &[1, 2, 3, 4]);
+        assert!(!frame.utterance_end); // flags=0x00 → işaret yok
     }
 
     #[test]
@@ -127,10 +147,20 @@ mod tests {
     }
 
     #[test]
-    fn ignores_reserved_byte() {
-        let mut buf = build(0x01, &[7]);
-        buf[5] = 0xFF; // reserved farklı bir değer — yok sayılmalı
-        let frame = parse(&buf).expect("reserved byte ignored");
+    fn parses_utterance_end_flag() {
+        let buf = build_flags(0x01, FLAG_UTTERANCE_END, &[7]);
+        let frame = parse(&buf).expect("valid flagged frame");
+        assert!(frame.utterance_end);
+        assert_eq!(frame.payload, &[7]);
+    }
+
+    #[test]
+    fn ignores_unknown_flag_bits() {
+        // Üst bitler (bit0 dışı) ileri uyumluluk için yok sayılır: 0xFE'de
+        // bit0 kapalı → utterance_end false, parse yine de başarılı.
+        let buf = build_flags(0x01, 0xFE, &[7]);
+        let frame = parse(&buf).expect("unknown flag bits ignored");
+        assert!(!frame.utterance_end);
         assert_eq!(frame.payload, &[7]);
     }
 

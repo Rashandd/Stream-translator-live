@@ -14,7 +14,7 @@ use streamdubber_backend::{
     state::AppState,
 };
 use streamdubber_sdk::core::{
-    audio_frame::{build_audio_frame, AudioCodec},
+    audio_frame::{build_audio_frame, AudioCodec, FrameFlags},
     cloud::{CloudClient, ServerMessage},
     stream::StreamConfig,
 };
@@ -79,7 +79,12 @@ async fn sdk_client_runs_full_audio_path() {
     client.start_stream(&cfg).await.expect("stream_start");
 
     // audio frame → subtitle
-    let frame = build_audio_frame(AudioCodec::PcmS16Le, &[1, 2, 3, 4]).expect("frame");
+    let frame = build_audio_frame(
+        AudioCodec::PcmS16Le,
+        FrameFlags::NONE,
+        &[1, 2, 3, 4],
+    )
+    .expect("frame");
     client.send_audio(&frame).await.expect("send_audio");
 
     let msg = client

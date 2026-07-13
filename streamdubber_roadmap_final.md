@@ -1387,3 +1387,61 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
 > (kasıtlı — cmake/motor seçimi kullanıcıyla ayrı görüşülmeli). `VoiceModel` şeması artık nihai
 > hâlini aldı (2.1/2.2'de kodlandı) — bu bölümün görevleri şemayı DEĞİŞTİRMEZ, sadece `mode=
 > SpeechToSpeech`/`source=Preset` değerlerini gerçek anlamda kullanılabilir hâle getirir.
+
+---
+
+## Backend Hardening + Statik Altyazı (bkz. docs/backend-hardening-captions-plan.md)
+
+> Production sertleştirme (BH-01..BH-15) + statik altyazı zinciri (Bölge A..G),
+> `docs/backend-hardening-captions-plan.md` §8'deki birleşik faz sırasına göre.
+> Faz sırası zorunlu — P2/P3 P0/P1'in ürettiği ilkellere (feature flag, Postgres
+> tablo, Redis-backed hub) bağımlıdır.
+
+Faz P0
+- [x] BH-01 Public config yüzeyini güvenli allowlist ile sınırla
+- [ ] BH-02 Config ve plan güncellemelerine semantik validation ekle
+- [x] A1. Protokol: reserved byte → flags <!-- Codex 2026-07-13: SDK FrameFlags + backend utterance_end parser; 0x00 legacy ve bilinmeyen üst bit uyumluluğu, unit/cloud E2E çağrıları güncellendi. A2 VAD üretimi ayrı kalır. -->
+- [ ] A4. stt-server dokümantasyon notu
+- [ ] C1. Mikrofon/cloud session'ı OBS'ten bağımsız başlat
+- [ ] C2. OBS yeniden bağlanma (relay accept döngüsü)
+
+Faz P1
+- [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
+- [ ] BH-04 Redis tabanlı paylaşılan ephemeral state kur
+- [ ] BH-05 Trusted proxy ve güvenilir client IP çözümlemesi ekle
+- [ ] BH-06 Rate-limit, OAuth state, overlay ve WS kaynaklarını sınırla
+- [ ] BH-13 Faz dışı backend özelliklerini feature gate arkasına al
+
+Faz P2
+- [ ] B1. Provision başarısında otomatik STT aktivasyonu (feature-gate'li)
+- [ ] B2. Periyodik GPU worker health-check döngüsü
+- [ ] B3. Admin panel: aktif sağlayıcı + sağlık görünürlüğü
+- [ ] D1. Kullanıcı başına kalıcı overlay token (Postgres + Redis-backed hub)
+- [ ] D2. Liveness'i token varlığından ayır + snapshot reset
+
+Faz P3
+- [ ] BH-07 Public API ile SDK mTLS listener'larını ayır
+- [ ] BH-08 Production startup kontrollerini fail-closed yap
+- [ ] BH-09 Canlı entitlement + SDK token revoke ekle (browser refresh/rotation mevcut — bkz. §20)
+
+Faz P4
+- [ ] D3. Panel: sabit overlay URL + token yenileme
+- [ ] E1. YouTube aktif broadcast keşfi
+- [ ] E2. CaptionPusher (OverlayHub → YouTube CC, dil başına track)
+- [ ] E3. AppState wiring (YouTubeCaptions + pusher)
+- [ ] E4. Canlı doğrulama maddesi (lang param)
+- [ ] F1. Twitch extension e2e smoke + prod checklist maddesi
+
+Faz P5
+- [ ] BH-10 Provider timeout ve WebSocket hata protokolünü düzelt
+- [ ] A2. SDK: VAD cümle sonu işareti
+- [ ] A3. Backend: UtteranceAssembler
+
+Faz P6
+- [ ] BH-11 Liveness, readiness ve operasyonel sağlık kontrolleri ekle
+- [ ] BH-12 Hesap silme, voice-data cleanup ve audit altyapısını tamamla
+- [ ] BH-14 Senkron dosya I/O, log rotation ve production panic noktalarını temizle
+
+Faz P7
+- [ ] G1. Uçtan uca doğrulama + doküman/roadmap güncellemeleri
+- [ ] BH-15 CI'ya fmt, DB/Redis integration, audit ve coverage kapıları ekle

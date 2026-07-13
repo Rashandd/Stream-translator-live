@@ -615,6 +615,16 @@ BH maddeleri mevcut implementasyonun production sertleştirme/doğrulama katman�
 
 ## 12. BH-01 — Public config sınırı
 
+> **Durum (2026-07-13): TAMAMLANDI.** `config::PUBLIC_CONFIG_KEYS` allowlist'i
+> (default-deny) + `ServiceConfig::public_snapshot()` eklendi; `GET /config` artık
+> yalnız promo/legal/company anahtarlarını döner. Yetkili `GET /admin/config`
+> (`AdminUser`) full snapshot verir. Frontend: `admin-live-status` ve
+> `admin-promo-panel` admin uca taşındı (`stt.provider`/`translate.provider`/
+> `providers.mock_fallback`/`founding.gate.enabled` internal); `admin-legal-panel`
+> yalnız public key okuduğundan `/config`'te kaldı. Testler: `config.rs` unit
+> (allowlist include/exclude, "yeni internal key public olmaz", "allowlist seeded")
+> + `config_api.rs` (public allowlist, admin full read, 401/403). fmt/clippy temiz.
+
 ### Amaç
 
 Public `/config` endpoint'inin yalnız gerçekten public olması gereken değerleri
@@ -1630,6 +1640,12 @@ test: enforce coverage for critical backend paths
 ## Bölge A — Utterance Birleştirme (STT kalite/latency temeli)
 
 ### A1. Protokol: reserved byte → flags
+
+> **Durum (2026-07-13): TAMAMLANDI.** SDK `FrameFlags` ile byte[5]'e
+> `utterance_end` bitini yazıyor; backend parser aynı biti okurken `0x00` eski
+> frame'leri ve bilinmeyen üst bitleri geriye/ileri uyumlu kabul ediyor. SDK,
+> backend ve cloud E2E çağrıları yeni imzaya geçirildi; A2'nin gerçek VAD sonu
+> üretimi ayrı ve açık kalır.
 
 **Bugün:** Binary frame header 8 byte: magic `SDAU` + codec + `[5] reserved: 0x00` +
 payload_len (`docs/websocket-protocol.md` "Audio Binary Frame"; SDK

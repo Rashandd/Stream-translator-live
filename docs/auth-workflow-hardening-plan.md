@@ -272,7 +272,6 @@ eski refresh token ile session yenilenemez.
   logout doğrulanır.
 - `docs/security.md`, `docs/schema.md`, `docs/dashboard.md`,
   `docs/production-operator-guide.md` ve roadmap güncellenir.
-
 Kod ve mock/integration doğrulaması tamamlandı. Gerçek Google/Twitch hesapları,
 Vercel/VPS origin'leri ve süreye bağlı 15 dakikalık kontrol bu repodan tek
 başına yürütülemediği için Faz 6 açık kalır; bu maddeler kapanmadan çalışma

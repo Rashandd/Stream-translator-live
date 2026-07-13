@@ -143,8 +143,8 @@
 
 ## İlk 5 öncelik
 
-1. **CLAUDE.md/AGENTS.md'yi gerçekliğe göre yeniden yaz** — faz sınırları (§3 kritik), stack/Railway, SDK dosya haritası, session-dosyası kuralı, komutlar — ve iki dosyayı tek kanonik kural kitabında birleştir. Gelecekteki her agent oturumu önce bu hataları devralıyor.
+1. **CLAUDE.md/AGENTS.md'yi gerçekliğe göre yeniden yaz** — faz sınırları (§3 kritik), stack/Railway, SDK dosya haritası, session-dosyası kuralı, komutlar — ve iki dosyayı tek kanonik kural kitabında birleştir. Gelecekteki her agent oturumu önce bu hataları devralıyor. -> ikiside ayni olsun sesion olayina gerek yok ve worktreeler halinde calissinlar
 2. **mTLS hikâyesini bir kez karara bağla** (ertele-veya-yap) ve roadmap:593, `docs/security.md`, `infra/deploy.md` ve `cloud.rs` TODO'sunu hizala — bir güvenlik kontrolü şu an iki yerde iddia edilip iki yerde reddediliyor.
 3. **Eksik dört `*_FILE` env değişkenini ekle** (`STREAM_SETTINGS_FILE`, `VOICE_MODELS_FILE`, `VOICE_SAMPLES_FILE`, `TTS_SETTINGS_FILE`) — deploy.md/compose/.env.example'a; belgelenen production deploy'u restart'ta yayıncı dil ayarlarını ve ses modeli kayıtlarını sessizce kaybediyor.
 4. **Tek seferlik roadmap defter düzeltmesi:** mükerrer giriş checklistlerini kaldır, yanlış tikleri düzelt (mTLS 593, routing/DeepL UI 628/872, AES/Vault 588-592/605), bayat KALAN notlarını tazele (668/671) — sonra "Canlı Doğrulama Listesi"ni tek MVP kapısı olarak tut ve daha fazla Faz-2/3 kodu öncesi eriterek bitir.
-5. **Redis kararını şimdi ver:** ya hardening BH-04/06 gerçekten planlanana kadar stack/compose/deploy-env'den çıkar, ya da o işi başlat — bugün zorunlu-ama-kullanılmayan, backend açılışını bloke edebilen bir altyapı; aynı karar §4'teki tek-instance risklerini de kapılıyor.
+5. **Redis kararını şimdi ver:** ya hardening BH-04/06 gerçekten planlanana kadar stack/compose/deploy-env'den çıkar, ya da o işi başlat — bugün zorunlu-ama-kullanılmayan, backend açılışını bloke edebilen bir altyapı; aynı karar §4'teki tek-instance risklerini de kapılıyor. -> O işi Başlat Redis hazir ve prod-ready documentli olsun

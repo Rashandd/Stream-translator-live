@@ -117,12 +117,18 @@ Text frame değil, binary frame gönderilir. Header 8 byte sabittir:
 ```
 [0..3]  → magic: 0x53 0x44 0x41 0x55  ("SDAU")
 [4]     → codec: 0x01=opus, 0x02=pcm_s16le
-[5]     → reserved: 0x00
+[5]     → flags: bit0=utterance_end (cümle sonu işareti); 0x00 = işaret yok (eski "reserved", geriye uyumlu)
 [6..7]  → payload_len: uint16 big-endian
 [8..]   → ses verisi (payload)
 ```
 
-VAD lokalde çalıştığından backend sessiz frame almaz — gelen her binary frame'i direkt STT'ye ilet.
+VAD lokalde çalıştığından backend sessiz frame almaz — gelen her binary frame'i STT tamponuna ekle.
+
+**flags/utterance_end (Bölge A):** SDK VAD cümle sonunu (hangover kapanışı) gördüğünde
+o utterance'ın son frame'ini `flags` bit0 (`utterance_end`) ile işaretler; backend bu
+işareti görünce biriktirdiği frame'leri tek bir STT isteğine flush eder. `0x00` frame'ler
+(işaretsiz/eski SDK) geriye uyumludur — backend süre/boşluk temelli fallback ile flush eder.
+Bilinmeyen üst bitler yok sayılır (ileri uyumluluk).
 
 ---
 
