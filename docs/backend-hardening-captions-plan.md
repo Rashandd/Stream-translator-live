@@ -1,16 +1,23 @@
 # StreamDubber Backend — Hardening + Statik Altyazı Birleşik Uygulama Planı
 
-> **Durum:** Planlandı — implementasyon başlamadı
+> **Durum:** Uygulama başladı — Faz P0'dan BH-01 ve Bölge A1 tamamlandı (2026-07-13),
+> kalan maddeler açık. Canlı ilerleme kaydı: `streamdubber_roadmap_final.md` "Backend
+> Hardening + Statik Altyazı" bölümü + bu belgedeki §11 (ikisi birlikte tiklenir).
 >
 > **Bu belge neyin yerine geçiyor:** `docs/backend-production-hardening-agent-plan.md` ve
 > `docs/static-captions-plan.md`, 2026-07-10'da çakışma analizinden sonra bu tek dosyada
-> birleştirildi. O iki dosya artık yok — bu belge onların tüm içeriğini kapsar.
+> birleştirildi. 2026-07-13'te bağımsız denetim raporu `AUDIT.md` (2026-07-12) de bu
+> plana birleştirildi. Bu üç dosya artık yok — denetimin açık kalan bulguları §0.2'de
+> eşlendi, raporun tam metni git geçmişinde (`git show 94eba8e:AUDIT.md`).
 >
-> **Birleştirme tarihi:** 2026-07-10
+> **Birleştirme tarihi:** 2026-07-10 (hardening + captions), 2026-07-13 (audit)
 >
 > **Revizyon:** 2026-07-12 — BH-09 ve BH-12'nin browser auth ile çakışan bölümleri,
 > koddaki `auth::session` (commit `c76149d`) ve uygulanmakta olan
 > `docs/auth-workflow-hardening-plan.md` esas alınarak daraltıldı (bkz. §0.1).
+>
+> **Revizyon:** 2026-07-13 — `AUDIT.md` birleştirildi; auth-workflow planının Faz 1–5'i
+> tamamlandığı için §0.1/§4/§20/§23 referansları güncellendi (bkz. §0.2).
 >
 > **Kapsam:** Backend (Rust/Axum) + SDK (Tauri/Rust) + Frontend (Next.js) + stt-server (Python)
 >
@@ -54,6 +61,80 @@ Bu revizyonda:
   ürettiği OAuth-login state ve 2FA challenge store'unu da kapsar (bkz. §15).
 - **BH-02** ConfigSpec notuna auth-workflow planının ekleyeceği config key'leri
   eklendi (bkz. §13).
+
+> Güncelleme (2026-07-13): auth-workflow planının Faz 1–5'i tamamlandı (commit
+> `bc09571`) — yukarıdaki "uygulanmakta olan" ifadesi artık "Faz 6 canlı provider
+> doğrulamaları hariç tamamlandı" diye okunmalı. Ayrıntı: §0.2 son paragraf.
+
+### 0.2 Revizyon — 2026-07-13: bağımsız denetim (AUDIT.md) birleştirildi
+
+2026-07-12'de commit `8917232` üzerinde yapılan bağımsız denetim raporu bu planla tek
+dosyada birleştirildi ve `AUDIT.md` silindi (tam metin: `git show 94eba8e:AUDIT.md`).
+Karşılaştırmada iki belge arasında **tasarım çelişkisi çıkmadı**: denetimin açık kalan
+kod bulguları zaten bu planın iş paketlerinin kapsamındaydı; plan dışında kalanlar
+aşağıda AUD maddeleri ve kullanıcı kararları olarak devralındı.
+
+**Denetimden bu yana kapananlar** (2026-07-12/13 — başlıca `c7474c1` doc-drift
+düzeltmeleri, `f3bd324` session temizliği, `12f5ce6` karar kaydı, `010db2d` roadmap
+checklist'i): CLAUDE.md/AGENTS.md tek kural kitabı oldu (AGENTS.md → `@CLAUDE.md`;
+session dosyaları/scriptleri silindi, görev başına worktree kuralı kondu); mTLS
+hikâyesi tek karara bağlandı ("ertelendi — bugünkü doğrulama TLS 1.3 + cihaz JWT";
+roadmap 601/613/713, `docs/security.md`, `infra/deploy.md` hizalı); dört `*_FILE`
+env değişkeni (`STREAM_SETTINGS_FILE`, `VOICE_MODELS_FILE`, `TTS_SETTINGS_FILE`,
+`VOICE_SAMPLES_FILE`) üç infra yüzeyine eklendi; Redis backend'in compose
+`depends_on`'undan çıkarıldı ve her yerde "henüz kullanılmıyor" işaretli;
+`docs/websocket-protocol.md` (tts_source, dubbed_audio, 4008–4010, flags byte),
+`docs/schema.md` (migration 0002–0007, varlık-başına kayıt deposu tablosu,
+`auth_tokens` "kullanılmıyor" notu), `docs/audio-pipeline.md` (prerecorded-REST
+gecikme gerçekliği + config-API toggle notu), `docs/docker-config.md`
+(implemente-vs-planlı sağlayıcı ayrımı), Caddy `tls1.3` ve `.env.example`
+RAILWAY/HETZNER temizliği yapıldı; roadmap'teki yanlış tikler (mTLS, AES başlığı,
+routing, DeepL paneli, Stripe/kullanım KALAN notları) düzeltme yorumlarıyla giderildi.
+
+**Açık kalan denetim bulguları → bu plandaki sahibi:**
+
+| Denetim bulgusu | Sahibi |
+|---|---|
+| Tek-instance, restart'a kırılgan çekirdek (overlay/active-stream/pairing/rate-limit bellek içi; domain verisi dosya store'larda) | BH-03 / BH-04 / BH-06 (Faz P1) |
+| Redis her yerde tanımlı, backend'de kullanılmıyor | BH-04 — kullanıcı kararıyla ÖNCELİKLİ (aşağıda + §15 not) |
+| Kesit-başına batch STT; "<2sn altyazı" vaadi canlıda ölçülmedi | BH-10 + Bölge A2/A3 (Faz P5); canlı ölçüm roadmap "Canlı Doğrulama Listesi"nin 1.9 gecikme maddesinde zaten açık — yeni madde AÇILMAZ (mükerrer checklist üretmek denetimin kendi eleştirisiydi) |
+| mTLS'in yalnız sunucu yarısı var; SDK connector `TODO` | BH-07 (Faz P3) — `sdk/src/core/cloud.rs` TODO'su bu işte kapanır |
+| Kritik `*_FILE` boşken production'da sessiz bellek-içi çalışma | BH-08 ("persistence legacy file mode kapalı" fail-closed startup zorunluluğu) |
+| Repo çalışma ağacında düz metin OAuth kimlik dosyaları (`google-client-secret.json`, `twitch-keys`) | **AUD-01** (yeni, aşağıda) |
+| Roadmap defter kalıntısı: giriş bölümünün mükerrer mTLS satırları + abartılı Vault tiki | **AUD-02** (yeni, aşağıda) |
+| Faz 2/3 özellik işi MVP kapısından önce büyümeye devam ediyor | §8 faz sırası kapıdır: P0/P1 + roadmap "Canlı Doğrulama Listesi" bitmeden yeni Faz-2/3 özellik işi başlatılmaz |
+
+**Yeni iş paketleri (denetimden devralındı; §11 ve roadmap checklist'ine eklendi):**
+
+- **AUD-01 — Düz metin kimlik dosyalarını taşı (ops, kullanıcıyla birlikte):** Repo
+  kökündeki `google-client-secret.json` (gerçek client_id+secret) ve `twitch-keys`
+  gitignore'lu ve hiç commit edilmemiş (denetimde doğrulandı), ama "API key koda/repoya
+  asla gömülmez" kuralının ruhuna aykırı ve her dizin kopyasında/yedeğinde yaşamaya
+  devam ediyor. Değerler admin panel secret store'una (`SECRETS_FILE`) veya repo dışı
+  bir yola taşınır, dosyalar silinir. Gerçek kimlik değerleri taşındığı için kullanıcı
+  onayı/katılımıyla yapılır — agent bu dosyaları tek başına silmez.
+- **AUD-02 — Roadmap defter kalıntısı (docs):** (1) Giriş bölümündeki erken mTLS
+  checklist satırları (bugünkü 296/351) Faz-1/doğrulama satırlarıyla (601/713) tek
+  satırda birleştirilir — 601'in düzeltme yorumu zaten "iki satır birleştirilmeli"
+  diyor; (2) 596 "HashiCorp Vault kurulumu" tiki fiilen shiplenen kapsama göre
+  ("opsiyonel taban store, KV wiring skeleton — zorunlu bileşen değil") yeniden
+  yazılır. Tarihsel satırlar silinmez, düzeltme yorumu deseni korunur.
+
+**Kullanıcı kararları (denetim raporunun İlk-5 listesine işlenmişti, bağlayıcıdır):**
+
+1. *"İkisi de aynı olsun, session olayına gerek yok, worktree'ler halinde
+   çalışsınlar"* → YAPILDI: CLAUDE.md kanonik tek kural kitabı, AGENTS.md salt
+   yönlendirme, session mekanizması silindi, görev başına worktree zorunlu.
+2. *"O işi başlat — Redis hazır ve prod-ready dokümanlı olsun"* → BH-04 (önkoşulu
+   BH-03 ile birlikte) Faz P0'ın kalan küçük maddelerinden sonraki ANA hedeftir;
+   BH-04'ün kabul kriterleri genişletildi (bkz. §15 not).
+
+Ayrıca güncellendi: `docs/auth-workflow-hardening-plan.md` **Faz 1–5 tamamlandı**
+(2026-07-13, commit `bc09571`; Faz 6 canlı provider doğrulamaları açık). OAuth-login
+state, opaque 2FA challenge store ve versiyonlu consent ledger (`user_consents`,
+migration 0007) artık kodda mevcut — BH-04 bu store'ları tasarımdan değil koddan
+Redis'e taşır; BH-12'nin consent bölümü uygulanmış A-06 ledger'ına yalnız silme-akışı
+etkisi ekler.
 
 ---
 
@@ -222,6 +303,13 @@ Plan hazırlanırken doğrulanan durum:
   reuse'da family revoke ZATEN VAR — BH-09'un başlangıç varsayımı buna göre
   güncellendi (bkz. §0.1 ve §20). Browser auth'un kalan işleri
   `docs/auth-workflow-hardening-plan.md`'de.
+- **Güncelleme (2026-07-13, audit birleştirmesi — bkz. §0.2):** BH-01 (public config
+  allowlist, commit `57bafe6`) ve Bölge A1 (frame flags, commit `4221aa1`) TAMAMLANDI —
+  §12 ve Bölge A1 durum notlarına bak. Auth planının Faz 1–5'i tamamlandı (commit
+  `bc09571`): OAuth cookie session, opaque 2FA challenge store ve consent ledger
+  (migration `0007_user_consents.sql`) kodda. Redis durumu değişmedi (backend hâlâ
+  kullanmıyor) ama compose'da backend'in `depends_on`'undan çıkarıldı ve dokümanlar
+  "BH-04'e kadar opsiyonel" işaretli — BH-04 bitince zorunluya geri döner.
 
 Bu bilgiler başlangıç varsayımıdır. Yeni ajan ilk turda tekrar doğrulamalıdır.
 
@@ -553,18 +641,22 @@ Her iş paketinde şu sıra zorunludur:
 ## 11. Birleşik İlerleme / Roadmap Checklist
 
 `streamdubber_roadmap_final.md` içine "Backend Hardening + Statik Altyazı" başlığı
-altında, §8'deki faz sırasına göre gruplanmış şu checklist eklenmelidir:
+altında, §8'deki faz sırasına göre gruplanmış şu checklist EKLENDİ (2026-07-13,
+commit `010db2d`). Roadmap kopyası canlı ilerleme kaydıdır; §10 madde 12 gereği bir
+madde bitince İKİSİ birlikte tiklenir:
 
 ```markdown
 ### Backend Hardening + Statik Altyazı (bkz. docs/backend-hardening-captions-plan.md)
 
 Faz P0
-- [ ] BH-01 Public config yüzeyini güvenli allowlist ile sınırla
+- [x] BH-01 Public config yüzeyini güvenli allowlist ile sınırla (2026-07-13)
 - [ ] BH-02 Config ve plan güncellemelerine semantik validation ekle
-- [ ] A1. Protokol: reserved byte → flags
+- [x] A1. Protokol: reserved byte → flags (2026-07-13)
 - [ ] A4. stt-server dokümantasyon notu
 - [ ] C1. Mikrofon/cloud session'ı OBS'ten bağımsız başlat
 - [ ] C2. OBS yeniden bağlanma (relay accept döngüsü)
+- [ ] AUD-01 Düz metin OAuth kimlik dosyalarını secret store'a taşı (ops — kullanıcıyla, bkz. §0.2)
+- [ ] AUD-02 Roadmap defter kalıntısını temizle (mükerrer mTLS satırları + Vault tiki, bkz. §0.2)
 
 Faz P1
 - [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
@@ -941,7 +1033,18 @@ TTL, tek-kullanım ve multi-instance koordinasyon isteyen state'i Redis'e taşı
 > challenge store'u da "Redis'e taşınacaklar" listesine dahildir. O plan store'ları
 > taşınabilir bir arayüz arkasında bırakır (kendi §8'i); Redis implementasyonu bu
 > görevin işidir — taşırken challenge attempt sayacı ve tek-kullanım semantiği
-> atomik kalmalıdır.
+> atomik kalmalıdır. (Güncelleme 2026-07-13: A-03/A-04 uygulandı — bu store'lar artık
+> kodda, tasarımda değil.)
+
+> **Not (2026-07-13, audit birleştirmesi — KULLANICI KARARI, bkz. §0.2):** Denetimin
+> "Redis her yerde tanımlı ama backend kullanmıyor" bulgusuna kullanıcının kararı:
+> **bu iş başlatılacak; Redis production'da hazır ve prod-ready dokümanlı olacak.**
+> BH-04 bu nedenle (önkoşulu BH-03 ile birlikte) sıradaki ana hedeftir. Kabul
+> kriterine ek: iş bitince `infra/docker-compose.yml`'de backend'in `redis`'e
+> `depends_on`'u geri konur, `infra/deploy.md` env tablosunda `REDIS_URL` zorunlu
+> olur, `.env.example` ve CLAUDE.md'deki "backend henüz bağlanmıyor" notları
+> kaldırılır ve prod Redis yapılandırması (parola/persistence/eviction, dev-vs-prod
+> farkı) `infra/deploy.md`'ye yazılır.
 
 ### Testler
 
@@ -1193,6 +1296,8 @@ fix: fail closed on insecure production configuration
 > (OAuth'un cookie session'a taşınması, 2FA challenge, consent, logout)
 > `docs/auth-workflow-hardening-plan.md`'nin işidir — bu görev browser session
 > mekaniğine DOKUNMAZ, güvenlik olaylarında onun `SessionStore`'una entegre olur.
+> (Güncelleme 2026-07-13: o planın Faz 1–5'i tamamlandı, commit `bc09571` — sayılan
+> işler kodda; yalnız Faz 6 canlı provider doğrulamaları açık.)
 
 ### Amaç
 
@@ -1437,8 +1542,9 @@ provider response yasaktır.
 
 > **Revizyon (2026-07-12, bkz. §0.1):** Versiyonlu consent ledger'ın veri modeli ve
 > implementasyonu `docs/auth-workflow-hardening-plan.md`'nin (A-06, Faz 4)
-> sahipliğindedir — burada yeniden tanımlanmaz. BH-12 yalnız silme akışının
-> consent'e etkisini kapsar:
+> sahipliğindedir — burada yeniden tanımlanmaz. A-06 UYGULANDI (2026-07-13:
+> `user_consents`, migration 0007). BH-12 yalnız silme akışının consent'e etkisini
+> kapsar:
 
 - Hesap silinirken consent kayıtları için belgelenmiş retention/anonymization
   kararı uygulanır (yasal kanıt gerekiyorsa anonimize edilerek tutulabilir).

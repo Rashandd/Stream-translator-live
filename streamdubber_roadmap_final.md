@@ -1404,6 +1404,8 @@ Faz P0
 - [ ] A4. stt-server dokümantasyon notu
 - [ ] C1. Mikrofon/cloud session'ı OBS'ten bağımsız başlat
 - [ ] C2. OBS yeniden bağlanma (relay accept döngüsü)
+- [ ] AUD-01 Düz metin OAuth kimlik dosyalarını secret store'a taşı (ops — kullanıcıyla; audit birleştirmesi 2026-07-13, bkz. plan §0.2)
+- [ ] AUD-02 Roadmap defter kalıntısını temizle (giriş bölümündeki mükerrer mTLS satırları 296/351 ↔ 601/713 birleştirilir + 596 Vault tiki gerçek kapsama göre yeniden yazılır; bkz. plan §0.2)
 
 Faz P1
 - [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
