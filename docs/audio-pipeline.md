@@ -79,5 +79,8 @@ dil desteği iddia ediyor. Faz 2'de API sağlayıcı maliyeti yükselirse, Faz 3
 self-hosted TTS hattı için XTTS-v2/StyleTTS2 yanında ucuz seçenek adayı.
 
 ## Admin Toggle Sırası
-Tüm sağlayıcılar admin panelden anlık değiştirilebilir (restart yok).
-Fallback: Deepgram → AssemblyAI → whisper.cpp
+Tüm sağlayıcılar config API'den (`PUT /admin/config`) restart'sız değiştirilir; ayrı
+bir panel sayfası yok (eski `/admin/routing` kaldırıldı, commit `00a7c90` — örnek
+curl: `infra/deploy.md` §8b).
+Fallback: Deepgram → AssemblyAI (whisper.cpp planlı, henüz kayıtlı sağlayıcı değil —
+bkz. `docs/docker-config.md`)
