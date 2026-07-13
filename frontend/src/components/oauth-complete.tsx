@@ -3,8 +3,18 @@
 import { useEffect, useState } from "react";
 import { setUserToken } from "@/src/lib/api";
 
+type ErrorCopy = {
+  accountNotFound: string;
+  emailExists: string;
+  invalidState: string;
+  providerUnavailable: string;
+  oauthFailed: string;
+  generic: string;
+};
+
 type Labels = {
   backLabel: string;
+  errors: ErrorCopy;
 };
 
 type Props = {
@@ -14,8 +24,45 @@ type Props = {
 };
 
 /**
+ * A-02: the backend only ever puts an opaque, allow-listed code in `?error=`;
+ * the text shown to the user comes from the dictionary here, never from the
+ * URL. Unknown codes fall back to a generic message.
+ */
+function messageForCode(code: string | null, errors: ErrorCopy): string {
+  switch (code) {
+    case "account_not_found":
+      return errors.accountNotFound;
+    case "email_exists":
+      return errors.emailExists;
+    case "invalid_state":
+      return errors.invalidState;
+    case "provider_unavailable":
+      return errors.providerUnavailable;
+    case "oauth_failed":
+      return errors.oauthFailed;
+    default:
+      return errors.generic;
+  }
+}
+
+/**
+ * Only same-origin relative routes are honored (mirror of the backend
+ * `sanitize_return_to`), so a tampered `return_to` can never cause an open
+ * redirect on the client either.
+ */
+function safeReturnTo(raw: string | null): string | null {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
+    return null;
+  }
+  if (raw.includes("\\") || raw.includes("://")) {
+    return null;
+  }
+  return raw;
+}
+
+/**
  * The backend redirects here with either `#token=...` (fragment — never
- * sent to a server, unlike a query param) on success, or `?error=...` on
+ * sent to a server, unlike a query param) on success, or `?error=<code>` on
  * failure. Reading the fragment requires the browser, hence `"use client"`.
  */
 export function OAuthCompleteHandler({ labels, dashboardHref, loginHref }: Props) {
@@ -26,12 +73,13 @@ export function OAuthCompleteHandler({ labels, dashboardHref, loginHref }: Props
     const token = hashParams.get("token");
     if (token) {
       setUserToken(token);
-      window.location.assign(dashboardHref);
+      const returnTo = safeReturnTo(new URLSearchParams(window.location.search).get("return_to"));
+      window.location.assign(returnTo ?? dashboardHref);
       return;
     }
-    const queryError = new URLSearchParams(window.location.search).get("error");
-    setError(queryError || "Sign-in failed.");
-  }, [dashboardHref]);
+    const code = new URLSearchParams(window.location.search).get("error");
+    setError(messageForCode(code, labels.errors));
+  }, [dashboardHref, labels.errors]);
 
   if (!error) {
     return null;

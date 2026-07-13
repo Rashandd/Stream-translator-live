@@ -1,7 +1,7 @@
 # Browser Auth Workflow Hardening Plan
 
-**Durum:** Planlandı — implementasyon başlamadı  
-**Tarih:** 2026-07-12  
+**Durum:** Faz 1 tamamlandı (locale-safe + opaque OAuth callback); Faz 2–6 bekliyor  
+**Tarih:** 2026-07-12 (Faz 1: 2026-07-13)  
 **Kapsam:** Frontend login/signup, Google/Twitch OAuth callback, browser session,
 email 2FA, consent ve logout
 

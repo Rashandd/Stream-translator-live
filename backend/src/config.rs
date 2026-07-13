@@ -201,6 +201,11 @@ impl ServiceConfig {
             ("auth.email_2fa", "auto"),
             // Signup'ta atanan plan — admin panelden değiştirilebilir.
             ("auth.default_plan", "free"),
+            // OAuth callback locale bilinemediğinde (state geçersiz/eksik ya da
+            // start locale taşımadıysa) kullanılacak varsayılan frontend locale
+            // segmenti — redirect `/{locale}/login/oauth-complete` biçiminde
+            // kurulur (bkz. auth/oauth_login.rs::callback).
+            ("auth.default_locale", "en"),
             // Login/signup brute-force koruması (Faz 1.13): istemci (IP)
             // başına dakikada izin verilen deneme sayısı — pairing::ClaimLimiter
             // ile aynı sabit-pencere deseni (bkz. `rate_limit::RateLimiter`).

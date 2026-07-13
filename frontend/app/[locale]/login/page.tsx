@@ -82,7 +82,7 @@ export default async function LoginPage({ params, searchParams }: Props) {
             verifyHref={localizePath(locale, "/login/verify")}
           />
 
-          <OAuthButtons labels={config.auth.social} />
+          <OAuthButtons intent="login" labels={config.auth.social} locale={locale} />
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

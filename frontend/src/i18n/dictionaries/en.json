@@ -1407,7 +1407,15 @@
     "oauthComplete": {
       "title": "Signing you in",
       "subtitle": "Just a moment.",
-      "backLabel": "Back to sign in"
+      "backLabel": "Back to sign in",
+      "errors": {
+        "accountNotFound": "No account is linked to that login yet. Please sign up first.",
+        "emailExists": "That email is already registered with a password. Sign in with your password instead.",
+        "invalidState": "That sign-in link expired or was invalid. Please try again.",
+        "providerUnavailable": "This sign-in provider isn't available right now. Please try again later.",
+        "oauthFailed": "Sign-in failed. Please try again.",
+        "generic": "Sign-in failed. Please try again."
+      }
     },
     "login": {
       "title": "Sign in",
