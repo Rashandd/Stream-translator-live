@@ -1396,7 +1396,7 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
 > tablo, Redis-backed hub) bağımlıdır.
 
 Faz P0
-- [ ] BH-01 Public config yüzeyini güvenli allowlist ile sınırla
+- [x] BH-01 Public config yüzeyini güvenli allowlist ile sınırla
 - [ ] BH-02 Config ve plan güncellemelerine semantik validation ekle
 - [ ] A1. Protokol: reserved byte → flags
 - [ ] A4. stt-server dokümantasyon notu

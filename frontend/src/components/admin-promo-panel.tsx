@@ -38,7 +38,7 @@ export function AdminPromoPanel({ labels, loginHref }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminFetch("/config");
+      const res = await adminFetch("/admin/config");
       if (res.status === 401 || res.status === 403) {
         setUnauthorized(true);
         return;

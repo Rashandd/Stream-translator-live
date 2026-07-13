@@ -76,6 +76,13 @@ fn get(path: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n")
 }
 
+/// `get` ile aynı, ama Bearer token taşır — admin-only okuma uçları için.
+fn get_auth(path: &str, token: &str) -> String {
+    format!(
+        "GET {path} HTTP/1.1\r\nHost: t\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    )
+}
+
 fn put_config(token: Option<&str>, json: &str) -> String {
     let auth = token
         .map(|t| format!("Authorization: Bearer {t}\r\n"))
@@ -87,22 +94,63 @@ fn put_config(token: Option<&str>, json: &str) -> String {
 }
 
 #[tokio::test]
-async fn public_get_returns_seeded_config() {
+async fn public_get_returns_only_allowlisted_config() {
+    // BH-01: public `/config` yalnız güvenli allowlist'i döndürür.
     let addr = spawn_server().await;
     let (status, body) = http(addr, &get("/config")).await;
     assert_eq!(status, 200);
+    // Public alanlar mevcut (pricing/legal/footer bunları okur).
+    assert!(
+        body.contains("\"promo.founding.enabled\":\"false\""),
+        "body: {body}"
+    );
+    assert!(body.contains("\"legal.terms.html\":\"\""), "body: {body}");
+    // Internal alanlar public yanıtta YOK.
+    for internal in [
+        "stt.provider",
+        "translate.provider",
+        "providers.mock_fallback",
+        "auth.email_2fa",
+        "cors.allowed_origins",
+        "dist.cloud.plans",
+        "providers.youtube.test_url",
+        "founding.gate.enabled",
+    ] {
+        assert!(
+            !body.contains(internal),
+            "internal key `{internal}` leaked to public /config: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn admin_can_read_full_config_including_internal_keys() {
+    let addr = spawn_server().await;
+    let (status, body) = http(addr, &get_auth("/admin/config", &token("admin"))).await;
+    assert_eq!(status, 200, "body: {body}");
     assert!(
         body.contains("\"stt.provider\":\"deepgram\""),
         "body: {body}"
     );
     assert!(
-        body.contains("\"dist.cloud.plans\":\"pro\""),
+        body.contains("\"providers.mock_fallback\":\"true\""),
         "body: {body}"
     );
 }
 
 #[tokio::test]
-async fn admin_update_is_visible_to_readers() {
+async fn admin_config_read_requires_admin() {
+    let addr = spawn_server().await;
+    // Kimliksiz → 401.
+    let (status, _) = http(addr, &get("/admin/config")).await;
+    assert_eq!(status, 401);
+    // Yayıncı → 403.
+    let (status, _) = http(addr, &get_auth("/admin/config", &token("broadcaster"))).await;
+    assert_eq!(status, 403);
+}
+
+#[tokio::test]
+async fn admin_update_is_visible_to_admin_readers() {
     let addr = spawn_server().await;
 
     let (status, body) = http(
@@ -115,12 +163,18 @@ async fn admin_update_is_visible_to_readers() {
     .await;
     assert_eq!(status, 200, "body: {body}");
 
-    // Aynı süreç içinde okuma anında yeni değeri görür.
-    let (status, body) = http(addr, &get("/config")).await;
+    // Aynı süreç içinde admin full-config okuması anında yeni değeri görür;
+    // stt.provider internal olduğu için public `/config`'te görünmez.
+    let (status, body) = http(addr, &get_auth("/admin/config", &token("admin"))).await;
     assert_eq!(status, 200);
     assert!(
         body.contains("\"stt.provider\":\"whisper\""),
         "body: {body}"
+    );
+    let (_, public_body) = http(addr, &get("/config")).await;
+    assert!(
+        !public_body.contains("stt.provider"),
+        "public body leaked stt.provider: {public_body}"
     );
 }
 

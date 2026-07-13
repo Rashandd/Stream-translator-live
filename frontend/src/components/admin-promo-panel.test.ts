@@ -5,7 +5,9 @@ const source = readFileSync(new URL("./admin-promo-panel.tsx", import.meta.url),
 
 describe("admin founding promo panel", () => {
   it("loads and saves through the runtime config endpoints", () => {
-    expect(source).toContain('adminFetch("/config")');
+    // BH-01: founding.gate.enabled internal olduğu için okuma da admin
+    // full-config ucundan yapılır (public `/config` yalnız allowlist döner).
+    expect(source).toContain('adminFetch("/admin/config")');
     expect(source).toContain('adminFetch("/admin/config"');
     expect(source).toContain('method: "PUT"');
   });

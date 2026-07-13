@@ -615,6 +615,16 @@ BH maddeleri mevcut implementasyonun production sertleştirme/doğrulama katman�
 
 ## 12. BH-01 — Public config sınırı
 
+> **Durum (2026-07-13): TAMAMLANDI.** `config::PUBLIC_CONFIG_KEYS` allowlist'i
+> (default-deny) + `ServiceConfig::public_snapshot()` eklendi; `GET /config` artık
+> yalnız promo/legal/company anahtarlarını döner. Yetkili `GET /admin/config`
+> (`AdminUser`) full snapshot verir. Frontend: `admin-live-status` ve
+> `admin-promo-panel` admin uca taşındı (`stt.provider`/`translate.provider`/
+> `providers.mock_fallback`/`founding.gate.enabled` internal); `admin-legal-panel`
+> yalnız public key okuduğundan `/config`'te kaldı. Testler: `config.rs` unit
+> (allowlist include/exclude, "yeni internal key public olmaz", "allowlist seeded")
+> + `config_api.rs` (public allowlist, admin full read, 401/403). fmt/clippy temiz.
+
 ### Amaç
 
 Public `/config` endpoint'inin yalnız gerçekten public olması gereken değerleri

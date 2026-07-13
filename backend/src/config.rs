@@ -53,6 +53,36 @@ impl Config {
     }
 }
 
+/// Public `/config` yanıtında dönebilecek anahtarların açık allowlist'i (BH-01).
+///
+/// `/config` public/kimliksiz bir uçtur. Bu listede olmayan hiçbir
+/// `service_config` anahtarı public yanıta sızmaz (default-deny): [`ServiceConfig::public_snapshot`]
+/// yalnız bu anahtarları döndürür. Yeni bir public alan açmak buraya **explicit**
+/// bir satır eklemeyi gerektirir — seed'e yeni bir key eklemek onu otomatik public
+/// yapmaz (regression testi: `new_internal_key_is_not_public`).
+///
+/// Internal anahtarlar (`stt.*`, `translate.*`, `providers.*`, `auth.*`, `cors.*`,
+/// `billing.*`, `integration.*`, `founding.gate.*`, `ext.*`, `mail.*`, `cost.*`,
+/// `log.*`, `vad.*`, `stream.*`, `dist.*`, `overlay.*`, `tts.*`, sağlayıcı test
+/// URL'leri) buraya girmez; admin full-config (`GET /admin/config`) üzerinden okunur.
+pub const PUBLIC_CONFIG_KEYS: &[&str] = &[
+    // Public product/promo — fiyatlandırma sayfası (auth yok, bkz. frontend
+    // `src/lib/promo.ts`).
+    "promo.founding.enabled",
+    "promo.founding.message",
+    // Public company/legal — footer + public `/legal/{slug}` sayfaları (bkz.
+    // frontend `app/[locale]/legal/[slug]/page.tsx::loadRuntimeConfig`).
+    "company.legal_name",
+    "company.registration_number",
+    "company.registered_address",
+    "legal.terms.html",
+    "legal.privacy.html",
+    "legal.kvkk.html",
+    "legal.cookies.html",
+    "legal.dpa.html",
+    "legal.communications.html",
+];
+
 /// Runtime sağlayıcı konfigürasyonu — `config::get("stt.provider")` deseni.
 ///
 /// Değerler kod yerine bu store'dan okunur; hiçbir sağlayıcı adı hard-coded
@@ -314,6 +344,26 @@ impl ServiceConfig {
         }
     }
 
+    /// Public `/config` yanıtı: yalnız [`PUBLIC_CONFIG_KEYS`] allowlist'indeki
+    /// anahtarlar (BH-01). Internal `snapshot()` hiçbir public route'tan dönmez;
+    /// admin full-config için ayrı yetkili uç (`GET /admin/config`) vardır.
+    pub fn public_snapshot(&self) -> BTreeMap<String, String> {
+        let Ok(values) = self.values.read() else {
+            return BTreeMap::new();
+        };
+        PUBLIC_CONFIG_KEYS
+            .iter()
+            .filter_map(|&key| {
+                values.get(key).map(|value| {
+                    (
+                        key.to_string(),
+                        crate::legal::sanitize_config_value(key, value),
+                    )
+                })
+            })
+            .collect()
+    }
+
     /// Tüm config'in sıralı bir kopyasını döndürür (deterministik JSON için).
     pub fn snapshot(&self) -> BTreeMap<String, String> {
         self.values
@@ -493,5 +543,65 @@ mod tests {
         let mut sorted = keys.clone();
         sorted.sort();
         assert_eq!(keys, sorted);
+    }
+
+    #[test]
+    fn public_snapshot_includes_public_keys() {
+        let cfg = ServiceConfig::with_defaults();
+        let public = cfg.public_snapshot();
+        // Public sayfaların (pricing, footer, /legal) okuduğu alanlar.
+        assert!(public.contains_key("promo.founding.enabled"));
+        assert!(public.contains_key("promo.founding.message"));
+        assert!(public.contains_key("company.legal_name"));
+        assert!(public.contains_key("legal.terms.html"));
+        assert!(public.contains_key("legal.privacy.html"));
+    }
+
+    #[test]
+    fn public_snapshot_excludes_internal_keys() {
+        let cfg = ServiceConfig::with_defaults();
+        let public = cfg.public_snapshot();
+        // BH-01: sağlayıcı seçimi, mock fallback, auth/CORS, provider test URL'leri,
+        // billing/OAuth tabanları hiçbir public yanıtta görünmez.
+        for internal in [
+            "stt.provider",
+            "translate.provider",
+            "providers.mock_fallback",
+            "auth.email_2fa",
+            "cors.allowed_origins",
+            "providers.youtube.test_url",
+            "billing.success_url",
+            "founding.gate.enabled",
+            "dist.cloud.plans",
+        ] {
+            assert!(
+                !public.contains_key(internal),
+                "internal key leaked to public snapshot: {internal}"
+            );
+        }
+    }
+
+    #[test]
+    fn new_internal_key_is_not_public() {
+        // Seed'e/store'a yeni bir key eklemek onu otomatik public yapmaz —
+        // allowlist default-deny'dir (BH-01 kabul kriteri).
+        let cfg = ServiceConfig::with_defaults();
+        cfg.set("some.brand.new.internal_key", "secret-ish");
+        assert!(!cfg
+            .public_snapshot()
+            .contains_key("some.brand.new.internal_key"));
+    }
+
+    #[test]
+    fn public_allowlist_keys_are_all_seeded() {
+        // Allowlist hayalet bir anahtara işaret etmemeli: her public key seed'de
+        // gerçekten var olmalı (yoksa public_snapshot sessizce hiç dönmez).
+        let cfg = ServiceConfig::with_defaults();
+        for key in PUBLIC_CONFIG_KEYS {
+            assert!(
+                cfg.get(key).is_some(),
+                "PUBLIC_CONFIG_KEYS references unseeded key: {key}"
+            );
+        }
     }
 }

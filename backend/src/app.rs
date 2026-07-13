@@ -38,11 +38,26 @@ async fn admin_ping(admin: AdminUser) -> String {
     format!("admin:{}", admin.claims.sub)
 }
 
-/// Çalışma zamanı config'ini okur (public).
+/// Çalışma zamanı config'ini okur (public) — yalnız güvenli allowlist (BH-01).
 ///
-/// Yayıncı paneli sağlayıcı seçimini ve plan erişimini buradan okur —
-/// hiçbir değer frontend'e gömülü değildir. Secret içermez.
+/// Public sayfalar (pricing promo, `/legal/{slug}`, footer) yalnız
+/// [`config::PUBLIC_CONFIG_KEYS`] alanlarını okur. Sağlayıcı seçimi, mock
+/// fallback, auth/CORS/billing gibi internal anahtarlar burada DÖNMEZ; admin
+/// bunları yetkili `GET /admin/config` üzerinden okur.
 async fn get_config(State(cfg): State<Arc<ServiceConfig>>) -> Json<BTreeMap<String, String>> {
+    Json(cfg.public_snapshot())
+}
+
+/// Tüm runtime config'i okur (sadece admin) — internal anahtarlar dahil.
+///
+/// Admin panelleri (canlı durum şeridi, promo/legal panelleri) sağlayıcı ve
+/// gate değerlerini buradan okur; public `GET /config` bunları allowlist
+/// dışında bıraktığı için (BH-01) admin okuması ayrı yetkili uçtan yapılır.
+/// Secret içermez — secret'lar `ServiceConfig`'te değil `ManagedSecrets`'te.
+async fn get_admin_config(
+    _admin: AdminUser,
+    State(cfg): State<Arc<ServiceConfig>>,
+) -> Json<BTreeMap<String, String>> {
     Json(cfg.snapshot())
 }
 
@@ -320,7 +335,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/admin/ping", get(admin_ping))
         .route("/config", get(get_config))
-        .route("/admin/config", put(put_config))
+        .route("/admin/config", put(put_config).get(get_admin_config))
         // Multistream OAuth (1.6): yayıncı listeler/başlatır, sağlayıcı callback'ler.
         .route("/api/integrations", get(integrations::list))
         .route(
@@ -381,7 +396,10 @@ pub fn router(state: AppState) -> Router {
             "/api/sdk/commands",
             post(crate::sdk_link::push_command).get(crate::sdk_link::poll_commands),
         )
-        .route("/api/sdk/benchmark", post(crate::sdk_link::report_benchmark))
+        .route(
+            "/api/sdk/benchmark",
+            post(crate::sdk_link::report_benchmark),
+        )
         // Canlı cihaz presence'ı: SDK imzalı heartbeat gönderir, panel
         // eşleşmiş cihazları listeler/kaldırır (bkz. `sdk_session` modülü).
         .route("/api/sdk/heartbeat", post(crate::sdk_session::heartbeat))
@@ -399,7 +417,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/tts/mode", put(crate::sdk_link::set_tts_mode))
         // TTS donanım testi sonucu (2.2b) — komut kanalı STT ile paylaşılır
         // (`tts_benchmark` whitelist'te), sonuç ayrı depoya yazılır.
-        .route("/api/tts/benchmark", post(crate::sdk_link::report_tts_benchmark))
+        .route(
+            "/api/tts/benchmark",
+            post(crate::sdk_link::report_tts_benchmark),
+        )
         // DeepL hedef dil matrisi (Faz 2.0): tam katalog + admin'in açtığı
         // diller + planın izin verdiği azami sayı + yayıncının kayıtlı
         // seçimi tek çağrıda; PUT seçimi doğrulayıp kalıcılaştırır.
@@ -409,12 +430,21 @@ pub fn router(state: AppState) -> Router {
         )
         // Katalogun tamamı (auth gerekmez, gizli veri yok) — admin panelin
         // "hangi diller açık" listesini oluşturması için.
-        .route("/api/translate/catalog", get(crate::stream_settings::get_catalog))
+        .route(
+            "/api/translate/catalog",
+            get(crate::stream_settings::get_catalog),
+        )
         // Ses klonlama (Faz 2.1): yayıncı örnek yollar, model oluşur
         // (pending_review) — admin onaylamadan Faz 2.2'de kullanılamaz.
         .route("/api/voice/clone", post(crate::voice_models::clone_voice))
-        .route("/api/voice/models", get(crate::voice_models::list_my_voice_models))
-        .route("/admin/voice/models", get(crate::voice_models::list_all_voice_models))
+        .route(
+            "/api/voice/models",
+            get(crate::voice_models::list_my_voice_models),
+        )
+        .route(
+            "/admin/voice/models",
+            get(crate::voice_models::list_all_voice_models),
+        )
         .route(
             "/admin/voice/models/{id}/approve",
             post(crate::voice_models::approve_voice_model),

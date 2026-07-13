@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_URL } from "@/src/lib/api";
+import { adminFetch, API_URL } from "@/src/lib/api";
 
 type Labels = {
   title: string;
@@ -25,8 +25,10 @@ type LiveState = {
   planCount: number | null;
 };
 
-/** Genel bakışın canlı durum şeridi — public uçlardan okur (auth gerekmez):
- *  /health, /config, /api/plans. Admin panelin "canlı veri" deseni. */
+/** Genel bakışın canlı durum şeridi. `/health` ve `/api/plans` public;
+ *  sağlayıcı/mock durumu ise admin full-config'ten okunur (BH-01: `stt.provider`,
+ *  `translate.provider`, `providers.mock_fallback` internal olduğundan public
+ *  `/config`'te dönmez). Bu şerit yalnız admin sayfasında render edilir. */
 export function AdminLiveStatus({ labels }: { labels: Labels }) {
   const [state, setState] = useState<LiveState | null | "error">(null);
 
@@ -36,10 +38,10 @@ export function AdminLiveStatus({ labels }: { labels: Labels }) {
       try {
         const [health, config, plans] = await Promise.all([
           fetch(`${API_URL}/health`),
-          fetch(`${API_URL}/config`),
+          adminFetch("/admin/config"),
           fetch(`${API_URL}/api/plans`),
         ]);
-        const cfg = (await config.json()) as Record<string, string>;
+        const cfg = config.ok ? ((await config.json()) as Record<string, string>) : {};
         const planList = plans.ok ? ((await plans.json()) as unknown[]) : null;
         if (cancelled) {
           return;
