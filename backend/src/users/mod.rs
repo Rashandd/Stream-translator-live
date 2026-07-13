@@ -29,6 +29,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AdminUser;
+use crate::auth::challenge::{challenge_cookie, clear_challenge_cookie, set_challenge_cookie};
 use crate::auth::jwt::Claims;
 use crate::auth::session::{create_browser_session, SessionPrincipal};
 use crate::crypto::Cipher;
@@ -1028,13 +1029,19 @@ async fn begin_login_twofactor(
         return Ok(None);
     }
 
+    // A-04: the pending state is an opaque challenge in an HttpOnly cookie —
+    // the browser never holds the email/subject. Each pending reply mints a
+    // fresh challenge id bound to this (subject, email, role).
     let pending_response = || {
-        Json(LoginResponse::TwoFactorPending {
+        let challenge_id = app.challenges.issue(subject, email, role);
+        let mut response = Json(LoginResponse::TwoFactorPending {
             two_factor_required: true,
             expires_in_secs: app.twofactor.ttl_secs(),
             role: role.to_string(),
         })
-        .into_response()
+        .into_response();
+        set_challenge_cookie(&mut response, &challenge_id, app.challenges.ttl_secs());
+        response
     };
     let code = match app.twofactor.issue(email, CodePurpose::Login) {
         Ok(code) => code,

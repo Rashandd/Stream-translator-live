@@ -8,6 +8,7 @@ use axum::Router;
 use streamdubber_backend::{
     app,
     auth::bootstrap::BootstrapAdmin,
+    auth::challenge::ChallengeStore,
     auth::jwt::Jwt,
     auth::oauth_login::LoginProviders,
     auth::session::SessionStore,
@@ -591,6 +592,7 @@ async fn build_state(
         waitlist: Arc::new(WaitlistLimiter::new()),
         users: Arc::new(users),
         twofactor: Arc::new(TwoFactorStore::new()),
+        challenges: Arc::new(ChallengeStore::default()),
         auth_limiter: Arc::new(AuthLimiter::new()),
         browser_sessions,
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),

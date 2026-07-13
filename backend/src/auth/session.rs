@@ -579,7 +579,7 @@ fn append_set_cookie(
     Ok(())
 }
 
-fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+pub(crate) fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get_all(header::COOKIE)
         .iter()
@@ -589,14 +589,14 @@ fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .find_map(|(candidate, value)| (candidate == name).then(|| value.to_string()))
 }
 
-fn cookie_secure() -> bool {
+pub(crate) fn cookie_secure() -> bool {
     !matches!(
         std::env::var("AUTH_COOKIE_SECURE").as_deref(),
         Ok("0") | Ok("false") | Ok("FALSE")
     )
 }
 
-fn secure_flag(secure: bool) -> &'static str {
+pub(crate) fn secure_flag(secure: bool) -> &'static str {
     if secure { "; Secure" } else { "" }
 }
 
