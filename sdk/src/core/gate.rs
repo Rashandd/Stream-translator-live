@@ -4,7 +4,7 @@
 //! packages voiced frames into backend-compatible binary audio frames. Silent
 //! audio never leaves the machine — only speech is sent to the cloud.
 
-use super::audio_frame::{build_audio_frame, AudioCodec, AudioFrameError};
+use super::audio_frame::{build_audio_frame, AudioCodec, AudioFrameError, FrameFlags};
 use super::capture::{CaptureError, CaptureSource};
 use super::preprocess::Preprocessor;
 use super::vad::VadGate;
@@ -74,7 +74,8 @@ impl<S: CaptureSource> CapturePipeline<S> {
             if self.vad.forward(&samples) {
                 self.stats.frames_forwarded += 1;
                 let payload = pcm_to_le_bytes(&samples);
-                let frame = build_audio_frame(self.codec, &payload)?;
+                // A1: geriye uyumlu — utterance sonu işareti A2'de eklenecek.
+                let frame = build_audio_frame(self.codec, FrameFlags::NONE, &payload)?;
                 return Ok(Some(frame));
             }
             self.stats.frames_dropped_silence += 1;

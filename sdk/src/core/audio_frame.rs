@@ -32,6 +32,27 @@ impl AudioCodec {
     }
 }
 
+/// Audio frame header flag bitleri (header byte[5], eski `reserved` byte).
+///
+/// `0x00` = işaret yok → tam geriye uyumlu (backend eski `reserved: 0x00`
+/// frame'leri aynen parse eder). Utterance birleştirme (Bölge A) için bit0
+/// kullanılır; A2 VAD cümle sonunu görünce son frame'i `UTTERANCE_END` ile
+/// işaretler, backend (A3) o noktada tamponu flush eder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FrameFlags(u8);
+
+impl FrameFlags {
+    /// İşaret yok — geriye uyumlu `0x00`.
+    pub const NONE: FrameFlags = FrameFlags(0x00);
+    /// bit0 — bu frame bir utterance'ın (cümlenin) son frame'i.
+    pub const UTTERANCE_END: FrameFlags = FrameFlags(0x01);
+
+    /// Ham wire byte (header byte[5]).
+    pub const fn bits(self) -> u8 {
+        self.0
+    }
+}
+
 /// Audio frame construction errors.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AudioFrameError {
@@ -40,7 +61,14 @@ pub enum AudioFrameError {
 }
 
 /// Builds a backend-compatible binary audio frame.
-pub fn build_audio_frame(codec: AudioCodec, payload: &[u8]) -> Result<Vec<u8>, AudioFrameError> {
+///
+/// `flags` header byte[5]'e yazılır; [`FrameFlags::NONE`] geriye uyumlu `0x00`
+/// üretir (eski davranış). Utterance sonu işareti için [`FrameFlags::UTTERANCE_END`].
+pub fn build_audio_frame(
+    codec: AudioCodec,
+    flags: FrameFlags,
+    payload: &[u8],
+) -> Result<Vec<u8>, AudioFrameError> {
     if payload.len() > MAX_PAYLOAD_LEN {
         return Err(AudioFrameError::PayloadTooLarge {
             actual: payload.len(),
@@ -51,7 +79,7 @@ pub fn build_audio_frame(codec: AudioCodec, payload: &[u8]) -> Result<Vec<u8>, A
     let mut frame = Vec::with_capacity(HEADER_LEN + payload.len());
     frame.extend_from_slice(&MAGIC);
     frame.push(codec.wire_byte());
-    frame.push(0x00);
+    frame.push(flags.bits());
     frame.extend_from_slice(&(payload.len() as u16).to_be_bytes());
     frame.extend_from_slice(payload);
     Ok(frame)
@@ -63,13 +91,24 @@ mod tests {
 
     #[test]
     fn builds_opus_frame_with_backend_header() {
-        let frame = build_audio_frame(AudioCodec::Opus, &[1, 2, 3]).expect("frame");
+        let frame = build_audio_frame(AudioCodec::Opus, FrameFlags::NONE, &[1, 2, 3]).expect("frame");
 
         assert_eq!(&frame[0..4], &MAGIC);
         assert_eq!(frame[4], 0x01);
-        assert_eq!(frame[5], 0x00);
+        assert_eq!(frame[5], 0x00); // NONE → geriye uyumlu reserved 0x00
         assert_eq!(&frame[6..8], &[0x00, 0x03]);
         assert_eq!(&frame[8..], &[1, 2, 3]);
+    }
+
+    #[test]
+    fn sets_utterance_end_flag_bit() {
+        let frame =
+            build_audio_frame(AudioCodec::PcmS16Le, FrameFlags::UTTERANCE_END, &[9]).expect("frame");
+        assert_eq!(frame[5], 0x01); // header byte[5] = flags, bit0 set
+        // Diğer header alanları etkilenmez.
+        assert_eq!(frame[4], 0x02);
+        assert_eq!(&frame[6..8], &[0x00, 0x01]);
+        assert_eq!(&frame[8..], &[9]);
     }
 
     #[test]
@@ -83,7 +122,7 @@ mod tests {
         let payload = vec![0; MAX_PAYLOAD_LEN + 1];
 
         assert_eq!(
-            build_audio_frame(AudioCodec::Opus, &payload),
+            build_audio_frame(AudioCodec::Opus, FrameFlags::NONE, &payload),
             Err(AudioFrameError::PayloadTooLarge {
                 actual: MAX_PAYLOAD_LEN + 1,
                 max: MAX_PAYLOAD_LEN
