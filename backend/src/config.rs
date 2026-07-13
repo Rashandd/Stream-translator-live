@@ -53,6 +53,36 @@ impl Config {
     }
 }
 
+/// Çalışma zamanı ortamı — production'a özgü sıkı kurallara karar vermek için
+/// (BH-02: mock fallback/zayıf 2FA/insecure URL production'da reddedilir).
+///
+/// `APP_ENV=production` (case-insensitive) dışında her şey `Development`
+/// sayılır — varsayılan güvenli taraf budur: yerel/test/CI ortamları sıkı
+/// production kurallarını YANLIŞLIKLA tetiklemez, production'a yalnız açık
+/// bir env var ile bilinçli girilir.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Environment {
+    #[default]
+    Development,
+    Production,
+}
+
+impl Environment {
+    /// `APP_ENV` ortam değişkeninden okur.
+    pub fn from_env() -> Self {
+        Self::from_value(std::env::var("APP_ENV").ok().as_deref())
+    }
+
+    /// Test edilebilir çekirdek: gerçek env okumasından ayrık (paralel
+    /// testlerde process-global `set_var` yarışını önler).
+    fn from_value(value: Option<&str>) -> Self {
+        match value {
+            Some(v) if v.eq_ignore_ascii_case("production") => Environment::Production,
+            _ => Environment::Development,
+        }
+    }
+}
+
 /// Public `/config` yanıtında dönebilecek anahtarların açık allowlist'i (BH-01).
 ///
 /// `/config` public/kimliksiz bir uçtur. Bu listede olmayan hiçbir
@@ -433,6 +463,32 @@ impl Default for ServiceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn environment_defaults_to_development() {
+        assert_eq!(Environment::from_value(None), Environment::Development);
+        assert_eq!(Environment::from_value(Some("")), Environment::Development);
+        assert_eq!(
+            Environment::from_value(Some("dev")),
+            Environment::Development
+        );
+        assert_eq!(
+            Environment::from_value(Some("staging")),
+            Environment::Development
+        );
+    }
+
+    #[test]
+    fn environment_recognizes_production_case_insensitive() {
+        assert_eq!(
+            Environment::from_value(Some("production")),
+            Environment::Production
+        );
+        assert_eq!(
+            Environment::from_value(Some("PRODUCTION")),
+            Environment::Production
+        );
+    }
 
     #[test]
     fn seeds_provider_defaults() {

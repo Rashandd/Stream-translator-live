@@ -1399,7 +1399,7 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
 
 Faz P0
 - [x] BH-01 Public config yüzeyini güvenli allowlist ile sınırla
-- [ ] BH-02 Config ve plan güncellemelerine semantik validation ekle
+- [x] BH-02 Config ve plan güncellemelerine semantik validation ekle (2026-07-13)
 - [x] A1. Protokol: reserved byte → flags <!-- Codex 2026-07-13: SDK FrameFlags + backend utterance_end parser; 0x00 legacy ve bilinmeyen üst bit uyumluluğu, unit/cloud E2E çağrıları güncellendi. A2 VAD üretimi ayrı kalır. -->
 - [ ] A4. stt-server dokümantasyon notu
 - [ ] C1. Mikrofon/cloud session'ı OBS'ten bağımsız başlat

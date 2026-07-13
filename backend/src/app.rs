@@ -16,7 +16,8 @@ use tower_http::trace::TraceLayer;
 use crate::auth::authz::AdminUser;
 use crate::auth::session;
 use crate::billing;
-use crate::config::ServiceConfig;
+use crate::config::{Environment, ServiceConfig};
+use crate::config_spec::{validate_config_value, validate_plan, ValidationContext};
 use crate::ext_twitch;
 use crate::integrations;
 use crate::logging::{LogEntry, LogLevel, LogQuery, Logger};
@@ -71,31 +72,48 @@ struct ConfigUpdate {
 /// Bir config anahtarını günceller (sadece admin).
 ///
 /// Yalnızca seed'de tanımlı anahtarlar yazılabilir; bilinmeyen anahtar 404.
+/// Değer, `ConfigSpec` registry'sine göre tipine ve production kısıtlarına
+/// (BH-02) göre doğrulanır; geçersiz değer 422 döner. Mutasyon DB-first:
+/// `DATABASE_URL` yapılandırılmışsa önce `service_config` tablosuna yazılır,
+/// bellek yalnız DB yazımı BAŞARILI olursa güncellenir — DB hatasında bellek
+/// hiç dokunulmamış olarak kalır (eski "yaz-sonra-geri-al" deseni yerine).
 /// Değişiklik restart gerektirmez, çalışan tüm okuyuculara anında yansır.
-/// `DATABASE_URL` yapılandırılmışsa aynı anda `service_config` tablosuna da
-/// yazılır (restart-safe); DB yazımı başarısız olursa bellek eski değere
-/// geri alınır ve 500 döner — bellek ve DB asla sessizce ayrışmaz.
 async fn put_config(
     _admin: AdminUser,
     State(cfg): State<Arc<ServiceConfig>>,
+    State(plans): State<Arc<PlanRegistry>>,
+    State(environment): State<Environment>,
     State(db): State<Option<sqlx::PgPool>>,
     Json(update): Json<ConfigUpdate>,
-) -> Result<Json<BTreeMap<String, String>>, StatusCode> {
-    let previous = cfg.get(&update.key);
-    if !cfg.set_existing(&update.key, update.value.clone()) {
-        return Err(StatusCode::NOT_FOUND);
+) -> Result<Json<BTreeMap<String, String>>, (StatusCode, String)> {
+    if cfg.get(&update.key).is_none() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("unknown config key: {}", update.key),
+        ));
     }
+
+    let known_plans: Vec<String> = plans.snapshot().into_iter().map(|p| p.name).collect();
+    let ctx = ValidationContext {
+        environment,
+        known_plans: &known_plans,
+    };
+    validate_config_value(&update.key, &update.value, &ctx)
+        .map_err(|err| (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()))?;
 
     if let Some(pool) = db {
-        if let Err(err) = crate::config::persist_to_db(&pool, &update.key, &update.value).await {
-            tracing::warn!(%err, key = %update.key, "service_config: DB yazımı başarısız, bellek geri alınıyor");
-            if let Some(prev) = previous {
-                cfg.set_existing(&update.key, prev);
-            }
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+        crate::config::persist_to_db(&pool, &update.key, &update.value)
+            .await
+            .map_err(|err| {
+                tracing::warn!(%err, key = %update.key, "service_config: DB yazımı başarısız, bellek değiştirilmedi");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "failed to persist config".to_string(),
+                )
+            })?;
     }
 
+    cfg.set_existing(&update.key, update.value.clone());
     Ok(Json(cfg.snapshot()))
 }
 
@@ -189,32 +207,31 @@ async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefin
 
 /// Bir planı ekler/günceller (sadece admin). Restart gerekmez.
 ///
-/// `DATABASE_URL` yapılandırılmışsa aynı anda `plans` tablosuna da yazılır
-/// (restart-safe); DB yazımı başarısız olursa bellek önceki değere (veya
-/// yeni bir plansa hiç yoktuysa silinmiş haline) geri alınır ve 500 döner —
-/// `put_config` ile aynı bellek/DB tutarlılık kuralı.
+/// Gövde `ConfigSpec`'in plan validasyonuna (BH-02: normalize slug,
+/// `price_cents >= 0`, limitler yalnız `-1` veya pozitif) göre doğrulanır;
+/// geçersiz gövde 422 döner. Mutasyon DB-first: `DATABASE_URL`
+/// yapılandırılmışsa önce `plans` tablosuna yazılır, bellek yalnız DB yazımı
+/// BAŞARILI olursa güncellenir (`put_config` ile aynı tutarlılık kuralı) —
+/// bu yüzden DB hatasında geri-alınacak bir bellek değişikliği hiç olmaz.
 async fn put_plan(
     _admin: AdminUser,
     State(plans): State<Arc<PlanRegistry>>,
     State(db): State<Option<sqlx::PgPool>>,
     Json(plan): Json<PlanDefinition>,
-) -> Result<Json<Vec<PlanDefinition>>, StatusCode> {
-    let previous = plans.get(&plan.name);
-    plans.set(plan.clone());
+) -> Result<Json<Vec<PlanDefinition>>, (StatusCode, String)> {
+    validate_plan(&plan).map_err(|err| (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()))?;
 
     if let Some(pool) = db {
-        if let Err(err) = crate::plans::persist_to_db(&pool, &plan).await {
-            tracing::warn!(%err, plan = %plan.name, "plans: DB yazımı başarısız, bellek geri alınıyor");
-            match previous {
-                Some(prev) => plans.set(prev),
-                None => {
-                    plans.remove(&plan.name);
-                }
-            }
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+        crate::plans::persist_to_db(&pool, &plan).await.map_err(|err| {
+            tracing::warn!(%err, plan = %plan.name, "plans: DB yazımı başarısız, bellek değiştirilmedi");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to persist plan".to_string(),
+            )
+        })?;
     }
 
+    plans.set(plan);
     Ok(Json(plans.snapshot()))
 }
 

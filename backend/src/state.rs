@@ -11,7 +11,7 @@ use crate::auth::oauth_login::LoginProviders;
 use crate::auth::session::SessionStore;
 use crate::billing::Billing;
 use crate::bindings::ChannelBindingStore;
-use crate::config::ServiceConfig;
+use crate::config::{Environment, ServiceConfig};
 use crate::ext_twitch::ExtTwitch;
 use crate::founding::FoundingStore;
 use crate::gateway::Gateway;
@@ -40,6 +40,10 @@ pub struct AppState {
     pub jwt: Arc<Jwt>,
     pub gateway: Arc<Gateway>,
     pub service_config: Arc<ServiceConfig>,
+    /// Çalışma zamanı ortamı (BH-02) — production'a özgü sıkı config/plan
+    /// validasyon kurallarını (mock fallback, zayıf 2FA, insecure URL)
+    /// tetikler. `Copy` — `Arc` gerekmez.
+    pub environment: Environment,
     pub integrations: Arc<Integrations>,
     /// Google/Twitch ile login (auth::oauth_login) — bağlantı *bağlama*
     /// (`integrations`, üstte) ile karıştırılmaz, ayrı bir registry.
@@ -118,6 +122,7 @@ impl AppState {
             gateway: Arc::new(gateway),
             logger: Arc::new(Logger::in_memory(Arc::clone(&service_config))),
             overlay: Arc::new(OverlayHub::new(Arc::clone(&service_config))),
+            environment: Environment::Development,
             service_config,
             integrations: Arc::new(Integrations::empty()),
             oauth_login: Arc::new(LoginProviders::empty()),
@@ -173,6 +178,12 @@ impl FromRef<AppState> for Arc<Gateway> {
 impl FromRef<AppState> for Arc<ServiceConfig> {
     fn from_ref(state: &AppState) -> Self {
         state.service_config.clone()
+    }
+}
+
+impl FromRef<AppState> for Environment {
+    fn from_ref(state: &AppState) -> Self {
+        state.environment
     }
 }
 
