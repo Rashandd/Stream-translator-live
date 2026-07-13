@@ -271,8 +271,7 @@ eski refresh token ile session yenilenemez.
 - Vercel production domain + VPS API domain üzerinde cookie, CORS, CSRF ve
   logout doğrulanır.
 - `docs/security.md`, `docs/schema.md`, `docs/dashboard.md`,
-  `docs/production-operator-guide.md`, roadmap ve `docs/SESSION.md`
-  güncellenir.
+  `docs/production-operator-guide.md` ve roadmap güncellenir.
 
 ## 4. Kesintisiz deploy sırası
 

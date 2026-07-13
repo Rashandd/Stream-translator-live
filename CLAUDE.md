@@ -31,11 +31,11 @@ Worktree kökünde agent'a özel, gitignore'lu çalışma notunu oluştur:
 
 Not en az `Neredeyim?`, `Son Kararlar`, `Sonraki Adım` ve `Blokerlar`
 bölümlerini içermeli; çalışma boyunca güncel tutulmalı. Bu dosya worktree-local
-geçici hafızadır, commit'e eklenmez. `docs/SESSION.md` ve
-`docs/sessions/*.md` kullanılmaz, okunmaz veya güncellenmez.
-Eski merkezi/agent-session akışını kullanan `scripts/session-start.sh` ve
-`scripts/session-end.sh` de çalıştırılmaz; bunlar temizlenene kadar legacy
-artefakt kabul edilir.
+geçici hafızadır, commit'e eklenmez. Merkezi bir session dosyası YOKTUR:
+eski `docs/SESSION.md`, `docs/sessions/*.md` ve `scripts/session-start.sh` /
+`scripts/session-end.sh` akışı kaldırıldı. Koordinasyon yalnız git branch/commit
+durumu, worktree-local `codex.md`/`claude.md` notu ve final handoff üzerinden
+yürür.
 
 Worktree hazırlandıktan sonra hangi alandaysan onun regression testlerini çalıştır:
 
@@ -95,7 +95,7 @@ docker compose -f infra/docker-compose.yml --env-file .env up  # local dev ortam
 /sdk/src/audio  → platform adaptörleri: wasapi.rs (Windows), cpal_capture.rs (macOS+Linux)
 /stt-server     → self-hosted GPU STT worker (Python/FastAPI + faster-whisper, roadmap 2.6)
 /extension      → Twitch component overlay extension (viewer bar, roadmap 2.4)
-/scripts        → smoke/vault-seed yardımcıları; session-start/end legacy ve kullanılmaz
+/scripts        → smoke/vault-seed yardımcıları (eski session-start/end scriptleri kaldırıldı)
 /infra          → Dockerfile'lar, docker-compose, TLS/Vault config, deploy rehberleri
 /docs           → mimari kararlar ve referans dökümanlar
 ```
