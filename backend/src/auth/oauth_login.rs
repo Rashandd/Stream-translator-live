@@ -17,10 +17,12 @@
 //! e-posta zaten (şifreli veya başka bir sağlayıcıyla) kayıtlıysa
 //! **reddedilir** — otomatik bağlama yok, hesap ele geçirme riskini sıfırlar
 //! (sağlayıcı e-postayı doğrulanmış saysa bile: Twitch/Kick bunu garanti
-//! etmez). Hiçbiri değilse yeni OAuth-only hesap açılır. Sonuç, e-posta/
-//! şifre login'iyle birebir aynı JWT ([`crate::users::issue_user_token`]
-//! reuse edilir), frontend'e `#token=...` URL fragment'iyle iletilir (2FA
-//! e-postasıyla aynı konvansiyon — token loglara/erişim kayıtlarına düşmez).
+//! etmez). Hiçbiri değilse (yalnız signup niyetiyle) yeni OAuth-only hesap
+//! açılır. Başarı, şifre/2FA login'iyle birebir aynı HttpOnly cookie
+//! session'ı kurar ([`crate::auth::session::attach_new_browser_session`]);
+//! browser'a token URL fragment'ıyla İLETİLMEZ (Faz 2) — access/refresh/csrf
+//! çerezleri callback redirect'ine iliştirilir, token loglara/erişim
+//! kayıtlarına düşmez. Bearer JWT yalnız SDK/CLI için `authz`'de kalır.
 //!
 //! Kick bilinçli olarak burada YOK: OAuth 2.1 + PKCE gerektiriyor (mevcut
 //! [`exchange_code`] sadece client_secret akışını biliyor) ve endpoint'leri
@@ -49,13 +51,14 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AuthUser;
+use crate::auth::session::{attach_new_browser_session, create_browser_session, SessionPrincipal};
 use crate::config::ServiceConfig;
 use crate::integrations::oauth::{exchange_code, OAuthProvider};
 use crate::integrations::{urlencoding_light, CallbackQuery};
 use crate::logging::LogLevel;
 use crate::secrets::{names, SecretRef, SecretStore};
 use crate::state::AppState;
-use crate::users::{issue_user_token, LoginResponse, OAuthIdentityInfo, UserError, UserRecord};
+use crate::users::{user_principal, OAuthIdentityInfo, UserError};
 #[cfg(test)]
 use crate::users::UserStore;
 
@@ -384,9 +387,8 @@ impl LoginProviders {
         }
 
         if let Some(existing) = app.users.find_by_oauth(provider_name, &identity.external_id) {
-            let token = issue_token_string(app, &existing)?;
             return Ok(OAuthOutcome::LoggedIn {
-                token,
+                principal: user_principal(&existing),
                 locale: st.locale,
                 return_to: st.return_to,
             });
@@ -415,9 +417,8 @@ impl LoginProviders {
             Some(&user.id),
             None,
         );
-        let token = issue_token_string(app, &user)?;
         Ok(OAuthOutcome::LoggedIn {
-            token,
+            principal: user_principal(&user),
             locale: st.locale,
             return_to: st.return_to,
         })
@@ -425,12 +426,14 @@ impl LoginProviders {
 }
 
 /// `complete()` sonucu — login/signup mı yoksa mevcut hesaba bağlama mı.
-/// `locale`/`return_to` `state`'ten taşınır ki callback locale-safe ve
-/// open-redirect korumalı bir yönlendirme kursun (A-02).
+/// Login/signup başarısı artık bir JWT string'i değil, callback'in HttpOnly
+/// cookie session'ı kuracağı bir [`SessionPrincipal`] taşır (Faz 2 — token
+/// URL fragment'ından çıkarıldı). `locale`/`return_to` `state`'ten gelir ki
+/// callback locale-safe ve open-redirect korumalı bir yönlendirme kursun.
 #[derive(Debug)]
 enum OAuthOutcome {
     LoggedIn {
-        token: String,
+        principal: SessionPrincipal,
         locale: String,
         return_to: Option<String>,
     },
@@ -438,16 +441,6 @@ enum OAuthOutcome {
         provider: String,
         locale: String,
     },
-}
-
-fn issue_token_string(app: &AppState, user: &UserRecord) -> Result<String, OAuthLoginError> {
-    match issue_user_token(app, user) {
-        Ok(LoginResponse::Token { token, .. }) => Ok(token),
-        Ok(LoginResponse::TwoFactorPending { .. }) => {
-            Err(OAuthLoginError::Internal("unexpected 2fa challenge for oauth login".to_string()))
-        }
-        Err((_, message)) => Err(OAuthLoginError::Internal(format!("token issue failed: {message}"))),
-    }
 }
 
 /// Sağlayıcıdan çekilen, hesap eşleme için yeterli minimal kimlik.
@@ -545,8 +538,6 @@ enum OAuthLoginError {
     AccountNotFound,
     #[error("account error: {0}")]
     Account(#[from] UserError),
-    #[error("internal error: {0}")]
-    Internal(String),
 }
 
 fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
@@ -560,7 +551,7 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
         OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => StatusCode::CONFLICT,
         OAuthLoginError::Account(UserError::LastLoginMethod) => StatusCode::CONFLICT,
         OAuthLoginError::Account(UserError::NotFound) => StatusCode::NOT_FOUND,
-        OAuthLoginError::Account(_) | OAuthLoginError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        OAuthLoginError::Account(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
@@ -802,18 +793,35 @@ pub async fn callback(
     };
 
     match app.oauth_login.complete(&app, &provider, &code, &state).await {
-        Ok(OAuthOutcome::LoggedIn { token, locale, return_to }) => {
-            app.logger.log(LogLevel::Info, "auth", &format!("oauth login completed via {provider}"), None, None);
+        Ok(OAuthOutcome::LoggedIn { principal, locale, return_to }) => {
+            app.logger.log(
+                LogLevel::Info,
+                "auth",
+                &format!("oauth login completed via {provider}"),
+                Some(&principal.sub),
+                None,
+            );
             match origin {
-                None => axum::Json(serde_json::json!({ "token": token })).into_response(),
+                // No frontend origin configured (server-to-server / tests): issue
+                // the cookie session directly as a JSON response — still no token
+                // in any URL.
+                None => match create_browser_session(&app, principal).await {
+                    Ok(response) => response,
+                    Err((status, _)) => error_response(None, &default_locale, "oauth_failed", status),
+                },
+                // Faz 2: the browser lands on oauth-complete with the session
+                // cookies already set (no token in the fragment); the page then
+                // verifies the cookie session and routes by role.
                 Some(origin) => {
-                    // Faz 1: token hâlâ fragment'ta taşınır (cookie migration Faz 2);
-                    // fark yalnız locale-safe path ve isteğe bağlı return_to.
                     let query = return_to
                         .map(|r| format!("return_to={}", urlencoding_light(&r)))
                         .unwrap_or_default();
-                    let url = frontend_url(&origin, &locale, "/login/oauth-complete", &query, &format!("token={token}"));
-                    Redirect::to(&url).into_response()
+                    let url = frontend_url(&origin, &locale, "/login/oauth-complete", &query, "");
+                    let redirect = Redirect::to(&url).into_response();
+                    match attach_new_browser_session(&app, principal, redirect).await {
+                        Ok(response) => response,
+                        Err((status, _)) => error_response(Some(&origin), &locale, "oauth_failed", status),
+                    }
                 }
             }
         }
@@ -956,9 +964,10 @@ mod tests {
             .await
             .expect("first login creates an account");
 
-        let OAuthOutcome::LoggedIn { token, .. } = outcome else { panic!("expected a login outcome") };
-        assert!(!token.is_empty());
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        assert_eq!(principal.role, "broadcaster");
         let user = app.users.find_by_oauth("google", "g-123").expect("account created");
+        assert_eq!(principal.sub, user.id);
         assert_eq!(user.email, "streamer@example.com");
         assert!(user.password_hash.is_none());
         assert!(user.email_verified);
@@ -981,8 +990,8 @@ mod tests {
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("existing identity logs in");
-        let OAuthOutcome::LoggedIn { token, .. } = outcome else { panic!("expected a login outcome") };
-        assert!(!token.is_empty());
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        assert_eq!(principal.sub, existing.id);
 
         // Still exactly one account for this identity — no duplicate created.
         let by_email = app.users.get("streamer@example.com").expect("account exists");
@@ -1251,7 +1260,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn callback_redirects_with_token_in_the_fragment_on_success() {
+    async fn callback_sets_session_cookies_and_redirects_without_a_token_on_success() {
         let base = spawn_google_mock("streamer@example.com").await;
         let providers = providers_with(&base, true);
         // Signup intent (capture a locale so the callback can build a
@@ -1278,11 +1287,56 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        // Locale-safe path; token still rides the fragment in Faz 1 (never sent
-        // to the server, unlike a query param); return_to is forwarded as query.
+        // Faz 2: locale-safe path + return_to, but NO token anywhere in the URL.
         assert!(location.starts_with("https://panel.example.com/tr/login/oauth-complete?"));
         assert!(location.contains("return_to=/dashboard"));
-        assert!(location.contains("#token="));
+        assert!(!location.contains("token"));
+        assert!(!location.contains('#'));
+        // The session rides HttpOnly cookies instead of a URL fragment.
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(str::to_string)
+            .collect();
+        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        assert!(cookies.iter().any(|c| c.starts_with("sd_refresh=")));
+        assert!(cookies.iter().any(|c| c.starts_with("sd_csrf=")));
+    }
+
+    #[tokio::test]
+    async fn callback_without_frontend_base_issues_a_cookie_session_as_json() {
+        let base = spawn_google_mock("streamer@example.com").await;
+        let providers = providers_with(&base, true);
+        let state_param = begin_and_capture_state(&providers, OAuthIntent::Signup).await;
+        // integration.frontend_base stays "" — the JSON fallback path.
+        let app = skeleton_state(UserStore::in_memory(), providers);
+
+        let resp = callback(
+            Path("google".to_string()),
+            Query(CallbackQuery {
+                code: Some("code-1".to_string()),
+                state: Some(state_param),
+                error: None,
+            }),
+            State(app),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(str::to_string)
+            .collect();
+        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        // Even the JSON fallback returns a cookie session, never a bearer token.
+        let body = body_text(resp).await;
+        assert!(!body.contains("\"token\""), "body was {body}");
+        assert!(body.contains("\"authenticated\":true"));
     }
 
     // --- Faz 1 davranış testleri (locale-safe + opaque callback) ---

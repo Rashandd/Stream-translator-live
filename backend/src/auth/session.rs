@@ -461,10 +461,14 @@ pub(crate) fn require_cookie_request(
     Ok(())
 }
 
-fn session_response(
+/// Builds the access/refresh/csrf `Set-Cookie` header strings for a freshly
+/// issued or rotated session, plus the safe body describing it. Shared by the
+/// JSON session response and the OAuth callback redirect so both paths set an
+/// identical cookie triple.
+fn session_cookies(
     app: &AppState,
     issued: IssuedRefresh,
-) -> Result<Response, (StatusCode, String)> {
+) -> Result<(BrowserSession, Vec<String>), (StatusCode, String)> {
     let expires_at = chrono::Utc::now().timestamp() + ACCESS_TTL_SECS;
     let claims = Claims {
         sub: issued.principal.sub.clone(),
@@ -477,40 +481,67 @@ fn session_response(
         .issue(&claims)
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
     let csrf = random_opaque_token().map_err(internal_http)?;
+    let secure = cookie_secure();
+    let refresh_max_age = issued
+        .expires_at
+        .saturating_sub(chrono::Utc::now().timestamp());
+    let cookies = vec![
+        format!(
+            "{ACCESS_COOKIE}={access}; Path=/; Max-Age={ACCESS_TTL_SECS}; HttpOnly; SameSite=Lax{}",
+            secure_flag(secure)
+        ),
+        format!(
+            "{REFRESH_COOKIE}={}; Path=/api/auth; Max-Age={refresh_max_age}; HttpOnly; SameSite=Strict{}",
+            issued.refresh_token,
+            secure_flag(secure)
+        ),
+        format!(
+            "{CSRF_COOKIE}={csrf}; Path=/; Max-Age={refresh_max_age}; SameSite=Lax{}",
+            secure_flag(secure)
+        ),
+    ];
     let body = BrowserSession {
         authenticated: true,
         user_id: issued.principal.sub,
         role: issued.principal.role,
         plan: issued.principal.plan,
         expires_at,
-        csrf_token: csrf.clone(),
+        csrf_token: csrf,
     };
-    let secure = cookie_secure();
+    Ok((body, cookies))
+}
+
+fn session_response(
+    app: &AppState,
+    issued: IssuedRefresh,
+) -> Result<Response, (StatusCode, String)> {
+    let (body, cookies) = session_cookies(app, issued)?;
     let mut response = Json(body).into_response();
-    append_set_cookie(
-        &mut response,
-        format!(
-            "{ACCESS_COOKIE}={access}; Path=/; Max-Age={ACCESS_TTL_SECS}; HttpOnly; SameSite=Lax{}",
-            secure_flag(secure)
-        ),
-    )?;
-    append_set_cookie(
-        &mut response,
-        format!(
-            "{REFRESH_COOKIE}={}; Path=/api/auth; Max-Age={}; HttpOnly; SameSite=Strict{}",
-            issued.refresh_token,
-            issued.expires_at.saturating_sub(chrono::Utc::now().timestamp()),
-            secure_flag(secure)
-        ),
-    )?;
-    append_set_cookie(
-        &mut response,
-        format!(
-            "{CSRF_COOKIE}={csrf}; Path=/; Max-Age={}; SameSite=Lax{}",
-            issued.expires_at.saturating_sub(chrono::Utc::now().timestamp()),
-            secure_flag(secure)
-        ),
-    )?;
+    for cookie in cookies {
+        append_set_cookie(&mut response, cookie)?;
+    }
+    Ok(response)
+}
+
+/// Issue a fresh browser session and attach its `Set-Cookie` headers to an
+/// arbitrary response — e.g. the OAuth callback's 303 redirect — so a browser
+/// login never has to carry an access token in the URL fragment or
+/// `localStorage`. The passed response keeps its status/location; only cookies
+/// are added.
+pub async fn attach_new_browser_session(
+    app: &AppState,
+    principal: SessionPrincipal,
+    mut response: Response,
+) -> Result<Response, (StatusCode, String)> {
+    let issued = app
+        .browser_sessions
+        .issue(principal)
+        .await
+        .map_err(internal_http)?;
+    let (_body, cookies) = session_cookies(app, issued)?;
+    for cookie in cookies {
+        append_set_cookie(&mut response, cookie)?;
+    }
     Ok(response)
 }
 

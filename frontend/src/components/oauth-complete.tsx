@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { setUserToken } from "@/src/lib/api";
+import { userFetch } from "@/src/lib/api";
 
 type ErrorCopy = {
   accountNotFound: string;
@@ -61,24 +61,45 @@ function safeReturnTo(raw: string | null): string | null {
 }
 
 /**
- * The backend redirects here with either `#token=...` (fragment — never
- * sent to a server, unlike a query param) on success, or `?error=<code>` on
- * failure. Reading the fragment requires the browser, hence `"use client"`.
+ * Faz 2: on success the backend has already set the HttpOnly session cookies
+ * on the redirect to this page — there is no token in the URL or in
+ * `localStorage`. The page confirms the cookie session via the session
+ * endpoint and then routes. On failure the backend appends `?error=<code>`
+ * (an opaque A-02 code) which is mapped to dictionary copy. Runs in the
+ * browser, hence `"use client"`.
  */
 export function OAuthCompleteHandler({ labels, dashboardHref, loginHref }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const token = hashParams.get("token");
-    if (token) {
-      setUserToken(token);
-      const returnTo = safeReturnTo(new URLSearchParams(window.location.search).get("return_to"));
-      window.location.assign(returnTo ?? dashboardHref);
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code) {
+      setError(messageForCode(code, labels.errors));
       return;
     }
-    const code = new URLSearchParams(window.location.search).get("error");
-    setError(messageForCode(code, labels.errors));
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await userFetch("/api/auth/session");
+        if (cancelled) {
+          return;
+        }
+        if (!response.ok) {
+          setError(labels.errors.generic);
+          return;
+        }
+        const returnTo = safeReturnTo(new URLSearchParams(window.location.search).get("return_to"));
+        window.location.assign(returnTo ?? dashboardHref);
+      } catch {
+        if (!cancelled) {
+          setError(labels.errors.generic);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [dashboardHref, labels.errors]);
 
   if (!error) {

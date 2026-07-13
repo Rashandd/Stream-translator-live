@@ -71,11 +71,12 @@ describe("Google/Twitch login wiring", () => {
     expect(signupPageSource).toContain("<OAuthButtons");
   });
 
-  it("oauth-complete handler reads the token from the URL fragment and stores it via setUserToken", () => {
-    expect(oauthCompleteSource).toContain("window.location.hash");
-    expect(oauthCompleteSource).toContain("setUserToken(token)");
-    // Fragment, not query — the token must never be sent to a server (see api.ts docs).
-    expect(oauthCompleteSource).not.toContain("searchParams.get(\"token\")");
+  it("oauth-complete verifies the cookie session — no token in the URL or localStorage (Faz 2)", () => {
+    // The callback set HttpOnly session cookies on the redirect; the page just
+    // confirms the session and routes. Nothing reads a token anywhere.
+    expect(oauthCompleteSource).toContain("/api/auth/session");
+    expect(oauthCompleteSource).not.toContain("setUserToken");
+    expect(oauthCompleteSource).not.toContain("window.location.hash");
   });
 
   it("oauth-complete page is wired to the handler component", () => {

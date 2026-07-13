@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(new URL("./auth-guard.tsx", import.meta.url), "utf8");
 
 describe("AuthGuard", () => {
-  it("trusts a locally stored OAuth bearer token for the broadcaster dashboard without a network round trip", () => {
-    expect(source).toContain('tokenKind === "user" && getUserToken()');
+  it("has no localStorage bearer short-circuit — a stale token can't shadow the cookie session (Faz 2)", () => {
+    expect(source).not.toContain("getUserToken");
   });
 
-  it("otherwise validates the live cookie session via GET /api/auth/session", () => {
+  it("always validates the live cookie session via GET /api/auth/session", () => {
     expect(source).toContain('await fetcher("/api/auth/session")');
     expect(source).toContain('const fetcher = tokenKind === "admin" ? adminFetch : userFetch');
   });

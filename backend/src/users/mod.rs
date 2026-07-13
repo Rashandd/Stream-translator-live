@@ -1100,36 +1100,7 @@ async fn begin_login_twofactor(
 
 /// E-posta/şifre ve OAuth login akışlarının ikisi de aynı JWT şeklini üretir
 /// — `oauth_login` bunu doğrudan reuse eder (bkz. `crate::auth::oauth_login`).
-pub(crate) fn issue_user_token(
-    app: &AppState,
-    user: &UserRecord,
-) -> Result<LoginResponse, (StatusCode, String)> {
-    let expires_at = chrono::Utc::now().timestamp() + USER_TOKEN_TTL_SECS;
-    let claims = Claims {
-        sub: user.id.clone(),
-        role: "broadcaster".to_string(),
-        plan: user.plan.clone(),
-        exp: expires_at,
-    };
-    let token = app
-        .jwt
-        .issue(&claims)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    app.logger.log(
-        LogLevel::Info,
-        "auth",
-        "user login succeeded",
-        Some(&user.id),
-        None,
-    );
-    Ok(LoginResponse::Token {
-        token,
-        expires_at,
-        role: "broadcaster".to_string(),
-    })
-}
-
-fn user_principal(user: &UserRecord) -> SessionPrincipal {
+pub(crate) fn user_principal(user: &UserRecord) -> SessionPrincipal {
     SessionPrincipal {
         sub: user.id.clone(),
         role: "broadcaster".to_string(),

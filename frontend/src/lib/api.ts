@@ -7,11 +7,12 @@
  * (`GET`/`HEAD` dışı) okunabilir `sd_csrf` çerezini `x-csrf-token`
  * başlığına kopyalar (double-submit — `require_cookie_request`).
  *
- * OAuth ile giren yayıncılar için ayrı bir kalıcı Bearer JWT mekanizması
- * hâlâ geçerli (`oauth-complete.tsx`, `USER_TOKEN_KEY`) — o token'lar cookie
- * session'dan bağımsız, `oauth_login.rs::callback` fragment'la iletir ve
- * asla süresi dolmaz kadar uzun yaşar; bu yüzden `userFetch` ikisini de
- * destekler (Bearer varsa öncelik, yoksa cookie).
+ * Faz 2: OAuth ile giren yayıncılar da aynı HttpOnly cookie session'ı kullanır
+ * (`oauth_login.rs::callback` artık token fragment'ı yerine Set-Cookie döner);
+ * `userFetch` browser'da yalnız cookie oturumuna dayanır. Bearer JWT yalnız
+ * SDK/CLI/server-to-server istemciler için backend tarafında kalır. Eski
+ * `sd.user.token` yardımcıları geçiş temizliği için hâlâ export edilir (Faz 5
+ * tamamen kaldıracak).
  */
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(
@@ -111,19 +112,10 @@ export async function adminFetch(path: string, init: RequestInit = {}): Promise<
 }
 
 /**
- * Yayıncı panel fetch — dashboard sayfaları bunu kullanır. `sd.user.token`
- * doluysa (OAuth ile girmiş yayıncı) Bearer başlığı eklenir; boşsa çerez
- * oturumuna (şifre/2FA ile giren yayıncı) düşer.
+ * Yayıncı panel fetch — dashboard sayfaları bunu kullanır. Faz 2: browser
+ * oturumu yalnız HttpOnly cookie'dedir; eski bearer önceliği kaldırıldı
+ * (bearer yalnız SDK/CLI için backend `authz`'de desteklenir).
  */
 export async function userFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = getUserToken();
-  if (!token) {
-    return cookieFetch(path, init);
-  }
-  const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  return fetch(`${API_URL}${path}`, { ...init, headers });
+  return cookieFetch(path, init);
 }

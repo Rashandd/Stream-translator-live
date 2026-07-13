@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { adminFetch, getUserToken, userFetch } from "@/src/lib/api";
+import { adminFetch, userFetch } from "@/src/lib/api";
 
 type Props = {
   children: ReactNode;
@@ -15,12 +15,12 @@ type Props = {
  * Dashboard/admin layout'larını sarmalar: yetkili bir oturum yoksa içerik
  * hiç render edilmeden giriş sayfasına yönlendirir.
  *
- * Şifre/2FA ile giren kullanıcılar için oturum HttpOnly çerezdedir ve
- * JS'ten görünmez, bu yüzden kontrol `GET /api/auth/session`'a gerçek bir
- * istek atarak yapılır (backend `AuthUser` extractor'ı çerezi doğrular).
- * OAuth ile giren yayıncılar hâlâ localStorage'daki kalıcı Bearer token'ı
- * kullanır (`oauth-complete.tsx`) — o token varsa ağ isteğine gerek yok,
- * `userFetch` zaten her istekte ekliyor ve backend geçersizse 401 döner.
+ * Bütün browser auth türleri (şifre, 2FA, OAuth) artık aynı HttpOnly cookie
+ * session'ı kullanır (Faz 2); oturum JS'ten görünmez, bu yüzden kontrol her
+ * durumda `GET /api/auth/session`'a gerçek bir istek atarak yapılır (backend
+ * `AuthUser` extractor'ı çerezi doğrular). localStorage bearer kısayolu
+ * kaldırıldı — eski/süresi dolmuş bir token artık geçerli cookie session'ı
+ * gölgeleyemez.
  */
 export function AuthGuard({ children, tokenKind, loginHref }: Props) {
   const [authorized, setAuthorized] = useState(false);
@@ -35,12 +35,6 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
     }
 
     async function check() {
-      if (tokenKind === "user" && getUserToken()) {
-        if (!cancelled) {
-          setAuthorized(true);
-        }
-        return;
-      }
       try {
         const fetcher = tokenKind === "admin" ? adminFetch : userFetch;
         const response = await fetcher("/api/auth/session");
