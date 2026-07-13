@@ -25,3 +25,26 @@ MVP'de ve muhtemelen sonrasında da gerek yok.
 ## GDPR/KVKK
 - Hesap silinince ses modeli kalıcı silinir
 - Audit log: hangi key ne zaman kullanıldı
+
+## Browser Kimlik Doğrulama
+
+- Password, signup, Google ve Twitch login aynı `HttpOnly` access/refresh cookie
+  session'ını kullanır; browser JWT'si URL veya Web Storage'a yazılmaz.
+- Refresh token yalnız SHA-256 hash'iyle `browser_sessions` tablosunda tutulur,
+  her yenilemede döner; eski token replay edilirse session family iptal edilir.
+- State değiştiren cookie isteklerinde `sd_csrf` double-submit kontrolü vardır.
+- E-posta 2FA kimliği frontend'e verilmez. Kısa ömürlü opaque
+  `sd_auth_challenge` cookie'si server-side subject/e-posta/role kaydına bağlanır;
+  admin ve yayıncı aynı doğrulama endpoint'ini kullanır.
+- Logout server-side revoke tamamlanmadan yönlendirme yapmaz ve diğer sekmelere
+  `BroadcastChannel`/storage olayıyla bildirilir.
+- Auth hata nedeni query string'e yazılmaz; tek kullanımlık, sabit frontend
+  notice koduyla gösterilir.
+
+## Consent Kaydı
+
+Signup sırasında zorunlu legal belge sürümleri ve ayrı marketing tercihi server
+timestamp'iyle append-only olarak kaydedilir. Şifreli `USERS_FILE` doğruluk
+kaynağıdır; `user_consents` PostgreSQL aynasıdır. OAuth authorize anındaki sürüm
+snapshot'ı callback'e kadar server-side state'te taşınır; config değişikliği
+kullanıcının gördüğü sürümü değiştirmez.

@@ -24,8 +24,15 @@
 - Runtime UI/config kuralları için `docs/frontend-config.md` takip edilir.
 
 ## Auth
-- 2FA email (yayıncı + admin)
-- JWT + refresh token
+- Yayıncı ve admin e-posta 2FA'sı ortak, gerçek verify formu ve opaque HttpOnly
+  challenge cookie'si kullanır; frontend e-posta/challenge kimliği saklamaz.
+- Password, signup ve Google/Twitch OAuth browser'da ortak HttpOnly access +
+  rotating refresh cookie session'ına çıkar. Bearer JWT yalnız SDK/CLI içindir.
+- Signup ikinci login isteği yapmaz; aynı yanıt session veya 2FA sonucu verir.
+- Logout revoke yanıtını bekler, hata halinde kullanıcıyı çıkmış göstermez ve
+  başarılı sonucu diğer sekmelere bildirir.
+- Legal belge sürümleri ile opsiyonel marketing tercihi kalıcı consent geçmişine
+  yazılır; marketing değişikliği `PUT /api/auth/consent/marketing` ile eklenir.
 
 ## Not
 Fiyatlandırma ve plan limitleri kod'a gömülmez — admin panelden değiştirilir.

@@ -72,7 +72,7 @@ export default async function SignupPage({ params }: Props) {
             verifyHref={localizePath(locale, "/login/verify")}
           />
 
-          <OAuthButtons labels={config.auth.social} />
+          <OAuthButtons intent="signup" labels={config.auth.social} locale={locale} />
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

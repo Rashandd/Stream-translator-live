@@ -32,12 +32,33 @@ describe("Google/Twitch login wiring", () => {
     expect(social.twitch).toBeTruthy();
     expect(oauthComplete.title).toBeTruthy();
     expect(oauthComplete.backLabel).toBeTruthy();
+    // A-02: every opaque error code the backend can return has dictionary copy.
+    expect(oauthComplete.errors.accountNotFound).toBeTruthy();
+    expect(oauthComplete.errors.emailExists).toBeTruthy();
+    expect(oauthComplete.errors.invalidState).toBeTruthy();
+    expect(oauthComplete.errors.providerUnavailable).toBeTruthy();
+    expect(oauthComplete.errors.oauthFailed).toBeTruthy();
+    expect(oauthComplete.errors.generic).toBeTruthy();
   });
 
-  it("oauth buttons link straight to the backend's real start endpoints (real nav, not fetch)", () => {
-    expect(oauthButtonsSource).toContain("/api/auth/oauth/google/start");
-    expect(oauthButtonsSource).toContain("/api/auth/oauth/twitch/start");
+  it("oauth buttons link straight to the backend start endpoint with intent + locale (real nav, not fetch)", () => {
+    expect(oauthButtonsSource).toContain("/api/auth/oauth/${provider}/start");
     expect(oauthButtonsSource).toContain("${API_URL}");
+    // Intent + locale ride the start URL so the callback can be locale-safe (A-03).
+    expect(oauthButtonsSource).toContain("intent");
+    expect(oauthButtonsSource).toContain("locale");
+  });
+
+  it("login sends intent=login (no silent signup) and signup sends intent=signup", () => {
+    expect(loginPageSource).toContain('intent="login"');
+    expect(signupPageSource).toContain('intent="signup"');
+  });
+
+  it("oauth-complete maps opaque codes to dictionary copy, never showing the raw URL value", () => {
+    // The user-facing text comes from labels.errors, not from the query string.
+    expect(oauthCompleteSource).toContain("labels.errors");
+    expect(oauthCompleteSource).toContain("account_not_found");
+    expect(oauthCompleteSource).not.toContain("queryError || ");
   });
 
   it("renders brand marks for the visible social buttons", () => {
@@ -50,11 +71,12 @@ describe("Google/Twitch login wiring", () => {
     expect(signupPageSource).toContain("<OAuthButtons");
   });
 
-  it("oauth-complete handler reads the token from the URL fragment and stores it via setUserToken", () => {
-    expect(oauthCompleteSource).toContain("window.location.hash");
-    expect(oauthCompleteSource).toContain("setUserToken(token)");
-    // Fragment, not query — the token must never be sent to a server (see api.ts docs).
-    expect(oauthCompleteSource).not.toContain("searchParams.get(\"token\")");
+  it("oauth-complete verifies the cookie session — no token in the URL or localStorage (Faz 2)", () => {
+    // The callback set HttpOnly session cookies on the redirect; the page just
+    // confirms the session and routes. Nothing reads a token anywhere.
+    expect(oauthCompleteSource).toContain("/api/auth/session");
+    expect(oauthCompleteSource).not.toContain("setUserToken");
+    expect(oauthCompleteSource).not.toContain("window.location.hash");
   });
 
   it("oauth-complete page is wired to the handler component", () => {

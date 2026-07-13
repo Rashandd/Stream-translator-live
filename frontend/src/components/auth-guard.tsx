@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { adminFetch, getUserToken, userFetch } from "@/src/lib/api";
+import { adminFetch, userFetch } from "@/src/lib/api";
+import {
+  AUTH_CHANNEL,
+  hasSeenSession,
+  LOGOUT_EVENT_KEY,
+  markSessionSeen,
+  storeAuthNotice,
+  type AuthNoticeCode,
+} from "@/src/lib/auth-notice";
 
 type Props = {
   children: ReactNode;
@@ -15,12 +23,12 @@ type Props = {
  * Dashboard/admin layout'larını sarmalar: yetkili bir oturum yoksa içerik
  * hiç render edilmeden giriş sayfasına yönlendirir.
  *
- * Şifre/2FA ile giren kullanıcılar için oturum HttpOnly çerezdedir ve
- * JS'ten görünmez, bu yüzden kontrol `GET /api/auth/session`'a gerçek bir
- * istek atarak yapılır (backend `AuthUser` extractor'ı çerezi doğrular).
- * OAuth ile giren yayıncılar hâlâ localStorage'daki kalıcı Bearer token'ı
- * kullanır (`oauth-complete.tsx`) — o token varsa ağ isteğine gerek yok,
- * `userFetch` zaten her istekte ekliyor ve backend geçersizse 401 döner.
+ * Bütün browser auth türleri (şifre, 2FA, OAuth) artık aynı HttpOnly cookie
+ * session'ı kullanır (Faz 2); oturum JS'ten görünmez, bu yüzden kontrol her
+ * durumda `GET /api/auth/session`'a gerçek bir istek atarak yapılır (backend
+ * `AuthUser` extractor'ı çerezi doğrular). localStorage bearer kısayolu
+ * kaldırıldı — eski/süresi dolmuş bir token artık geçerli cookie session'ı
+ * gölgeleyemez.
  */
 export function AuthGuard({ children, tokenKind, loginHref }: Props) {
   const [authorized, setAuthorized] = useState(false);
@@ -28,19 +36,12 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    function redirectToLogin(reason: "session" | "network") {
-      const url = new URL(loginHref, window.location.origin);
-      url.searchParams.set("auth_error", reason);
-      window.location.assign(`${url.pathname}${url.search}`);
+    function redirectToLogin(reason: AuthNoticeCode) {
+      storeAuthNotice(reason);
+      window.location.replace(loginHref);
     }
 
     async function check() {
-      if (tokenKind === "user" && getUserToken()) {
-        if (!cancelled) {
-          setAuthorized(true);
-        }
-        return;
-      }
       try {
         const fetcher = tokenKind === "admin" ? adminFetch : userFetch;
         const response = await fetcher("/api/auth/session");
@@ -48,26 +49,36 @@ export function AuthGuard({ children, tokenKind, loginHref }: Props) {
           return;
         }
         if (!response.ok) {
-          redirectToLogin("session");
+          redirectToLogin(hasSeenSession() ? "session_expired" : "sign_in_required");
           return;
         }
         const data = (await response.json()) as { authenticated?: boolean; role?: string };
         const roleAllowed = tokenKind === "admin" ? data.role === "admin" : true;
         if (data.authenticated && roleAllowed) {
+          markSessionSeen();
           setAuthorized(true);
         } else {
-          redirectToLogin("session");
+          redirectToLogin(hasSeenSession() ? "session_expired" : "sign_in_required");
         }
       } catch {
         if (!cancelled) {
-          redirectToLogin("network");
+          redirectToLogin("session_unavailable");
         }
       }
     }
 
+    const handleLogout = () => redirectToLogin("sign_in_required");
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === LOGOUT_EVENT_KEY) handleLogout();
+    };
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(AUTH_CHANNEL);
+    if (channel) channel.onmessage = handleLogout;
+    window.addEventListener("storage", handleStorage);
     void check();
     return () => {
       cancelled = true;
+      channel?.close();
+      window.removeEventListener("storage", handleStorage);
     };
   }, [tokenKind, loginHref]);
 

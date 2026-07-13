@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { API_URL } from "@/src/lib/api";
-import { login } from "@/src/lib/auth-client";
 
 type ConsentLink = {
   label: string;
@@ -49,6 +48,7 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
     try {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
@@ -62,23 +62,25 @@ export function SignupForm({ labels, dashboardHref, verifyHref }: Props) {
         setPending(false);
         return;
       }
+      const outcome = (await response.json()) as {
+        authenticated?: boolean;
+        role?: string;
+        two_factor_required?: boolean;
+      };
+      if (outcome.two_factor_required) {
+        window.location.assign(verifyHref);
+        return;
+      }
+      if (outcome.authenticated && outcome.role === "broadcaster") {
+        window.location.assign(dashboardHref);
+        return;
+      }
+      setError(labels.errorNetwork);
     } catch {
       setError(labels.errorNetwork);
       setPending(false);
       return;
     }
-
-    // Hesap açıldı — aynı kimlikle normal giriş akışı (2FA kararını login verir).
-    const outcome = await login(email, password);
-    if (outcome.kind === "twofactor") {
-      window.location.assign(verifyHref);
-      return;
-    }
-    if (outcome.kind === "broadcaster") {
-      window.location.assign(dashboardHref);
-      return;
-    }
-    setError(labels.errorNetwork);
     setPending(false);
   }
 

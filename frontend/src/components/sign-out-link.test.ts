@@ -14,11 +14,14 @@ const adminLayoutSource = readFileSync(
 describe("SignOutLink", () => {
   it("posts to the logout endpoint on click to revoke the cookie session server-side", () => {
     expect(source).toContain('const fetcher = tokenKind === "admin" ? adminFetch : userFetch');
-    expect(source).toContain('fetcher("/api/auth/logout", { method: "POST" })');
+    expect(source).toContain('await fetcher("/api/auth/logout", { method: "POST" })');
+    expect(source).toContain("event.preventDefault()");
   });
 
-  it("also clears the broadcaster's local OAuth bearer token", () => {
-    expect(source).toContain('if (tokenKind === "user") {\n          clearUserToken();\n        }');
+  it("publishes logout and navigates only after the server confirms revoke", () => {
+    expect(source).toContain("publishLogout()");
+    expect(source).toContain("window.location.replace(href)");
+    expect(source.indexOf("if (!response.ok)")).toBeLessThan(source.indexOf("publishLogout()"));
   });
 
   it("the dashboard layout signs out with the broadcaster token, not a bare link", () => {

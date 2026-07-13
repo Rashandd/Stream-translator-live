@@ -59,6 +59,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
               className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 text-xs font-semibold text-on-primary transition hover:bg-primary-hover"
               href={localizePath(locale, "/login")}
               label={dashboard.topbar.signOutLabel}
+              errorLabel={config.auth.errors.logoutFailed}
               tokenKind="user"
             />
           </div>

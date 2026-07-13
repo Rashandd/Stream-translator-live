@@ -265,7 +265,38 @@ Google/Twitch redirect URI birebir eşleşme ister — şema, domain, path,
 trailing slash farklıysa `redirect_uri_mismatch` alınır. `integration.frontend_base`
 zaten yayın-hedefi bağlama akışıyla paylaşılan aynı config anahtarı; login
 callback'i de başarı/hata sonrası buraya (`/login/oauth-complete` veya hesap
-linkleme için `/dashboard/account`) 302 ile döner.
+linkleme için `/dashboard/account`) locale prefix'iyle 303 döner.
+
+### Browser Auth Production Kontrolü
+
+Deploy öncesi admin config'te güncel belge sürümlerini doldur:
+
+```text
+legal.terms.version
+legal.privacy.version
+legal.kvkk.version
+legal.cookies.version
+legal.dpa.version
+legal.communications.version
+```
+
+Frontend ve API ayrı origin'de çalıştığı için gerçek tarayıcıyla şu matrisi
+kontrol et:
+
+1. Password signup tek submit sonrası dashboard session'ı veya 2FA ekranı verir.
+2. Yayıncı ve bootstrap admin `auth.email_2fa=required` modunda kodu doğrular;
+   resend rate limit'i ve role göre yönlendirme çalışır.
+3. Google/Twitch login ve signup callback URL'sinde token, e-posta veya ham hata
+   bulunmaz; callback locale'li frontend yoluna döner.
+4. `/api/auth/session` cookie ile çalışır; state değiştiren istekler `sd_csrf`
+   olmadan reddedilir.
+5. Logout tamamlanınca refresh kullanılamaz ve açık diğer sekme login'e döner;
+   ağ hatasında kullanıcıya çıkışın tamamlanmadığı gösterilir.
+6. Yeni password/OAuth hesaplarının zorunlu consent sürümleri ve marketing
+   tercihi şifreli kullanıcı store'unda, DB varsa `user_consents` aynasında
+   görünür.
+
+Bu canlı matris tamamlanmadan auth workflow production-ready kabul edilmez.
 
 ## Stripe Production Bağlantısı
 

@@ -133,11 +133,56 @@ async fn http(addr: SocketAddr, request: &str) -> (u16, String) {
     (status, body)
 }
 
+async fn http_raw(addr: SocketAddr, request: &str) -> (u16, String, String) {
+    let mut stream = TcpStream::connect(addr).await.expect("connect");
+    stream.write_all(request.as_bytes()).await.expect("write");
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await.expect("read");
+    let text = String::from_utf8_lossy(&buf).to_string();
+    let status: u16 = text
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .expect("status line");
+    let (headers, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    (status, headers.to_string(), body.to_string())
+}
+
 fn post_json(path: &str, json: &str) -> String {
     format!(
         "POST {path} HTTP/1.1\r\nHost: t\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
         json.len()
     )
+}
+
+fn post_json_browser(path: &str, json: &str, cookie: Option<&str>) -> String {
+    let cookie_header = cookie
+        .map(|value| format!("Cookie: {value}\r\n"))
+        .unwrap_or_default();
+    format!(
+        "POST {path} HTTP/1.1\r\nHost: t\r\nOrigin: http://localhost:3000\r\n{cookie_header}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len()
+    )
+}
+
+fn post_json_cookie(path: &str, json: &str, cookie: &str) -> String {
+    format!(
+        "POST {path} HTTP/1.1\r\nHost: t\r\nCookie: {cookie}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len()
+    )
+}
+
+fn set_cookies(headers: &str) -> std::collections::HashMap<String, String> {
+    headers
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("set-cookie: ")
+                .or_else(|| line.strip_prefix("Set-Cookie: "))
+        })
+        .filter_map(|value| value.split(';').next())
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(name, value)| (name.trim().to_string(), value.trim().to_string()))
+        .collect()
 }
 
 fn post_with_token(path: &str, token: &str) -> String {
@@ -332,9 +377,11 @@ async fn smtp_configured_login_requires_mailed_code() {
     )
     .await;
     assert_eq!(status, 201);
+    let signup_mail = mails.recv().await.expect("signup 2fa mail");
+    let code = extract_code(&signup_mail);
 
     // Login → token DEĞİL, 2FA beklemesi.
-    let (status, body) = http(
+    let (status, headers, body) = http_raw(
         server.addr,
         &post_json(
             "/api/auth/login",
@@ -346,18 +393,18 @@ async fn smtp_configured_login_requires_mailed_code() {
     let parsed = json(&body);
     assert_eq!(parsed["two_factor_required"], true);
     assert!(parsed.get("token").is_none(), "token must not leak before 2fa: {body}");
-
-    // Kod maille geldi.
-    let mail = mails.recv().await.expect("2fa mail");
-    assert!(mail.contains("verification code"), "mail: {mail}");
-    let code = extract_code(&mail);
+    let challenge = set_cookies(&headers)
+        .remove("sd_auth_challenge")
+        .expect("challenge cookie");
+    let cookie = format!("sd_auth_challenge={challenge}");
 
     // Yanlış kod 401.
     let (status, _) = http(
         server.addr,
-        &post_json(
+        &post_json_cookie(
             "/api/auth/2fa",
-            r#"{"email":"twofa@example.com","code":"000000"}"#,
+            r#"{"code":"000000"}"#,
+            &cookie,
         ),
     )
     .await;
@@ -366,9 +413,10 @@ async fn smtp_configured_login_requires_mailed_code() {
     // Doğru kod → broadcaster token; e-posta doğrulanmış sayılır.
     let (status, body) = http(
         server.addr,
-        &post_json(
+        &post_json_cookie(
             "/api/auth/2fa",
-            &format!(r#"{{"email":"twofa@example.com","code":"{code}"}}"#),
+            &format!(r#"{{"code":"{code}"}}"#),
+            &cookie,
         ),
     )
     .await;
@@ -380,13 +428,118 @@ async fn smtp_configured_login_requires_mailed_code() {
     // Kod tek kullanımlık.
     let (status, _) = http(
         server.addr,
-        &post_json(
+        &post_json_cookie(
             "/api/auth/2fa",
-            &format!(r#"{{"email":"twofa@example.com","code":"{code}"}}"#),
+            &format!(r#"{{"code":"{code}"}}"#),
+            &cookie,
         ),
     )
     .await;
     assert_eq!(status, 401);
+}
+
+#[tokio::test]
+async fn browser_signup_finishes_authentication_in_one_request() {
+    let server = spawn_server(None, None).await;
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser(
+            "/api/auth/signup",
+            r#"{"email":"one-step@example.com","password":"strong-pass-1","legal_terms_accepted":true,"marketing_consent":false}"#,
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(status, 201, "body: {body}");
+    let parsed = json(&body);
+    assert_eq!(parsed["authenticated"], true);
+    assert_eq!(parsed["role"], "broadcaster");
+    let cookies = set_cookies(&headers);
+    assert!(cookies.contains_key("sd_access"));
+    assert!(cookies.contains_key("sd_refresh"));
+    assert!(cookies.contains_key("sd_csrf"));
+}
+
+#[tokio::test]
+async fn browser_twofactor_uses_opaque_cookie_and_code_only_body() {
+    let (smtp_port, mut mails) = spawn_smtp_mock().await;
+    let server = spawn_server(None, Some(smtp_port)).await;
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser(
+            "/api/auth/signup",
+            r#"{"email":"opaque@example.com","password":"strong-pass-1","legal_terms_accepted":true}"#,
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(status, 201, "body: {body}");
+    assert!(!body.contains("opaque@example.com"));
+    assert!(!body.contains("challenge_id"));
+    let challenge = set_cookies(&headers)
+        .remove("sd_auth_challenge")
+        .expect("opaque challenge cookie");
+    let code = extract_code(&mails.recv().await.expect("signup 2fa mail"));
+
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser("/api/auth/2fa", &format!(r#"{{"code":"{code}"}}"#), None),
+    )
+    .await;
+    assert_eq!(status, 401, "challenge cookie is mandatory; body: {body}");
+    assert!(!headers.contains("sd_access="));
+
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser(
+            "/api/auth/2fa",
+            &format!(r#"{{"code":"{code}"}}"#),
+            Some(&format!("sd_auth_challenge={challenge}")),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    assert_eq!(json(&body)["role"], "broadcaster");
+    let cookies = set_cookies(&headers);
+    assert!(cookies.contains_key("sd_access"));
+    assert_eq!(cookies.get("sd_auth_challenge").map(String::as_str), Some(""));
+}
+
+#[tokio::test]
+async fn browser_admin_twofactor_finishes_with_admin_role() {
+    let (smtp_port, mut mails) = spawn_smtp_mock().await;
+    let server = spawn_server(
+        Some(BootstrapAdmin::with_plain("ops@example.com", "admin-pass-1")),
+        Some(smtp_port),
+    )
+    .await;
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser(
+            "/api/auth/login",
+            r#"{"email":"ops@example.com","password":"admin-pass-1"}"#,
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    let challenge = set_cookies(&headers)
+        .remove("sd_auth_challenge")
+        .expect("admin challenge cookie");
+    let code = extract_code(&mails.recv().await.expect("admin 2fa mail"));
+    let (status, headers, body) = http_raw(
+        server.addr,
+        &post_json_browser(
+            "/api/auth/2fa",
+            &format!(r#"{{"code":"{code}"}}"#),
+            Some(&format!("sd_auth_challenge={challenge}")),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    assert_eq!(json(&body)["authenticated"], true);
+    assert_eq!(json(&body)["role"], "admin");
+    assert!(set_cookies(&headers).contains_key("sd_access"));
 }
 
 #[tokio::test]
@@ -403,6 +556,7 @@ async fn password_reset_flow_rotates_password() {
     )
     .await;
     assert_eq!(status, 201);
+    let _ = mails.recv().await.expect("signup 2fa mail");
 
     // Bilinmeyen e-posta da 200 alır ve mail GİTMEZ (enumeration yok).
     let (status, _) = http(

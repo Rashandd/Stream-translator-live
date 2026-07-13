@@ -17,10 +17,12 @@
 //! e-posta zaten (şifreli veya başka bir sağlayıcıyla) kayıtlıysa
 //! **reddedilir** — otomatik bağlama yok, hesap ele geçirme riskini sıfırlar
 //! (sağlayıcı e-postayı doğrulanmış saysa bile: Twitch/Kick bunu garanti
-//! etmez). Hiçbiri değilse yeni OAuth-only hesap açılır. Sonuç, e-posta/
-//! şifre login'iyle birebir aynı JWT ([`crate::users::issue_user_token`]
-//! reuse edilir), frontend'e `#token=...` URL fragment'iyle iletilir (2FA
-//! e-postasıyla aynı konvansiyon — token loglara/erişim kayıtlarına düşmez).
+//! etmez). Hiçbiri değilse (yalnız signup niyetiyle) yeni OAuth-only hesap
+//! açılır. Başarı, şifre/2FA login'iyle birebir aynı HttpOnly cookie
+//! session'ı kurar ([`crate::auth::session::attach_new_browser_session`]);
+//! browser'a token URL fragment'ıyla İLETİLMEZ (Faz 2) — access/refresh/csrf
+//! çerezleri callback redirect'ine iliştirilir, token loglara/erişim
+//! kayıtlarına düşmez. Bearer JWT yalnız SDK/CLI için `authz`'de kalır.
 //!
 //! Kick bilinçli olarak burada YOK: OAuth 2.1 + PKCE gerektiriyor (mevcut
 //! [`exchange_code`] sadece client_secret akışını biliyor) ve endpoint'leri
@@ -39,8 +41,8 @@
 //! [`crate::users::UserStore::link_identity`] çağırır.
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -49,20 +51,96 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AuthUser;
+use crate::auth::session::{attach_new_browser_session, create_browser_session, SessionPrincipal};
 use crate::config::ServiceConfig;
-use crate::integrations::oauth::{exchange_code, OAuthProvider, StateStore};
+use crate::integrations::oauth::{exchange_code, OAuthProvider};
 use crate::integrations::{urlencoding_light, CallbackQuery};
 use crate::logging::LogLevel;
 use crate::secrets::{names, SecretRef, SecretStore};
 use crate::state::AppState;
-use crate::users::{issue_user_token, LoginResponse, OAuthIdentityInfo, UserError, UserRecord};
+use crate::users::{signup_consents, user_principal, ConsentRecord, OAuthIdentityInfo, UserError};
 #[cfg(test)]
 use crate::users::UserStore;
 
-/// `StateStore::issue` bir `user_id` bekliyor (yayın-hedefi bağlama akışında
-/// zaten girişli bir kullanıcı olur); login'de henüz kullanıcı yok, bu
-/// yüzden hiç okunmayan sabit bir placeholder geçilir.
-const NO_USER_YET: &str = "-";
+/// OAuth başlatma niyeti — `state`'e gömülür ve callback davranışını belirler
+/// (A-03). Login butonu bilinmeyen kimlik için sessizce hesap AÇMAZ; yalnız
+/// signup butonu hesap oluşturabilir. Link, girişli kullanıcının ek sağlayıcı
+/// bağlaması içindir.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OAuthIntent {
+    Login,
+    Signup,
+    Link,
+}
+
+impl OAuthIntent {
+    /// Bilinmeyen/eksik değer en kısıtlı niyete (Login — hesap açmaz) düşer.
+    fn parse(raw: Option<&str>) -> OAuthIntent {
+        match raw {
+            Some("signup") => OAuthIntent::Signup,
+            Some("link") => OAuthIntent::Link,
+            _ => OAuthIntent::Login,
+        }
+    }
+}
+
+/// authorize adımında üretilip callback'te tüketilen tek kullanımlık CSRF
+/// state kaydı. Paylaşılan [`crate::integrations::oauth::StateStore`]'dan
+/// AYRI tutulur: o yalnız `(user, provider, redirect_uri)` taşır; browser auth
+/// akışı ayrıca niyet, locale ve (open-redirect korumalı) dönüş yolunu da
+/// server-side taşımak zorundadır (A-03) — bunları paylaşılan store'a eklemek
+/// yayın-hedefi bağlama akışını gereksiz yere kirletirdi (plan §5 bu ayrımı
+/// açıkça öngörüyor).
+struct LoginState {
+    provider: String,
+    intent: OAuthIntent,
+    /// Kullanıcıya döneceğimiz frontend locale segmenti (örn. `en`, `tr`).
+    /// `sanitize_locale` ile temizlenir; path injection'a izin vermez.
+    locale: String,
+    /// Yalnız aynı origin'de, `/` ile başlayan relative route (A-03). Mutlak
+    /// URL / `//host` reddedilip `None`'a düşer.
+    return_to: Option<String>,
+    redirect_uri: String,
+    /// Link akışında bağlanacak mevcut kullanıcı; login/signup'ta `None`.
+    existing_user_id: Option<String>,
+    /// Signup authorize anındaki legal version snapshot'ı. Callback sırasında
+    /// config değişse bile kullanıcıya gösterilen sürüm kaydedilir.
+    signup_consents: Option<Vec<ConsentRecord>>,
+    created: Instant,
+}
+
+/// Browser auth OAuth `state`'lerini tutar (tek kullanımlık, süreli).
+struct LoginStateStore {
+    inner: Mutex<HashMap<String, LoginState>>,
+    ttl: Duration,
+}
+
+impl LoginStateStore {
+    fn new(ttl: Duration) -> Self {
+        LoginStateStore {
+            inner: Mutex::new(HashMap::new()),
+            ttl,
+        }
+    }
+
+    fn issue(&self, entry: LoginState) -> String {
+        let state = uuid::Uuid::new_v4().simple().to_string();
+        if let Ok(mut map) = self.inner.lock() {
+            map.insert(state.clone(), entry);
+        }
+        state
+    }
+
+    /// `state`'i tüketir (tek kullanımlık). Bilinmiyor veya süresi geçmişse `None`.
+    fn consume(&self, state: &str) -> Option<LoginState> {
+        let mut map = self.inner.lock().ok()?;
+        let entry = map.remove(state)?;
+        if entry.created.elapsed() > self.ttl {
+            return None;
+        }
+        Some(entry)
+    }
+}
 
 /// Login-amaçlı bir sağlayıcının uç noktaları + çağrı anında çözülen kimlikler.
 ///
@@ -83,7 +161,7 @@ struct LoginProviderCreds {
 /// sonra atılır.
 pub struct LoginProviders {
     providers: HashMap<String, LoginProviderCreds>,
-    states: StateStore,
+    states: LoginStateStore,
     http: reqwest::Client,
 }
 
@@ -137,7 +215,7 @@ impl LoginProviders {
         }
         LoginProviders {
             providers,
-            states: StateStore::new(Duration::from_secs(600)),
+            states: LoginStateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
         }
     }
@@ -147,7 +225,7 @@ impl LoginProviders {
     pub fn empty() -> Self {
         LoginProviders {
             providers: HashMap::new(),
-            states: StateStore::new(Duration::from_secs(600)),
+            states: LoginStateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
         }
     }
@@ -156,28 +234,56 @@ impl LoginProviders {
     fn from_parts(providers: HashMap<String, LoginProviderCreds>) -> Self {
         LoginProviders {
             providers,
-            states: StateStore::new(Duration::from_secs(600)),
+            states: LoginStateStore::new(Duration::from_secs(600)),
             http: reqwest::Client::new(),
         }
     }
 
     /// authorize adımı: yayıncının yönlendirileceği sağlayıcı URL'sini kurar.
-    async fn begin(&self, provider_name: &str, cfg: &ServiceConfig) -> Result<String, OAuthLoginError> {
-        self.authorize_url_for(NO_USER_YET, provider_name, cfg).await
+    /// `intent` (login/signup) ile döneceğimiz `locale`/`return_to` `state`'e
+    /// gömülür; callback bunları locale-safe ve open-redirect korumalı bir
+    /// yönlendirme kurmak için kullanır.
+    async fn begin(
+        &self,
+        provider_name: &str,
+        intent: OAuthIntent,
+        locale: &str,
+        return_to: Option<String>,
+        cfg: &ServiceConfig,
+    ) -> Result<String, OAuthLoginError> {
+        self.authorize_url_for(provider_name, intent, locale, return_to, None, cfg)
+            .await
     }
 
     /// Girişli bir kullanıcının hesabına ek bir sağlayıcı bağlamak için
-    /// authorize adımı — `begin` ile aynı, ama `state`'e placeholder yerine
-    /// gerçek `user_id` gömülür; `complete()` bunu görünce login/signup
-    /// yerine linkleme yapar.
-    async fn begin_link(&self, user_id: &str, provider_name: &str, cfg: &ServiceConfig) -> Result<String, OAuthLoginError> {
-        self.authorize_url_for(user_id, provider_name, cfg).await
+    /// authorize adımı — `begin` ile aynı, ama `state`'e mevcut `user_id`
+    /// gömülür (intent = Link); `complete()` bunu görünce login/signup yerine
+    /// linkleme yapar.
+    async fn begin_link(
+        &self,
+        user_id: &str,
+        provider_name: &str,
+        locale: &str,
+        cfg: &ServiceConfig,
+    ) -> Result<String, OAuthLoginError> {
+        self.authorize_url_for(
+            provider_name,
+            OAuthIntent::Link,
+            locale,
+            None,
+            Some(user_id.to_string()),
+            cfg,
+        )
+        .await
     }
 
     async fn authorize_url_for(
         &self,
-        user_id: &str,
         provider_name: &str,
+        intent: OAuthIntent,
+        locale: &str,
+        return_to: Option<String>,
+        existing_user_id: Option<String>,
         cfg: &ServiceConfig,
     ) -> Result<String, OAuthLoginError> {
         let creds = self
@@ -194,7 +300,19 @@ impl LoginProviders {
             .get("auth.oauth_redirect_base")
             .unwrap_or_else(|| "http://localhost:8080/api/auth/oauth".to_string());
         let redirect_uri = format!("{base}/{provider_name}/callback");
-        let state = self.states.issue(user_id, provider_name, &redirect_uri);
+        let consent_snapshot = (intent == OAuthIntent::Signup).then(|| {
+            signup_consents(cfg, false, &format!("{provider_name}_signup"))
+        });
+        let state = self.states.issue(LoginState {
+            provider: provider_name.to_string(),
+            intent,
+            locale: locale.to_string(),
+            return_to,
+            redirect_uri: redirect_uri.clone(),
+            existing_user_id,
+            signup_consents: consent_snapshot,
+            created: Instant::now(),
+        });
         Ok(creds.provider.authorize_redirect(&client_id, &redirect_uri, &state))
     }
 
@@ -210,9 +328,8 @@ impl LoginProviders {
         code: &str,
         state: &str,
     ) -> Result<OAuthOutcome, OAuthLoginError> {
-        let (stashed_user, stashed_provider, redirect_uri) =
-            self.states.consume(state).ok_or(OAuthLoginError::InvalidState)?;
-        if stashed_provider != provider_name {
+        let st = self.states.consume(state).ok_or(OAuthLoginError::InvalidState)?;
+        if st.provider != provider_name {
             return Err(OAuthLoginError::InvalidState);
         }
 
@@ -226,7 +343,7 @@ impl LoginProviders {
             return Err(OAuthLoginError::NotConfigured(provider_name.to_string()));
         };
 
-        let token = exchange_code(&self.http, &creds.provider, &client_id, &client_secret, code, &redirect_uri)
+        let token = exchange_code(&self.http, &creds.provider, &client_id, &client_secret, code, &st.redirect_uri)
             .await
             .map_err(|e| OAuthLoginError::Exchange(e.to_string()))?;
 
@@ -239,32 +356,54 @@ impl LoginProviders {
         )
         .await?;
 
-        if stashed_user != NO_USER_YET {
-            app.users.link_identity(&stashed_user, provider_name, &identity.external_id)?;
+        if st.intent == OAuthIntent::Link {
+            let user_id = st
+                .existing_user_id
+                .as_deref()
+                .ok_or(OAuthLoginError::InvalidState)?;
+            app.users.link_identity(user_id, provider_name, &identity.external_id)?;
             app.logger.log(
                 LogLevel::Info,
                 "auth",
                 &format!("oauth account linked: {provider_name}"),
-                Some(&stashed_user),
+                Some(user_id),
                 None,
             );
-            return Ok(OAuthOutcome::Linked { provider: provider_name.to_string() });
+            return Ok(OAuthOutcome::Linked {
+                provider: provider_name.to_string(),
+                locale: st.locale,
+            });
         }
 
         if let Some(existing) = app.users.find_by_oauth(provider_name, &identity.external_id) {
-            return issue_token_string(app, &existing).map(OAuthOutcome::LoggedIn);
+            return Ok(OAuthOutcome::LoggedIn {
+                principal: user_principal(&existing),
+                locale: st.locale,
+                return_to: st.return_to,
+            });
         }
         if app.users.get(&identity.email).is_some() {
             return Err(OAuthLoginError::EmailExists);
+        }
+
+        // Bilinmeyen kimlik + e-posta çakışması yok. Login butonu buradan
+        // sessizce hesap AÇMAZ (A-03) — yalnız signup niyeti oluşturur.
+        if st.intent == OAuthIntent::Login {
+            return Err(OAuthLoginError::AccountNotFound);
         }
 
         let plan = app
             .service_config
             .get("auth.default_plan")
             .unwrap_or_else(|| "free".to_string());
-        let user = app
-            .users
-            .create_oauth_user(provider_name, &identity.external_id, &identity.email, &plan)?;
+        let consents = st.signup_consents.ok_or(OAuthLoginError::InvalidState)?;
+        let user = app.users.create_oauth_user_with_consents(
+            provider_name,
+            &identity.external_id,
+            &identity.email,
+            &plan,
+            consents,
+        )?;
         app.logger.log(
             LogLevel::Info,
             "auth",
@@ -272,25 +411,30 @@ impl LoginProviders {
             Some(&user.id),
             None,
         );
-        issue_token_string(app, &user).map(OAuthOutcome::LoggedIn)
+        Ok(OAuthOutcome::LoggedIn {
+            principal: user_principal(&user),
+            locale: st.locale,
+            return_to: st.return_to,
+        })
     }
 }
 
 /// `complete()` sonucu — login/signup mı yoksa mevcut hesaba bağlama mı.
+/// Login/signup başarısı artık bir JWT string'i değil, callback'in HttpOnly
+/// cookie session'ı kuracağı bir [`SessionPrincipal`] taşır (Faz 2 — token
+/// URL fragment'ından çıkarıldı). `locale`/`return_to` `state`'ten gelir ki
+/// callback locale-safe ve open-redirect korumalı bir yönlendirme kursun.
 #[derive(Debug)]
 enum OAuthOutcome {
-    LoggedIn(String),
-    Linked { provider: String },
-}
-
-fn issue_token_string(app: &AppState, user: &UserRecord) -> Result<String, OAuthLoginError> {
-    match issue_user_token(app, user) {
-        Ok(LoginResponse::Token { token, .. }) => Ok(token),
-        Ok(LoginResponse::TwoFactorPending { .. }) => {
-            Err(OAuthLoginError::Internal("unexpected 2fa challenge for oauth login".to_string()))
-        }
-        Err((_, message)) => Err(OAuthLoginError::Internal(format!("token issue failed: {message}"))),
-    }
+    LoggedIn {
+        principal: SessionPrincipal,
+        locale: String,
+        return_to: Option<String>,
+    },
+    Linked {
+        provider: String,
+        locale: String,
+    },
 }
 
 /// Sağlayıcıdan çekilen, hesap eşleme için yeterli minimal kimlik.
@@ -384,10 +528,10 @@ enum OAuthLoginError {
     Identity(String),
     #[error("an account with this email already exists — sign in with your password")]
     EmailExists,
+    #[error("no account is linked to this identity — sign up first")]
+    AccountNotFound,
     #[error("account error: {0}")]
     Account(#[from] UserError),
-    #[error("internal error: {0}")]
-    Internal(String),
 }
 
 fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
@@ -397,18 +541,139 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
         OAuthLoginError::InvalidState => StatusCode::BAD_REQUEST,
         OAuthLoginError::Exchange(_) | OAuthLoginError::Identity(_) => StatusCode::BAD_GATEWAY,
         OAuthLoginError::EmailExists => StatusCode::CONFLICT,
+        OAuthLoginError::AccountNotFound => StatusCode::NOT_FOUND,
         OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => StatusCode::CONFLICT,
         OAuthLoginError::Account(UserError::LastLoginMethod) => StatusCode::CONFLICT,
         OAuthLoginError::Account(UserError::NotFound) => StatusCode::NOT_FOUND,
-        OAuthLoginError::Account(_) | OAuthLoginError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        OAuthLoginError::Account(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
+/// A-02 allowlist: callback URL'sine (veya JSON hata gövdesine) yalnız bu sabit
+/// kodlardan biri yazılır — ham provider/backend hata metni asla kullanıcıya,
+/// URL'ye veya erişim loglarına sızmaz. Kullanıcıya gösterilen metin frontend
+/// dictionary'sinden gelir.
+fn oauth_error_code(err: &OAuthLoginError) -> &'static str {
+    match err {
+        OAuthLoginError::AccountNotFound => "account_not_found",
+        OAuthLoginError::EmailExists
+        | OAuthLoginError::Account(UserError::OAuthIdentityTaken)
+        | OAuthLoginError::Account(UserError::AlreadyLinked) => "email_exists",
+        OAuthLoginError::InvalidState | OAuthLoginError::UnknownProvider(_) => "invalid_state",
+        OAuthLoginError::NotConfigured(_) => "provider_unavailable",
+        _ => "oauth_failed",
+    }
+}
+
+/// `sanitize_locale`: yalnız `xx` veya `xx-yy` biçimindeki küçük-harf locale
+/// segmentini kabul eder; aksi halde `default`'a düşer. `/`, `.`, `..`, boşluk
+/// gibi path-injection'a yol açacak her şeyi eler (locale doğrudan redirect
+/// path'ine gömülüyor).
+fn sanitize_locale(raw: Option<&str>, default: &str) -> String {
+    let value = raw.map(str::trim).unwrap_or("");
+    let mut parts = value.split('-');
+    let primary = parts.next().unwrap_or("");
+    let region = parts.next();
+    let extra = parts.next();
+    let two_lower = |s: &str| s.len() == 2 && s.chars().all(|c| c.is_ascii_lowercase());
+    let ok = extra.is_none()
+        && two_lower(primary)
+        && region.map(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_alphabetic())).unwrap_or(true);
+    if ok {
+        value.to_string()
+    } else {
+        default.to_string()
+    }
+}
+
+/// `return_to` yalnız aynı origin'de, `/` ile başlayan relative route olabilir
+/// (A-03). Mutlak URL, `//host`, backslash, scheme veya kontrol/boşluk karakteri
+/// içeren her şey reddedilip `None`'a düşer — open redirect imkânsız olur.
+fn sanitize_return_to(raw: Option<&str>) -> Option<String> {
+    let value = raw?.trim();
+    if !value.starts_with('/') || value.starts_with("//") {
+        return None;
+    }
+    if value.contains('\\') || value.contains("://") {
+        return None;
+    }
+    if value.chars().any(|c| c.is_control() || c == ' ') {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+/// `integration.frontend_base` yalnız origin (scheme://host[:port]) olarak
+/// kullanılır; yanlışlıkla girilmiş path/trailing slash kırpılır ki locale
+/// segmenti tek bir yardımcıda (`frontend_url`) güvenle eklensin. Geçersiz veya
+/// http/https dışı bir değer `None` döner (redirect yerine JSON'a düşülür).
+fn frontend_origin(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let url = reqwest::Url::parse(raw).ok()?;
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return None;
+    }
+    let host = url.host_str()?;
+    let mut origin = format!("{}://{host}", url.scheme());
+    if let Some(port) = url.port() {
+        origin.push_str(&format!(":{port}"));
+    }
+    Some(origin)
+}
+
+/// Locale segmentini tek yerde ekleyen yardımcı — path her zaman `/` ile
+/// başlar (örn. `/login/oauth-complete`). Query/fragment boşsa eklenmez.
+fn frontend_url(origin: &str, locale: &str, path: &str, query: &str, fragment: &str) -> String {
+    let mut url = format!("{origin}/{locale}{path}");
+    if !query.is_empty() {
+        url.push('?');
+        url.push_str(query);
+    }
+    if !fragment.is_empty() {
+        url.push('#');
+        url.push_str(fragment);
+    }
+    url
+}
+
+fn default_locale(cfg: &ServiceConfig) -> String {
+    cfg.get("auth.default_locale").unwrap_or_else(|| "en".to_string())
+}
+
+/// `GET /api/auth/oauth/{provider}/start` başlatma parametreleri. Tarayıcı
+/// navigasyonu (`<a href>`) olduğu için query string ile taşınır.
+#[derive(Debug, Default, Deserialize)]
+pub struct StartQuery {
+    /// `login` | `signup` — bilinmeyen/eksik değer en kısıtlı niyete (login,
+    /// hesap açmaz) düşer. `link` bu public uçtan kabul edilmez.
+    #[serde(default)]
+    pub intent: Option<String>,
+    #[serde(default)]
+    pub locale: Option<String>,
+    #[serde(default)]
+    pub return_to: Option<String>,
+}
+
 /// `GET /api/auth/oauth/{provider}/start` (auth yok) — sağlayıcıya 302.
-pub async fn start(Path(provider): Path<String>, State(app): State<AppState>) -> Result<Response, (StatusCode, String)> {
+pub async fn start(
+    Path(provider): Path<String>,
+    Query(q): Query<StartQuery>,
+    State(app): State<AppState>,
+) -> Result<Response, (StatusCode, String)> {
+    let intent = match OAuthIntent::parse(q.intent.as_deref()) {
+        // Link yalnız authenticated `link/start` üzerinden başlar; public start
+        // onu login'e düşürür (aksi halde user_id'siz bir link state'i olurdu).
+        OAuthIntent::Link => OAuthIntent::Login,
+        other => other,
+    };
+    let locale = sanitize_locale(q.locale.as_deref(), &default_locale(&app.service_config));
+    let return_to = sanitize_return_to(q.return_to.as_deref());
     let url = app
         .oauth_login
-        .begin(&provider, &app.service_config)
+        .begin(&provider, intent, &locale, return_to, &app.service_config)
         .await
         .map_err(|e| (oauth_login_status(&e), e.to_string()))?;
     Ok(Redirect::to(&url).into_response())
@@ -429,11 +694,13 @@ pub struct LinkStartResponse {
 pub async fn link_start(
     user: AuthUser,
     Path(provider): Path<String>,
+    Query(q): Query<StartQuery>,
     State(app): State<AppState>,
 ) -> Result<Json<LinkStartResponse>, (StatusCode, String)> {
+    let locale = sanitize_locale(q.locale.as_deref(), &default_locale(&app.service_config));
     let url = app
         .oauth_login
-        .begin_link(&user.claims.sub, &provider, &app.service_config)
+        .begin_link(&user.claims.sub, &provider, &locale, &app.service_config)
         .await
         .map_err(|e| (oauth_login_status(&e), e.to_string()))?;
     Ok(Json(LinkStartResponse { authorize_url: url }))
@@ -498,44 +765,67 @@ pub async fn callback(
     Query(q): Query<CallbackQuery>,
     State(app): State<AppState>,
 ) -> Response {
-    let frontend_base = app.service_config.get("integration.frontend_base").unwrap_or_default();
-    let respond_error = |message: String| -> Response {
-        if frontend_base.is_empty() {
-            (StatusCode::BAD_REQUEST, message).into_response()
-        } else {
-            let url = format!(
-                "{frontend_base}/login/oauth-complete?provider={provider}&error={}",
-                urlencoding_light(&message)
-            );
-            Redirect::to(&url).into_response()
-        }
-    };
+    let origin = frontend_origin(&app.service_config.get("integration.frontend_base").unwrap_or_default());
+    // Hata yolunda `state` henüz tüketilmediği/geçersiz olduğu için locale
+    // bilinmez → yapılandırılmış varsayılan locale kullanılır.
+    let default_locale = default_locale(&app.service_config);
 
+    // Sağlayıcının kendi hata parametresi (örn. kullanıcı consent'i reddetti):
+    // ham metin yalnız server loguna yazılır, URL'ye sabit kod gider (A-02).
     if let Some(err) = q.error {
-        return respond_error(format!("provider error: {err}"));
+        app.logger.log(
+            LogLevel::Warn,
+            "auth",
+            &format!("oauth provider error for {provider}: {err}"),
+            None,
+            None,
+        );
+        return error_response(origin.as_deref(), &default_locale, "oauth_failed", StatusCode::BAD_GATEWAY);
     }
     let (Some(code), Some(state)) = (q.code, q.state) else {
-        return respond_error("missing code or state".to_string());
+        return error_response(origin.as_deref(), &default_locale, "invalid_state", StatusCode::BAD_REQUEST);
     };
 
     match app.oauth_login.complete(&app, &provider, &code, &state).await {
-        Ok(OAuthOutcome::LoggedIn(token)) => {
-            app.logger.log(LogLevel::Info, "auth", &format!("oauth login completed via {provider}"), None, None);
-            if frontend_base.is_empty() {
-                axum::Json(serde_json::json!({ "token": token })).into_response()
-            } else {
-                let url = format!("{frontend_base}/login/oauth-complete#token={token}");
-                Redirect::to(&url).into_response()
+        Ok(OAuthOutcome::LoggedIn { principal, locale, return_to }) => {
+            app.logger.log(
+                LogLevel::Info,
+                "auth",
+                &format!("oauth login completed via {provider}"),
+                Some(&principal.sub),
+                None,
+            );
+            match origin {
+                // No frontend origin configured (server-to-server / tests): issue
+                // the cookie session directly as a JSON response — still no token
+                // in any URL.
+                None => match create_browser_session(&app, principal).await {
+                    Ok(response) => response,
+                    Err((status, _)) => error_response(None, &default_locale, "oauth_failed", status),
+                },
+                // Faz 2: the browser lands on oauth-complete with the session
+                // cookies already set (no token in the fragment); the page then
+                // verifies the cookie session and routes by role.
+                Some(origin) => {
+                    let query = return_to
+                        .map(|r| format!("return_to={}", urlencoding_light(&r)))
+                        .unwrap_or_default();
+                    let url = frontend_url(&origin, &locale, "/login/oauth-complete", &query, "");
+                    let redirect = Redirect::to(&url).into_response();
+                    match attach_new_browser_session(&app, principal, redirect).await {
+                        Ok(response) => response,
+                        Err((status, _)) => error_response(Some(&origin), &locale, "oauth_failed", status),
+                    }
+                }
             }
         }
-        Ok(OAuthOutcome::Linked { provider }) => {
-            if frontend_base.is_empty() {
-                axum::Json(serde_json::json!({ "linked": provider })).into_response()
-            } else {
-                let url = format!("{frontend_base}/dashboard/account?linked={provider}");
+        Ok(OAuthOutcome::Linked { provider, locale }) => match origin {
+            None => axum::Json(serde_json::json!({ "linked": provider })).into_response(),
+            Some(origin) => {
+                let url = frontend_url(&origin, &locale, "/dashboard/account", &format!("linked={provider}"), "");
                 Redirect::to(&url).into_response()
             }
-        }
+        },
         Err(err) => {
             app.logger.log(
                 LogLevel::Warn,
@@ -544,8 +834,23 @@ pub async fn callback(
                 None,
                 None,
             );
-            respond_error(err.to_string())
+            let code = oauth_error_code(&err);
+            error_response(origin.as_deref(), &default_locale, code, oauth_login_status(&err))
         }
+    }
+}
+
+/// Hata yanıtı: origin varsa locale-safe
+/// `/{locale}/login/oauth-complete?error=<code>` redirect'i, yoksa
+/// `{ "error": <code> }` JSON gövdesi. Her iki yolda da yalnız A-02 allowlist
+/// kodu kullanılır — ham hata metni asla URL'ye/gövdeye girmez.
+fn error_response(origin: Option<&str>, locale: &str, code: &str, status: StatusCode) -> Response {
+    match origin {
+        Some(origin) => {
+            let url = frontend_url(origin, locale, "/login/oauth-complete", &format!("error={code}"), "");
+            Redirect::to(&url).into_response()
+        }
+        None => (status, axum::Json(serde_json::json!({ "error": code }))).into_response(),
     }
 }
 
@@ -625,9 +930,13 @@ mod tests {
 
     /// Sadece bu testler için: `begin()` üzerinden gerçek bir `state` üretip
     /// callback'in bekleyeceği kod/state ikilisini simüle eder.
-    async fn begin_and_capture_state(providers: &LoginProviders) -> String {
-        let url = providers.begin("google", &cfg()).await.unwrap();
-        reqwest::Url::parse(&url)
+    async fn begin_and_capture_state(providers: &LoginProviders, intent: OAuthIntent) -> String {
+        let url = providers.begin("google", intent, "en", None, &cfg()).await.unwrap();
+        state_param_of(&url)
+    }
+
+    fn state_param_of(url: &str) -> String {
+        reqwest::Url::parse(url)
             .unwrap()
             .query_pairs()
             .find(|(k, _)| k == "state")
@@ -639,7 +948,8 @@ mod tests {
     async fn complete_creates_a_new_account_on_first_login() {
         let base = spawn_google_mock("streamer@example.com").await;
         let providers = providers_with(&base, true);
-        let state_param = begin_and_capture_state(&providers).await;
+        // Signup butonu (yeni hesap açabilen tek niyet — A-03).
+        let state_param = begin_and_capture_state(&providers, OAuthIntent::Signup).await;
 
         let app = skeleton_state(UserStore::in_memory(), providers);
         let outcome = app
@@ -648,12 +958,20 @@ mod tests {
             .await
             .expect("first login creates an account");
 
-        let OAuthOutcome::LoggedIn(token) = outcome else { panic!("expected a login outcome") };
-        assert!(!token.is_empty());
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        assert_eq!(principal.role, "broadcaster");
         let user = app.users.find_by_oauth("google", "g-123").expect("account created");
+        assert_eq!(principal.sub, user.id);
         assert_eq!(user.email, "streamer@example.com");
         assert!(user.password_hash.is_none());
         assert!(user.email_verified);
+        assert_eq!(user.consents.len(), 6);
+        assert!(user.consents.iter().all(|record| record.source == "google_signup"));
+        assert!(user
+            .consents
+            .iter()
+            .find(|record| record.kind == "marketing")
+            .is_some_and(|record| !record.accepted));
     }
 
     #[tokio::test]
@@ -666,15 +984,15 @@ mod tests {
             .create_oauth_user("google", "g-123", "streamer@example.com", "free")
             .unwrap();
         let app = skeleton_state(users, providers);
-        let state_param = begin_and_capture_state(&app.oauth_login).await;
+        let state_param = begin_and_capture_state(&app.oauth_login, OAuthIntent::Login).await;
 
         let outcome = app
             .oauth_login
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("existing identity logs in");
-        let OAuthOutcome::LoggedIn(token) = outcome else { panic!("expected a login outcome") };
-        assert!(!token.is_empty());
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        assert_eq!(principal.sub, existing.id);
 
         // Still exactly one account for this identity — no duplicate created.
         let by_email = app.users.get("streamer@example.com").expect("account exists");
@@ -689,7 +1007,7 @@ mod tests {
         let users = UserStore::in_memory();
         users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
         let app = skeleton_state(users, providers);
-        let state_param = begin_and_capture_state(&app.oauth_login).await;
+        let state_param = begin_and_capture_state(&app.oauth_login, OAuthIntent::Signup).await;
 
         let err = app
             .oauth_login
@@ -705,13 +1023,8 @@ mod tests {
     /// `begin_link()` üzerinden gerçek bir `state` üretip callback'in
     /// bekleyeceği kod/state ikilisini simüle eder (linkleme akışı).
     async fn begin_link_and_capture_state(providers: &LoginProviders, user_id: &str) -> String {
-        let url = providers.begin_link(user_id, "google", &cfg()).await.unwrap();
-        reqwest::Url::parse(&url)
-            .unwrap()
-            .query_pairs()
-            .find(|(k, _)| k == "state")
-            .map(|(_, v)| v.to_string())
-            .expect("state in authorize url")
+        let url = providers.begin_link(user_id, "google", "en", &cfg()).await.unwrap();
+        state_param_of(&url)
     }
 
     #[tokio::test]
@@ -729,7 +1042,7 @@ mod tests {
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("link succeeds");
-        assert!(matches!(outcome, OAuthOutcome::Linked { provider } if provider == "google"));
+        assert!(matches!(outcome, OAuthOutcome::Linked { provider, .. } if provider == "google"));
 
         let linked = app.users.find_by_oauth("google", "g-123").expect("identity now resolves");
         assert_eq!(linked.id, existing.id);
@@ -773,9 +1086,14 @@ mod tests {
         let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
         let app = skeleton_state(users, providers);
 
-        let Json(resp) = link_start(authed(&user.id), Path("google".to_string()), State(app))
-            .await
-            .expect("link start succeeds");
+        let Json(resp) = link_start(
+            authed(&user.id),
+            Path("google".to_string()),
+            Query(StartQuery::default()),
+            State(app),
+        )
+        .await
+        .expect("link start succeeds");
         assert!(resp.authorize_url.starts_with("http://unused/authorize?"));
         assert!(resp.authorize_url.contains("state="));
     }
@@ -846,7 +1164,10 @@ mod tests {
     #[tokio::test]
     async fn begin_builds_a_valid_authorize_url() {
         let providers = providers_with("http://unused", true);
-        let url = providers.begin("google", &cfg()).await.unwrap();
+        let url = providers
+            .begin("google", OAuthIntent::Login, "en", None, &cfg())
+            .await
+            .unwrap();
         assert!(url.starts_with("http://unused/authorize?"));
         assert!(url.contains("client_id=cid"));
         assert!(url.contains("state="));
@@ -875,14 +1196,20 @@ mod tests {
     #[tokio::test]
     async fn begin_rejects_unconfigured_provider() {
         let providers = providers_with("http://unused", false);
-        let err = providers.begin("google", &cfg()).await.unwrap_err();
+        let err = providers
+            .begin("google", OAuthIntent::Login, "en", None, &cfg())
+            .await
+            .unwrap_err();
         assert!(matches!(err, OAuthLoginError::NotConfigured(_)));
     }
 
     #[tokio::test]
     async fn begin_rejects_unknown_provider() {
         let providers = providers_with("http://unused", true);
-        let err = providers.begin("kick", &cfg()).await.unwrap_err();
+        let err = providers
+            .begin("kick", OAuthIntent::Login, "en", None, &cfg())
+            .await
+            .unwrap_err();
         assert!(matches!(err, OAuthLoginError::UnknownProvider(_)));
     }
 
@@ -905,7 +1232,10 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         assert!(resp.headers().get("location").is_none());
-        assert!(body_text(resp).await.contains("missing code or state"));
+        // JSON fallback carries only the opaque A-02 code, never raw text.
+        let body = body_text(resp).await;
+        assert!(body.contains("\"error\":\"invalid_state\""), "body was {body}");
+        assert!(!body.contains("missing code or state"));
     }
 
     #[tokio::test]
@@ -922,16 +1252,25 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        assert!(location.starts_with("https://panel.example.com/login/oauth-complete?"));
-        assert!(location.contains("provider=google"));
-        assert!(location.contains("error="));
+        // Locale-safe path (no more locale-less 404) + opaque code, no raw
+        // provider text like "access_denied".
+        assert!(location.starts_with("https://panel.example.com/en/login/oauth-complete?"));
+        assert!(location.contains("error=oauth_failed"));
+        assert!(!location.contains("access_denied"));
+        assert!(!location.contains("provider error"));
     }
 
     #[tokio::test]
-    async fn callback_redirects_with_token_in_the_fragment_on_success() {
+    async fn callback_sets_session_cookies_and_redirects_without_a_token_on_success() {
         let base = spawn_google_mock("streamer@example.com").await;
         let providers = providers_with(&base, true);
-        let state_param = begin_and_capture_state(&providers).await;
+        // Signup intent (capture a locale so the callback can build a
+        // locale-safe path) + a valid same-origin return_to.
+        let url = providers
+            .begin("google", OAuthIntent::Signup, "tr", Some("/dashboard".to_string()), &cfg())
+            .await
+            .unwrap();
+        let state_param = state_param_of(&url);
 
         let app = skeleton_state(UserStore::in_memory(), providers);
         app.service_config.set("integration.frontend_base", "https://panel.example.com");
@@ -949,7 +1288,180 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
         let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        // Token rides the fragment (never sent to the server, unlike a query param).
-        assert!(location.starts_with("https://panel.example.com/login/oauth-complete#token="));
+        // Faz 2: locale-safe path + return_to, but NO token anywhere in the URL.
+        assert!(location.starts_with("https://panel.example.com/tr/login/oauth-complete?"));
+        assert!(location.contains("return_to=/dashboard"));
+        assert!(!location.contains("token"));
+        assert!(!location.contains('#'));
+        // The session rides HttpOnly cookies instead of a URL fragment.
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(str::to_string)
+            .collect();
+        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        assert!(cookies.iter().any(|c| c.starts_with("sd_refresh=")));
+        assert!(cookies.iter().any(|c| c.starts_with("sd_csrf=")));
+    }
+
+    #[tokio::test]
+    async fn callback_without_frontend_base_issues_a_cookie_session_as_json() {
+        let base = spawn_google_mock("streamer@example.com").await;
+        let providers = providers_with(&base, true);
+        let state_param = begin_and_capture_state(&providers, OAuthIntent::Signup).await;
+        // integration.frontend_base stays "" — the JSON fallback path.
+        let app = skeleton_state(UserStore::in_memory(), providers);
+
+        let resp = callback(
+            Path("google".to_string()),
+            Query(CallbackQuery {
+                code: Some("code-1".to_string()),
+                state: Some(state_param),
+                error: None,
+            }),
+            State(app),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let cookies: Vec<String> = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(str::to_string)
+            .collect();
+        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        // Even the JSON fallback returns a cookie session, never a bearer token.
+        let body = body_text(resp).await;
+        assert!(!body.contains("\"token\""), "body was {body}");
+        assert!(body.contains("\"authenticated\":true"));
+    }
+
+    // --- Faz 1 davranış testleri (locale-safe + opaque callback) ---
+
+    #[test]
+    fn sanitize_locale_accepts_simple_tags_and_rejects_path_injection() {
+        assert_eq!(sanitize_locale(Some("en"), "en"), "en");
+        assert_eq!(sanitize_locale(Some("tr"), "en"), "tr");
+        assert_eq!(sanitize_locale(Some("pt-BR"), "en"), "pt-BR");
+        // Path injection / garbage falls back to the default.
+        assert_eq!(sanitize_locale(Some("../admin"), "en"), "en");
+        assert_eq!(sanitize_locale(Some("en/../.."), "en"), "en");
+        assert_eq!(sanitize_locale(Some("EN"), "en"), "en");
+        assert_eq!(sanitize_locale(None, "en"), "en");
+        assert_eq!(sanitize_locale(Some(""), "en"), "en");
+    }
+
+    #[test]
+    fn sanitize_return_to_allows_only_same_origin_relative_routes() {
+        assert_eq!(sanitize_return_to(Some("/dashboard")), Some("/dashboard".to_string()));
+        assert_eq!(
+            sanitize_return_to(Some("/en/dashboard/billing")),
+            Some("/en/dashboard/billing".to_string())
+        );
+        // Open-redirect vectors are rejected.
+        assert_eq!(sanitize_return_to(Some("//evil.com")), None);
+        assert_eq!(sanitize_return_to(Some("https://evil.com")), None);
+        assert_eq!(sanitize_return_to(Some("/\\evil.com")), None);
+        assert_eq!(sanitize_return_to(Some("dashboard")), None);
+        assert_eq!(sanitize_return_to(Some("/foo bar")), None);
+        assert_eq!(sanitize_return_to(None), None);
+    }
+
+    #[test]
+    fn frontend_origin_strips_paths_and_rejects_non_http() {
+        assert_eq!(
+            frontend_origin("https://panel.example.com"),
+            Some("https://panel.example.com".to_string())
+        );
+        // A stray path/trailing slash is trimmed to the bare origin.
+        assert_eq!(
+            frontend_origin("https://panel.example.com/login/"),
+            Some("https://panel.example.com".to_string())
+        );
+        assert_eq!(
+            frontend_origin("http://localhost:3000"),
+            Some("http://localhost:3000".to_string())
+        );
+        assert_eq!(frontend_origin(""), None);
+        assert_eq!(frontend_origin("javascript:alert(1)"), None);
+    }
+
+    #[test]
+    fn oauth_error_code_maps_to_the_a02_allowlist_only() {
+        assert_eq!(oauth_error_code(&OAuthLoginError::AccountNotFound), "account_not_found");
+        assert_eq!(oauth_error_code(&OAuthLoginError::EmailExists), "email_exists");
+        assert_eq!(oauth_error_code(&OAuthLoginError::InvalidState), "invalid_state");
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::NotConfigured("google".into())),
+            "provider_unavailable"
+        );
+        assert_eq!(oauth_error_code(&OAuthLoginError::Exchange("boom".into())), "oauth_failed");
+        assert_eq!(oauth_error_code(&OAuthLoginError::Identity("boom".into())), "oauth_failed");
+    }
+
+    #[tokio::test]
+    async fn login_intent_does_not_silently_create_an_account() {
+        let base = spawn_google_mock("newcomer@example.com").await;
+        let providers = providers_with(&base, true);
+        // Login button (not signup) for an identity that does not exist yet.
+        let state_param = begin_and_capture_state(&providers, OAuthIntent::Login).await;
+
+        let app = skeleton_state(UserStore::in_memory(), providers);
+        let err = app
+            .oauth_login
+            .complete(&app, "google", "code-1", &state_param)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, OAuthLoginError::AccountNotFound));
+        // No account was created — the login button must route to signup instead.
+        assert!(app.users.find_by_oauth("google", "g-123").is_none());
+    }
+
+    #[tokio::test]
+    async fn callback_error_redirect_is_locale_safe_for_a_non_default_locale() {
+        // An invalid/expired state cannot reveal a locale, so the error path
+        // uses the configured default locale (here overridden to tr).
+        let app = skeleton_state(UserStore::in_memory(), LoginProviders::empty());
+        app.service_config.set("integration.frontend_base", "https://panel.example.com");
+        app.service_config.set("auth.default_locale", "tr");
+
+        let resp = callback(
+            Path("google".to_string()),
+            Query(CallbackQuery {
+                code: Some("code".to_string()),
+                state: Some("bogus-state".to_string()),
+                error: None,
+            }),
+            State(app),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
+        assert_eq!(location, "https://panel.example.com/tr/login/oauth-complete?error=invalid_state");
+    }
+
+    #[tokio::test]
+    async fn callback_normalizes_a_misconfigured_frontend_base_with_a_path() {
+        // Admin accidentally saved a path on the base; the callback must still
+        // produce a single well-formed locale path, not a double segment.
+        let app = skeleton_state(UserStore::in_memory(), LoginProviders::empty());
+        app.service_config
+            .set("integration.frontend_base", "https://panel.example.com/oops/");
+
+        let resp = callback(
+            Path("google".to_string()),
+            Query(CallbackQuery { code: None, state: None, error: None }),
+            State(app),
+        )
+        .await;
+
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
+        assert_eq!(location, "https://panel.example.com/en/login/oauth-complete?error=invalid_state");
     }
 }

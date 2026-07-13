@@ -46,7 +46,7 @@ export default async function OAuthCompletePage({ params }: Props) {
           <p className="mt-2 text-sm leading-6 text-muted">{oauthComplete.subtitle}</p>
           <OAuthCompleteHandler
             dashboardHref={localizePath(locale, "/dashboard")}
-            labels={{ backLabel: oauthComplete.backLabel }}
+            labels={{ backLabel: oauthComplete.backLabel, errors: oauthComplete.errors }}
             loginHref={localizePath(locale, "/login")}
           />
         </div>

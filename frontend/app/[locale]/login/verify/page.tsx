@@ -46,12 +46,16 @@ export default async function VerifyPage({ params }: Props) {
           <p className="mt-2 text-sm leading-6 text-muted">{verify.subtitle}</p>
 
           <VerifyCodeForm
+            adminHref={localizePath(locale, "/admin")}
             dashboardHref={localizePath(locale, "/dashboard")}
             labels={{
               codeLabel: verify.codeLabel,
               codePlaceholder: verify.codePlaceholder,
               submitLabel: verify.submitLabel,
               submittingLabel: verify.submittingLabel,
+              resendLabel: verify.resendLabel,
+              resendingLabel: verify.resendingLabel,
+              resendSent: verify.resendSent,
               errorInvalid: config.auth.errors.codeInvalid,
               errorTooMany: config.auth.errors.codeTooMany,
               errorNetwork: config.auth.errors.network,

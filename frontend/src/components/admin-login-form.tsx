@@ -19,9 +19,11 @@ type Props = {
   labels: Labels;
   /** Başarılı girişte gidilecek locale'li yol (örn. /en/admin). */
   redirectTo: string;
+  /** 2FA gerekiyorsa gidilecek locale'li admin verify yolu. */
+  verifyHref: string;
 };
 
-export function AdminLoginForm({ labels, redirectTo }: Props) {
+export function AdminLoginForm({ labels, redirectTo, verifyHref }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -39,7 +41,15 @@ export function AdminLoginForm({ labels, redirectTo }: Props) {
         body: JSON.stringify({ email, password }),
       });
       if (response.ok) {
-        const data = (await response.json()) as { authenticated?: boolean; role?: string };
+        const data = (await response.json()) as {
+          authenticated?: boolean;
+          role?: string;
+          two_factor_required?: boolean;
+        };
+        if (data.two_factor_required && data.role === "admin") {
+          window.location.assign(verifyHref);
+          return;
+        }
         if (data.authenticated && data.role === "admin") {
           window.location.assign(redirectTo);
           return;

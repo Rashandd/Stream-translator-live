@@ -1,37 +1,52 @@
 "use client";
 
-import Link from "next/link";
-import { adminFetch, clearUserToken, userFetch } from "@/src/lib/api";
+import { useState } from "react";
+import { adminFetch, userFetch } from "@/src/lib/api";
+import { publishLogout } from "@/src/lib/auth-notice";
 
 type Props = {
   href: string;
   label: string;
+  errorLabel: string;
   className?: string;
-  /** Hangi oturum kapatılacak. */
   tokenKind: "user" | "admin";
 };
 
-/**
- * Çıkış linki — tıklandığında `POST /api/auth/logout`'u ateşler (cookie
- * session'ı sunucu tarafında iptal eder) ve yayıncı için ayrıca OAuth
- * Bearer token'ını localStorage'dan siler. Link'in varsayılan navigasyonu
- * engellenmiyor, bu yüzden istek beklenmeden gönderilir — sayfa ayrılsa
- * bile çerezler kısa TTL'leri (§ auth/session.rs) sayesinde zaten güvenli.
- */
-export function SignOutLink({ href, label, className, tokenKind }: Props) {
+export function SignOutLink({ href, label, errorLabel, className, tokenKind }: Props) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      const fetcher = tokenKind === "admin" ? adminFetch : userFetch;
+      const response = await fetcher("/api/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        setError(errorLabel);
+        return;
+      }
+      publishLogout();
+      window.location.replace(href);
+    } catch {
+      setError(errorLabel);
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <Link
-      className={className}
-      href={href}
-      onClick={() => {
-        const fetcher = tokenKind === "admin" ? adminFetch : userFetch;
-        void fetcher("/api/auth/logout", { method: "POST" });
-        if (tokenKind === "user") {
-          clearUserToken();
-        }
-      }}
-    >
-      {label}
-    </Link>
+    <span className="relative inline-flex flex-col items-end">
+      <a
+        aria-disabled={pending}
+        className={className}
+        href={href}
+        onClick={(event) => void handleClick(event)}
+      >
+        {label}
+      </a>
+      {error ? <span className="absolute right-0 top-full mt-1 whitespace-nowrap text-xs text-danger" role="alert">{error}</span> : null}
+    </span>
   );
 }

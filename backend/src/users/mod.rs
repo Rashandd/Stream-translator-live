@@ -29,6 +29,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::authz::AdminUser;
+use crate::auth::challenge::{challenge_cookie, clear_challenge_cookie, set_challenge_cookie};
 use crate::auth::jwt::Claims;
 use crate::auth::session::{create_browser_session, SessionPrincipal};
 use crate::crypto::Cipher;
@@ -68,6 +69,49 @@ pub struct UserRecord {
     pub oauth_provider: Option<String>,
     #[serde(default)]
     pub oauth_external_id: Option<String>,
+    /// Versiyonlu legal/marketing consent ledger. `USERS_FILE` şifreli
+    /// snapshot'ında asıl kaynak; Postgres yalnız best-effort aynadır.
+    #[serde(default)]
+    pub consents: Vec<ConsentRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConsentRecord {
+    pub kind: String,
+    pub document_version: String,
+    pub accepted: bool,
+    pub recorded_at_ms: i64,
+    pub source: String,
+}
+
+pub(crate) fn signup_consents(
+    config: &crate::config::ServiceConfig,
+    marketing_accepted: bool,
+    source: &str,
+) -> Vec<ConsentRecord> {
+    let recorded_at_ms = chrono::Utc::now().timestamp_millis();
+    let mut records = ["terms", "privacy", "kvkk", "cookies", "dpa"]
+        .into_iter()
+        .map(|kind| ConsentRecord {
+            kind: kind.to_string(),
+            document_version: config
+                .get(&format!("legal.{kind}.version"))
+                .unwrap_or_else(|| "unversioned".to_string()),
+            accepted: true,
+            recorded_at_ms,
+            source: source.to_string(),
+        })
+        .collect::<Vec<_>>();
+    records.push(ConsentRecord {
+        kind: "marketing".to_string(),
+        document_version: config
+            .get("legal.communications.version")
+            .unwrap_or_else(|| "unversioned".to_string()),
+        accepted: marketing_accepted,
+        recorded_at_ms,
+        source: source.to_string(),
+    });
+    records
 }
 
 /// Kullanıcı deposu hataları.
@@ -172,6 +216,16 @@ impl UserStore {
 
     /// Yeni kullanıcı oluşturur. E-posta benzersizdir (case-insensitive).
     pub fn signup(&self, email: &str, password: &str, plan: &str) -> Result<UserRecord, UserError> {
+        self.signup_with_consents(email, password, plan, Vec::new())
+    }
+
+    pub fn signup_with_consents(
+        &self,
+        email: &str,
+        password: &str,
+        plan: &str,
+        consents: Vec<ConsentRecord>,
+    ) -> Result<UserRecord, UserError> {
         let email = email.trim();
         if !email_looks_valid(email) {
             return Err(UserError::InvalidEmail);
@@ -188,6 +242,7 @@ impl UserStore {
             created_at_ms: chrono::Utc::now().timestamp_millis(),
             oauth_provider: None,
             oauth_external_id: None,
+            consents,
         };
         {
             let mut map = self
@@ -217,6 +272,23 @@ impl UserStore {
         email: &str,
         plan: &str,
     ) -> Result<UserRecord, UserError> {
+        self.create_oauth_user_with_consents(
+            provider,
+            external_id,
+            email,
+            plan,
+            Vec::new(),
+        )
+    }
+
+    pub fn create_oauth_user_with_consents(
+        &self,
+        provider: &str,
+        external_id: &str,
+        email: &str,
+        plan: &str,
+        consents: Vec<ConsentRecord>,
+    ) -> Result<UserRecord, UserError> {
         let email = email.trim();
         if !email_looks_valid(email) {
             return Err(UserError::InvalidEmail);
@@ -232,6 +304,7 @@ impl UserStore {
             created_at_ms: chrono::Utc::now().timestamp_millis(),
             oauth_provider: Some(provider.to_string()),
             oauth_external_id: Some(external_id.to_string()),
+            consents,
         };
         {
             let mut map = self
@@ -449,6 +522,29 @@ impl UserStore {
         self.entries.read().ok()?.values().find(|r| r.id == id).cloned()
     }
 
+    pub fn consents_by_user_id(&self, id: &str) -> Vec<ConsentRecord> {
+        self.get_by_id(id).map(|record| record.consents).unwrap_or_default()
+    }
+
+    pub fn record_consent(&self, user_id: &str, consent: ConsentRecord) -> Result<(), UserError> {
+        let updated = {
+            let mut map = self
+                .entries
+                .write()
+                .map_err(|_| UserError::Internal("user lock poisoned".into()))?;
+            map.values_mut().find(|record| record.id == user_id).map(|record| {
+                record.consents.push(consent);
+                record.clone()
+            })
+        };
+        let Some(record) = updated else {
+            return Err(UserError::NotFound);
+        };
+        self.save()?;
+        self.persist_db(record);
+        Ok(())
+    }
+
     /// Admin panelden bir kullanıcının planını değiştirir (restart gerekmez;
     /// `set_password`/`mark_verified` ile aynı yaz-sonra-persist deseni).
     pub fn set_plan_by_id(&self, id: &str, plan: &str) -> Result<UserRecord, UserError> {
@@ -640,6 +736,22 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     .bind(&record.oauth_external_id)
     .execute(pool)
     .await?;
+    for consent in &record.consents {
+        sqlx::query(
+            "INSERT INTO user_consents
+                (user_id, kind, document_version, accepted, recorded_at, source)
+             VALUES ($1::uuid, $2, $3, $4, to_timestamp($5::double precision / 1000.0), $6)
+             ON CONFLICT (user_id, kind, document_version, recorded_at) DO NOTHING",
+        )
+        .bind(&record.id)
+        .bind(&consent.kind)
+        .bind(&consent.document_version)
+        .bind(consent.accepted)
+        .bind(consent.recorded_at_ms)
+        .bind(&consent.source)
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }
 
@@ -858,13 +970,13 @@ pub struct OkResponse {
     pub ok: bool,
 }
 
-/// `POST /api/auth/signup` — ücretsiz planla hesap açar. Frontend başarıdan
-/// sonra normal login akışını çağırır (2FA kararını login verir).
+/// `POST /api/auth/signup` — ücretsiz planla hesap açar ve aynı istekte
+/// browser session veya opaque 2FA challenge üretir.
 pub async fn signup(
     State(app): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SignupRequest>,
-) -> Result<(StatusCode, Json<OkResponse>), (StatusCode, String)> {
+) -> Result<Response, (StatusCode, String)> {
     let signup_limit: u32 = app
         .service_config
         .get("auth.signup.rate_limit_per_min")
@@ -890,20 +1002,26 @@ pub async fn signup(
             "required legal terms must be accepted".to_string(),
         ));
     }
-    let _marketing_consent = req.marketing_consent;
-
     let plan = app
         .service_config
         .get("auth.default_plan")
         .unwrap_or_else(|| "free".to_string());
-    let record = app.users.signup(&req.email, &req.password, &plan).map_err(|err| {
-        let status = match err {
-            UserError::EmailTaken => StatusCode::CONFLICT,
-            UserError::InvalidEmail | UserError::WeakPassword => StatusCode::UNPROCESSABLE_ENTITY,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        (status, err.to_string())
-    })?;
+    let consents = signup_consents(
+        &app.service_config,
+        req.marketing_consent,
+        "password_signup",
+    );
+    let record = app
+        .users
+        .signup_with_consents(&req.email, &req.password, &plan, consents)
+        .map_err(|err| {
+            let status = match err {
+                UserError::EmailTaken => StatusCode::CONFLICT,
+                UserError::InvalidEmail | UserError::WeakPassword => StatusCode::UNPROCESSABLE_ENTITY,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, err.to_string())
+        })?;
     app.logger.log(
         LogLevel::Info,
         "auth",
@@ -911,7 +1029,15 @@ pub async fn signup(
         Some(&record.id),
         None,
     );
-    Ok((StatusCode::CREATED, Json(OkResponse { ok: true })))
+    let mut response = if let Some(pending) =
+        begin_login_twofactor(&app, &record.email, &record.id, "broadcaster").await?
+    {
+        pending
+    } else {
+        finish_user_login(&app, &record, &headers).await?
+    };
+    *response.status_mut() = StatusCode::CREATED;
+    Ok(response)
 }
 
 /// `POST /api/auth/login` gövdesi.
@@ -1028,13 +1154,19 @@ async fn begin_login_twofactor(
         return Ok(None);
     }
 
+    // A-04: the pending state is an opaque challenge in an HttpOnly cookie —
+    // the browser never holds the email/subject. Each pending reply mints a
+    // fresh challenge id bound to this (subject, email, role).
     let pending_response = || {
-        Json(LoginResponse::TwoFactorPending {
+        let challenge_id = app.challenges.issue(subject, email, role);
+        let mut response = Json(LoginResponse::TwoFactorPending {
             two_factor_required: true,
             expires_in_secs: app.twofactor.ttl_secs(),
             role: role.to_string(),
         })
-        .into_response()
+        .into_response();
+        set_challenge_cookie(&mut response, &challenge_id, app.challenges.ttl_secs());
+        response
     };
     let code = match app.twofactor.issue(email, CodePurpose::Login) {
         Ok(code) => code,
@@ -1100,36 +1232,7 @@ async fn begin_login_twofactor(
 
 /// E-posta/şifre ve OAuth login akışlarının ikisi de aynı JWT şeklini üretir
 /// — `oauth_login` bunu doğrudan reuse eder (bkz. `crate::auth::oauth_login`).
-pub(crate) fn issue_user_token(
-    app: &AppState,
-    user: &UserRecord,
-) -> Result<LoginResponse, (StatusCode, String)> {
-    let expires_at = chrono::Utc::now().timestamp() + USER_TOKEN_TTL_SECS;
-    let claims = Claims {
-        sub: user.id.clone(),
-        role: "broadcaster".to_string(),
-        plan: user.plan.clone(),
-        exp: expires_at,
-    };
-    let token = app
-        .jwt
-        .issue(&claims)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    app.logger.log(
-        LogLevel::Info,
-        "auth",
-        "user login succeeded",
-        Some(&user.id),
-        None,
-    );
-    Ok(LoginResponse::Token {
-        token,
-        expires_at,
-        role: "broadcaster".to_string(),
-    })
-}
-
-fn user_principal(user: &UserRecord) -> SessionPrincipal {
+pub(crate) fn user_principal(user: &UserRecord) -> SessionPrincipal {
     SessionPrincipal {
         sub: user.id.clone(),
         role: "broadcaster".to_string(),
@@ -1180,25 +1283,29 @@ async fn finish_principal_login(
 /// `POST /api/auth/2fa` gövdesi.
 #[derive(Debug, Deserialize)]
 pub struct TwoFactorRequest {
-    pub email: String,
     pub code: String,
 }
 
-/// `POST /api/auth/2fa` — maillenen kodu doğrular, yayıncı token'ı döner.
-/// Başarılı doğrulama e-postayı da doğrulanmış işaretler.
+/// `POST /api/auth/2fa` — opaque challenge cookie'ye bağlı kodu doğrular.
 pub async fn twofa_verify(
     State(app): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TwoFactorRequest>,
 ) -> Result<Response, (StatusCode, String)> {
-    verify_code_or_status(&app, &req.email, CodePurpose::Login, &req.code)?;
-    if app
-        .bootstrap_admin
-        .as_ref()
-        .as_ref()
-        .is_some_and(|admin| admin.matches_email(&req.email))
-    {
-        return finish_principal_login(
+    let challenge_id = challenge_cookie(&headers)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    let challenge = app
+        .challenges
+        .peek(&challenge_id)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    verify_code_or_status(&app, &challenge.email, CodePurpose::Login, &req.code)?;
+    let challenge = app
+        .challenges
+        .consume(&challenge_id)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+
+    let mut response = if challenge.role == "admin" && challenge.subject == "admin-bootstrap" {
+        finish_principal_login(
             &app,
             SessionPrincipal {
                 sub: "admin-bootstrap".to_string(),
@@ -1207,15 +1314,92 @@ pub async fn twofa_verify(
             },
             &headers,
         )
-        .await;
-    }
-    let Some(user) = app.users.get(&req.email) else {
-        return Err((StatusCode::UNAUTHORIZED, "invalid or expired code".to_string()));
+        .await?
+    } else if challenge.role == "broadcaster" {
+        let Some(user) = app.users.get_by_id(&challenge.subject) else {
+            return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
+        };
+        if !user.email.eq_ignore_ascii_case(&challenge.email) {
+            return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
+        }
+        if let Err(err) = app.users.mark_verified(&user.email) {
+            tracing::warn!(error = %err, "mark_verified failed");
+        }
+        finish_user_login(&app, &user, &headers).await?
+    } else {
+        return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
     };
-    if let Err(err) = app.users.mark_verified(&user.email) {
-        tracing::warn!(error = %err, "mark_verified failed");
-    }
-    finish_user_login(&app, &user, &headers).await
+    clear_challenge_cookie(&mut response);
+    Ok(response)
+}
+
+pub async fn twofa_resend(
+    State(app): State<AppState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let challenge_id = challenge_cookie(&headers)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    let challenge = app
+        .challenges
+        .peek(&challenge_id)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    let code = app.twofactor.issue(&challenge.email, CodePurpose::Login).map_err(|error| {
+        let status = match error {
+            TwoFactorError::TooSoon => StatusCode::TOO_MANY_REQUESTS,
+            TwoFactorError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::UNAUTHORIZED,
+        };
+        (status, error.to_string())
+    })?;
+    crate::mail::send(
+        app.secrets.as_ref(),
+        &app.service_config,
+        &challenge.email,
+        "Your Strovak verification code",
+        &format!("Your sign-in verification code is: {code}\n\nIt expires in 10 minutes. If you didn't try to sign in, you can ignore this email."),
+    )
+    .await
+    .map_err(|error| {
+        app.twofactor.cancel(&challenge.email, CodePurpose::Login);
+        let status = match error {
+            crate::mail::MailError::NotConfigured => StatusCode::SERVICE_UNAVAILABLE,
+            _ => StatusCode::BAD_GATEWAY,
+        };
+        (status, "could not send verification code".to_string())
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MarketingConsentRequest {
+    pub accepted: bool,
+}
+
+pub async fn update_marketing_consent(
+    user: crate::auth::authz::AuthUser,
+    State(app): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<MarketingConsentRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    crate::auth::session::require_cookie_request(&headers, &app.service_config)
+        .map_err(|error| (StatusCode::FORBIDDEN, error.to_string()))?;
+    let consent = ConsentRecord {
+        kind: "marketing".to_string(),
+        document_version: app
+            .service_config
+            .get("legal.communications.version")
+            .unwrap_or_else(|| "unversioned".to_string()),
+        accepted: req.accepted,
+        recorded_at_ms: chrono::Utc::now().timestamp_millis(),
+        source: "settings".to_string(),
+    };
+    app.users
+        .record_consent(&user.claims.sub, consent)
+        .map_err(|error| match error {
+            UserError::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
+        })?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn verify_code_or_status(
@@ -1690,6 +1874,48 @@ mod tests {
         let wrong = crate::crypto::derive_key(b"other", "streamdubber.users.v1");
         assert!(UserStore::with_file(&path, &wrong).is_err());
 
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn signup_consents_are_versioned_and_survive_encrypted_reload() {
+        let path = std::env::temp_dir().join(format!("sd-consents-{}.enc", uuid::Uuid::new_v4()));
+        let key = crate::crypto::derive_key(b"jwt", "streamdubber.users.v1");
+        let config = crate::config::ServiceConfig::with_defaults();
+        config.set("legal.terms.version", "terms-v2");
+        let consents = signup_consents(&config, true, "password_signup");
+        assert_eq!(consents.len(), 6);
+        assert_eq!(
+            consents
+                .iter()
+                .find(|record| record.kind == "terms")
+                .map(|record| record.document_version.as_str()),
+            Some("terms-v2")
+        );
+        assert!(consents
+            .iter()
+            .find(|record| record.kind == "marketing")
+            .is_some_and(|record| record.accepted));
+
+        let user_id = {
+            let store = UserStore::with_file(&path, &key).unwrap();
+            store
+                .signup_with_consents(
+                    "consent@example.com",
+                    "consent-pass-1",
+                    "free",
+                    consents,
+                )
+                .unwrap()
+                .id
+        };
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains("terms-v2"));
+
+        let reloaded = UserStore::with_file(&path, &key).unwrap();
+        let records = reloaded.consents_by_user_id(&user_id);
+        assert_eq!(records.len(), 6);
+        assert!(records.iter().all(|record| record.source == "password_signup"));
         let _ = std::fs::remove_file(&path);
     }
 

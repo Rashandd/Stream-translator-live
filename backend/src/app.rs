@@ -286,6 +286,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/login", post(crate::users::login))
         .route("/api/auth/signup", post(crate::users::signup))
         .route("/api/auth/2fa", post(crate::users::twofa_verify))
+        .route("/api/auth/2fa/resend", post(crate::users::twofa_resend))
+        .route(
+            "/api/auth/consent/marketing",
+            put(crate::users::update_marketing_consent),
+        )
         .route("/api/auth/reset/request", post(crate::users::reset_request))
         .route("/api/auth/reset/confirm", post(crate::users::reset_confirm))
         // Cookie session lifecycle (auth::session) — issued by login/2fa when the

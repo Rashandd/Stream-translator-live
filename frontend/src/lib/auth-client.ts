@@ -7,14 +7,12 @@
  * gövdesidir (`backend/src/auth/session.rs::session_response`) — rol
  * `data.role`'den okunur, çerezler zaten `Set-Cookie` ile kurulmuştur,
  * burada saklanacak bir token yoktur. SMTP yapılandırıldıysa yayıncı için
- * 2FA kodu maillenir ve yanıt `two_factor_required` olur. 2FA bekleyen
- * e-posta sessionStorage'da tutulur — verify sayfası oradan okur (URL'e
- * e-posta yazılmaz).
+ * 2FA kodu maillenir ve yanıt `two_factor_required` olur. Bekleyen kimlik
+ * yalnız backend'in HttpOnly `sd_auth_challenge` çerezindedir; JavaScript
+ * e-posta, subject veya challenge id saklamaz.
  */
 
 import { API_URL } from "@/src/lib/api";
-
-const PENDING_2FA_KEY = "sd.pending2fa.email";
 
 export type LoginOutcome =
   | { kind: "admin" }
@@ -39,7 +37,6 @@ export async function login(email: string, password: string): Promise<LoginOutco
         two_factor_required?: boolean;
       };
       if (data.two_factor_required) {
-        savePending2faEmail(email);
         return { kind: "twofactor" };
       }
       if (data.authenticated && data.role === "admin") {
@@ -53,24 +50,5 @@ export async function login(email: string, password: string): Promise<LoginOutco
     return response.status === 503 ? { kind: "unavailable" } : { kind: "invalid" };
   } catch {
     return { kind: "network" };
-  }
-}
-
-export function savePending2faEmail(email: string): void {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(PENDING_2FA_KEY, email);
-  }
-}
-
-export function readPending2faEmail(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.sessionStorage.getItem(PENDING_2FA_KEY);
-}
-
-export function clearPending2faEmail(): void {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.removeItem(PENDING_2FA_KEY);
   }
 }

@@ -1,10 +1,10 @@
 # Browser Auth Workflow Hardening Plan
 
-**Durum:** Uygulanıyor — cookie session çekirdeği (`auth::session`: HttpOnly
-`sd_access`/`sd_refresh`/`sd_csrf`, refresh rotation, family revoke; commit
-`c76149d`) koddadır; OAuth/signup/2FA/consent/logout fazları roadmap 2.9
-maddelerinde izlenir  
-**Tarih:** 2026-07-12  
+**Durum:** Faz 1–5 tamamlandı; Faz 6'daki canlı provider ve production-origin
+browser doğrulamaları bekliyor
+
+**Tarih:** 2026-07-12 (Faz 1–5: 2026-07-13)
+
 **Kapsam:** Frontend login/signup, Google/Twitch OAuth callback, browser session,
 email 2FA, consent ve logout
 
@@ -271,8 +271,12 @@ eski refresh token ile session yenilenemez.
 - Vercel production domain + VPS API domain üzerinde cookie, CORS, CSRF ve
   logout doğrulanır.
 - `docs/security.md`, `docs/schema.md`, `docs/dashboard.md`,
-  `docs/production-operator-guide.md`, roadmap ve `docs/SESSION.md`
-  güncellenir.
+  `docs/production-operator-guide.md` ve roadmap güncellenir.
+
+Kod ve mock/integration doğrulaması tamamlandı. Gerçek Google/Twitch hesapları,
+Vercel/VPS origin'leri ve süreye bağlı 15 dakikalık kontrol bu repodan tek
+başına yürütülemediği için Faz 6 açık kalır; bu maddeler kapanmadan çalışma
+production-ready sayılmaz.
 
 ## 4. Kesintisiz deploy sırası
 

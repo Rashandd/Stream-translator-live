@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 
 use crate::auth::bootstrap::BootstrapAdmin;
+use crate::auth::challenge::ChallengeStore;
 use crate::auth::jwt::Jwt;
 use crate::auth::oauth_login::LoginProviders;
 use crate::auth::session::SessionStore;
@@ -77,6 +78,9 @@ pub struct AppState {
     pub users: Arc<UserStore>,
     /// Login 2FA + şifre sıfırlama kodları (bellek içi, kısa ömürlü).
     pub twofactor: Arc<TwoFactorStore>,
+    /// Opaque login-2FA challenge (A-04): `challenge_id` → subject/email/role,
+    /// HttpOnly `sd_auth_challenge` cookie ile taşınır (bellek içi, kısa ömürlü).
+    pub challenges: Arc<ChallengeStore>,
     /// `POST /api/auth/login` ve `/signup` brute-force koruması (per-IP, bellek içi).
     pub auth_limiter: Arc<AuthLimiter>,
     /// HttpOnly browser cookie refresh sessions (hashed, rotating, revocable).
@@ -134,6 +138,7 @@ impl AppState {
             waitlist: Arc::new(WaitlistLimiter::new()),
             users: Arc::new(UserStore::in_memory()),
             twofactor: Arc::new(TwoFactorStore::new()),
+            challenges: Arc::new(ChallengeStore::default()),
             auth_limiter: Arc::new(AuthLimiter::new()),
             browser_sessions: Arc::new(SessionStore::in_memory()),
             sdk_commands: Arc::new(SdkCommandQueue::new()),
