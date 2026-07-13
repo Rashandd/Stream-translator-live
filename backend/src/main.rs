@@ -16,7 +16,7 @@ use streamdubber_backend::{
     bindings::{self, ChannelBindingStore},
     ext_twitch::ExtTwitch,
     founding::FoundingStore,
-    config::{Config, ServiceConfig},
+    config::{Config, Environment, ServiceConfig},
     crypto, db,
     gateway::{
         assemblyai::AssemblyAiStt,
@@ -190,6 +190,7 @@ async fn build_state(
     db_pool: Option<sqlx::PgPool>,
 ) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
+    let environment = Environment::from_env();
 
     let service_config = Arc::new(ServiceConfig::with_defaults());
 
@@ -572,6 +573,7 @@ async fn build_state(
         gateway: Arc::new(gateway),
         overlay: Arc::new(OverlayHub::new(Arc::clone(&service_config))),
         ext_twitch: Arc::new(ExtTwitch::from_secrets(&secrets)),
+        environment,
         service_config,
         integrations,
         oauth_login,

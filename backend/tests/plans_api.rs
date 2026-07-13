@@ -108,3 +108,36 @@ async fn update_requires_auth() {
     let (status, _) = http(addr, &put_plan(None, updated)).await;
     assert_eq!(status, 401);
 }
+
+/// BH-02: plan mutasyonu `ConfigSpec`'in plan validasyonundan geçer —
+/// negatif fiyat 422, bellek hiç değişmez.
+#[tokio::test]
+async fn negative_plan_price_is_rejected() {
+    let addr = spawn_server().await;
+    let invalid = r#"{"name":"free","price_cents":-100,"monthly_hours":10,"max_languages":1,"max_platforms":1,"has_watermark":true,"has_voice_clone":false}"#;
+    let (status, body) = http(addr, &put_plan(Some(&token("admin")), invalid)).await;
+    assert_eq!(status, 422, "body: {body}");
+
+    // Bellek eski değerde kalır (seed default'u monthly_hours=5).
+    let (_, list_body) = http(addr, &get("/api/plans")).await;
+    assert!(
+        list_body.contains("\"name\":\"free\",\"price_cents\":0,\"monthly_hours\":5"),
+        "body: {list_body}"
+    );
+}
+
+#[tokio::test]
+async fn zero_plan_limit_is_rejected() {
+    let addr = spawn_server().await;
+    let invalid = r#"{"name":"free","price_cents":0,"monthly_hours":10,"max_languages":0,"max_platforms":1,"has_watermark":true,"has_voice_clone":false}"#;
+    let (status, body) = http(addr, &put_plan(Some(&token("admin")), invalid)).await;
+    assert_eq!(status, 422, "body: {body}");
+}
+
+#[tokio::test]
+async fn malformed_plan_slug_is_rejected() {
+    let addr = spawn_server().await;
+    let invalid = r#"{"name":"Not A Slug","price_cents":0,"monthly_hours":10,"max_languages":1,"max_platforms":1,"has_watermark":true,"has_voice_clone":false}"#;
+    let (status, body) = http(addr, &put_plan(Some(&token("admin")), invalid)).await;
+    assert_eq!(status, 422, "body: {body}");
+}

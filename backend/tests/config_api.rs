@@ -12,7 +12,7 @@ use tokio::net::{TcpListener, TcpStream};
 use streamdubber_backend::{
     app,
     auth::jwt::{Claims, Jwt},
-    config::ServiceConfig,
+    config::{Environment, ServiceConfig},
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
     state::AppState,
 };
@@ -20,12 +20,22 @@ use streamdubber_backend::{
 const SECRET: &[u8] = b"config-api-test-secret";
 
 async fn spawn_server() -> SocketAddr {
-    spawn_server_with_db(None).await
+    spawn_server_full(None, Environment::Development).await
 }
 
 /// `spawn_server` ile aynı, ama DB pool'u (varsa) state'e takar — `service_config`
 /// tablosuna gerçek yazım/okuma gerektiren testler için.
 async fn spawn_server_with_db(db: Option<sqlx::PgPool>) -> SocketAddr {
+    spawn_server_full(db, Environment::Development).await
+}
+
+/// BH-02 production kısıtlarını (insecure URL, mock fallback) tetiklemek için
+/// `Environment::Production` ile kurulmuş sunucu.
+async fn spawn_server_production() -> SocketAddr {
+    spawn_server_full(None, Environment::Production).await
+}
+
+async fn spawn_server_full(db: Option<sqlx::PgPool>, environment: Environment) -> SocketAddr {
     let service_config = Arc::new(ServiceConfig::with_defaults());
     let mut gateway = Gateway::new(Arc::clone(&service_config));
     gateway.register_stt(Arc::new(MockStt::new("deepgram")));
@@ -33,6 +43,7 @@ async fn spawn_server_with_db(db: Option<sqlx::PgPool>) -> SocketAddr {
 
     let mut state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
     state.db = db;
+    state.environment = environment;
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let addr = listener.local_addr().expect("local_addr");
@@ -157,7 +168,7 @@ async fn admin_update_is_visible_to_admin_readers() {
         addr,
         &put_config(
             Some(&token("admin")),
-            r#"{"key":"stt.provider","value":"whisper"}"#,
+            r#"{"key":"stt.provider","value":"assemblyai"}"#,
         ),
     )
     .await;
@@ -168,7 +179,7 @@ async fn admin_update_is_visible_to_admin_readers() {
     let (status, body) = http(addr, &get_auth("/admin/config", &token("admin"))).await;
     assert_eq!(status, 200);
     assert!(
-        body.contains("\"stt.provider\":\"whisper\""),
+        body.contains("\"stt.provider\":\"assemblyai\""),
         "body: {body}"
     );
     let (_, public_body) = http(addr, &get("/config")).await;
@@ -352,4 +363,155 @@ async fn unknown_key_is_rejected() {
     )
     .await;
     assert_eq!(status, 404);
+}
+
+/// BH-02: `ConfigSpec` registry, bilinen anahtarın değerini tipine göre
+/// doğrular — geçersiz değer 422, bellek hiç değişmez.
+#[tokio::test]
+async fn unknown_provider_value_is_rejected_with_422() {
+    let addr = spawn_server().await;
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"stt.provider","value":"ghost"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+
+    // Bellek eski değerde kalır (deepgram seed default'u).
+    let (_, admin_body) = http(addr, &get_auth("/admin/config", &token("admin"))).await;
+    assert!(
+        admin_body.contains("\"stt.provider\":\"deepgram\""),
+        "body: {admin_body}"
+    );
+}
+
+#[tokio::test]
+async fn zero_rate_limit_is_rejected_with_422() {
+    let addr = spawn_server().await;
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"auth.login.rate_limit_per_min","value":"0"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+}
+
+#[tokio::test]
+async fn wildcard_cors_origin_is_rejected_with_422() {
+    let addr = spawn_server().await;
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"cors.allowed_origins","value":"*"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+}
+
+#[tokio::test]
+async fn malformed_url_is_rejected_with_422() {
+    let addr = spawn_server().await;
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"auth.oauth_redirect_base","value":"not a url"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+}
+
+/// BH-02: production'da http(s) sağlayıcı/redirect URL'lerinin şeması https
+/// olmalı — dev'in `http://localhost` varsayılanı production'da reddedilir.
+#[tokio::test]
+async fn http_oauth_redirect_is_rejected_in_production_but_allowed_in_dev() {
+    let dev_addr = spawn_server().await;
+    let (status, body) = http(
+        dev_addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"auth.oauth_redirect_base","value":"http://localhost:8080/api/auth/oauth"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "dev should allow http: {body}");
+
+    let prod_addr = spawn_server_production().await;
+    let (status, body) = http(
+        prod_addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"auth.oauth_redirect_base","value":"http://localhost:8080/api/auth/oauth"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "production should reject http: {body}");
+
+    let (status, body) = http(
+        prod_addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"auth.oauth_redirect_base","value":"https://api.strovak.com/api/auth/oauth"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200, "production should allow https: {body}");
+}
+
+#[tokio::test]
+async fn mock_fallback_cannot_be_enabled_in_production() {
+    let addr = spawn_server_production().await;
+    let (status, body) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"providers.mock_fallback","value":"true"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422, "body: {body}");
+}
+
+/// BH-02: mutasyon DB-first — `service_config` yazımı başarısız olursa bellek
+/// hiç değişmemiş kalır (eski "yaz-sonra-geri-al" yerine). Gerçek Postgres
+/// gerektirir; havuz `close()` ile kapatılıp yazım zorla başarısız kılınır.
+/// `TEST_DATABASE_URL=postgres://... cargo test -- --ignored db_write_failure`
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL with a migrated database"]
+async fn db_write_failure_leaves_memory_unchanged() {
+    let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL");
+    let pool = streamdubber_backend::db::connect(&url)
+        .await
+        .expect("connect");
+    streamdubber_backend::db::run_migrations(&pool)
+        .await
+        .expect("migrations");
+
+    let addr = spawn_server_with_db(Some(pool.clone())).await;
+    pool.close().await;
+
+    let (status, _) = http(
+        addr,
+        &put_config(
+            Some(&token("admin")),
+            r#"{"key":"stt.provider","value":"assemblyai"}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 500);
+
+    let (_, admin_body) = http(addr, &get_auth("/admin/config", &token("admin"))).await;
+    assert!(
+        admin_body.contains("\"stt.provider\":\"deepgram\""),
+        "memory should be untouched after DB failure: {admin_body}"
+    );
 }

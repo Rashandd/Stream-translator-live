@@ -650,7 +650,7 @@ madde bitince İKİSİ birlikte tiklenir:
 
 Faz P0
 - [x] BH-01 Public config yüzeyini güvenli allowlist ile sınırla (2026-07-13)
-- [ ] BH-02 Config ve plan güncellemelerine semantik validation ekle
+- [x] BH-02 Config ve plan güncellemelerine semantik validation ekle (2026-07-13)
 - [x] A1. Protokol: reserved byte → flags (2026-07-13)
 - [ ] A4. stt-server dokümantasyon notu
 - [ ] C1. Mikrofon/cloud session'ı OBS'ten bağımsız başlat
@@ -779,6 +779,34 @@ fix: restrict public service config response
 ```
 
 ## 13. BH-02 — Typed config ve plan validation
+
+> **Durum (2026-07-13): TAMAMLANDI.** Yeni `backend/src/config_spec.rs`: `ConfigSpec`
+> registry (`ServiceConfig::with_defaults`'taki her anahtar için tip + validator —
+> Bool/PosInt/PosFloat/Enum/Url/OriginList/PlanList/PlanName/LanguageCodeList/FreeText),
+> `Environment` (`config.rs`, `APP_ENV=production`, varsayılan `Development`) ve
+> `ValidationError`. Validasyon **yalnız admin mutation giriş noktasında**
+> (`app::put_config`/`put_plan`) uygulanır — `ServiceConfig::set`/`set_existing`
+> kasıtlı olarak dokunulmadı, çünkü `gateway::mod` ve `config.rs`'in kendi testleri
+> var olmayan sağlayıcı adlarıyla (`"ghost"`, `"whisper"`) doğrudan bu metotları
+> çağırıyor. Mutasyon artık DB-first: DB yazımı önce denenir, bellek yalnız DB
+> BAŞARILI olursa güncellenir (eski "yaz-sonra-hata-olursa-geri-al" deseni yerine —
+> `put_plan`'daki rollback dalı bu yüzden tamamen kalktı). Production kısıtları:
+> `providers.mock_fallback=true` ve `auth.email_2fa=off` reddedilir; http(s)/ws(s)
+> URL alanlarında `http`/`ws` şeması yalnız `Development`'ta kabul edilir. Plan
+> validasyonu: normalize slug (`[a-z0-9-]+`, `-` ile başlayıp bitemez), `price_cents
+> >= 0`, `monthly_hours`/`max_languages`/`max_platforms` yalnız `-1` veya **kesin
+> pozitif** (`0` dahil reddedilir — plan §13 TDD listesinin "sıfır plan limiti
+> reddedilir" maddesi). "Kullanımda olan planın silinmesini engelle" kuralı
+> **uygulanmadı**: bu backend'de plan silme HTTP uç noktası hiç yok (`PUT
+> /admin/plans` yalnız upsert'tir), bağlanacak bir mutasyon yolu yok — yeni bir
+> silme uç noktası eklenirse orada ele alınmalı. Testler: `config_spec.rs` unit (19
+> test — enum/bounds/URL/origin/plan-list/production kuralları + registry
+> tamlık testleri `all_seeded_keys_have_a_spec`/`all_spec_keys_are_seeded`),
+> `config.rs` unit (`Environment` davranışı), `config_api.rs`/`plans_api.rs`
+> integration (422 sözleşmesi + DB-first testi `db_write_failure_leaves_memory_unchanged`,
+> gerçek Postgres gerektirdiği için `#[ignore]`). Mevcut `admin_update_is_visible_to_admin_readers`
+> testi "whisper" yerine gerçek bir sağlayıcı adına (`assemblyai`) güncellendi —
+> yeni enum validasyonu altında artık geçersiz bir değerdi. fmt/clippy/460+ test temiz.
 
 ### Amaç
 

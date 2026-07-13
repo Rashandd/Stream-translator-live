@@ -8,6 +8,7 @@ pub mod auth;
 pub mod billing;
 pub mod bindings;
 pub mod config;
+pub mod config_spec;
 pub mod costs;
 pub mod crypto;
 pub mod db;
