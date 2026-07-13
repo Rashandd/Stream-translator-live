@@ -1,4 +1,4 @@
-# PostgreSQL Şeması — Faz 1/2 (güncellendi 2026-07-12)
+# PostgreSQL Şeması — Faz 1/2 (güncellendi 2026-07-13)
 
 ## Prensipler
 - UUID primary key (çoğu tabloda — `browser_sessions`/`user_oauth_links` gibi istisnalar kendi doğal anahtarını kullanır, aşağıda belirtilir)
@@ -34,6 +34,7 @@ yerine geçmez).
 | Founding-beta başvuruları | `FOUNDING_APPS_FILE` (düz JSON) | — |
 | Kanal eşleştirmeleri (Twitch/Kick) | Postgres | `channel_bindings` (DB varsa açılışta belleğe yüklenir) |
 | Browser refresh session'ları | Postgres (tek kaynak) | `browser_sessions` |
+| Legal/marketing consent geçmişi | `USERS_FILE` içindeki kullanıcı kaydı (AES-256-GCM) | `user_consents` (best-effort yansıma) |
 | Runtime config (`service_config`) | Postgres (DB varsa) veya bellek içi seed | `service_config` |
 | Plan tanımları | Postgres (DB varsa) veya kod-içi seed | `plans` |
 
@@ -332,6 +333,31 @@ kimliği DIŞINDA sonradan bağlanan ek sağlayıcılar (`/dashboard/account` �
 
 ---
 
+### `user_consents` *(migration 0007)*
+```sql
+CREATE TABLE user_consents (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind             TEXT NOT NULL CHECK (kind IN ('terms', 'privacy', 'kvkk', 'cookies', 'dpa', 'marketing')),
+    document_version TEXT NOT NULL,
+    accepted         BOOLEAN NOT NULL,
+    recorded_at      TIMESTAMPTZ NOT NULL,
+    source           TEXT NOT NULL CHECK (source IN ('password_signup', 'google_signup', 'twitch_signup', 'settings')),
+    UNIQUE (user_id, kind, document_version, recorded_at)
+);
+
+CREATE INDEX idx_user_consents_user_kind ON user_consents(user_id, kind);
+```
+
+Password ve Google/Twitch signup sırasında gösterilen `terms`, `privacy`,
+`kvkk`, `cookies`, `dpa` sürümleri ile opsiyonel `marketing` tercihini append-only
+geçmiş olarak tutar. Asıl kaynak `USERS_FILE` içindeki şifreli `consents`
+alanıdır; PostgreSQL tablosu operasyonel sorgular için best-effort aynadır.
+Marketing tercihi settings'ten değiştirildiğinde önceki satır silinmez, yeni
+`settings` kaynaklı kayıt eklenir.
+
+---
+
 ### `auth_tokens` *(şemada var, kod tarafından KULLANILMIYOR)*
 ```sql
 CREATE TABLE auth_tokens (
@@ -391,6 +417,7 @@ plans ──< subscriptions >── users ──< sdk_sessions
                               ├──< platform_accounts
                               ├──< channel_bindings
                               ├──< user_oauth_links
+                              ├──< user_consents
                               └──< audit_logs (planlı, henüz bağlanmadı)
 
 browser_sessions   (users.id'ye FK değil — subject TEXT olarak tutulur)
@@ -403,7 +430,7 @@ service_config     (kullanıcıdan bağımsız, global)
 ## Migration Stratejisi
 
 - Her migration ayrı dosya: `backend/migrations/0001_init.sql`, `0002_channel_bindings.sql`, ...
-  (bugüne kadar: 0001–0006, bkz. yukarıdaki tablo listesi)
+  (bugüne kadar: 0001–0007, bkz. yukarıdaki tablo listesi)
 - Tool: `sqlx::migrate!("./migrations")` — backend açılışında (`backend/src/db.rs::run_migrations`)
   otomatik uygulanır, derleme zamanında binary'ye gömülür (ayrıca dosya kopyalamaya gerek yok)
 - Prod'da migration otomatik çalışır, geri alınamaz — her migration forward-only yaz
