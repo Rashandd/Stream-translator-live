@@ -38,9 +38,11 @@ services:
         condition: service_healthy
       vault:
         condition: service_started
-    # Not: `redis` servisi aşağıda tanımlı ama backend HENÜZ ona bağlanmıyor
-    # (hardening planı BH-04/06 sonrası zorunlu olacak) — bilerek depends_on
-    # dışında tutuluyor ki redis'teki bir arıza backend açılışını bloklamasın.
+      # BH-04: rate limiter'lar REDIS_URL verilmişse Redis'e bağlanır ve
+      # ulaşılamıyorsa startup fail-fast olur (bkz. cache::connect) — bu yüzden
+      # redis healthy olana kadar bekle. (REDIS_URL boşsa bellek-içi limiter.)
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "/usr/local/bin/streamdubber-backend", "--health-check"]
       interval: 30s
