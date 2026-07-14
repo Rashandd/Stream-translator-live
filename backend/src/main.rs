@@ -17,7 +17,7 @@ use streamdubber_backend::{
     ext_twitch::ExtTwitch,
     founding::FoundingStore,
     config::{Config, Environment, ServiceConfig},
-    crypto, db,
+    cache, crypto, db,
     gateway::{
         assemblyai::AssemblyAiStt,
         deepgram::DeepgramStt,
@@ -120,7 +120,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let state = build_state(secrets, db_pool, environment).await?;
+    // REDIS_URL verilmişse bağlan (BH-04); ulaşılamıyorsa fail-fast (`?`),
+    // tıpkı db::connect gibi. Yoksa ephemeral state bellek-içi kalır
+    // (tek-instance — güvenlik gerilemesi değil, ölçek sınırı; bugünkü
+    // davranışın aynısı, bkz. docs/adr/0001-production-state-ownership.md).
+    let redis = match &config.redis_url {
+        Some(url) => {
+            let manager = cache::connect(url).await?;
+            tracing::info!("redis connected — rate limiting shared across instances");
+            Some(manager)
+        }
+        None => {
+            tracing::warn!("REDIS_URL not set — rate limiting is in-memory (single-instance only)");
+            None
+        }
+    };
+
+    let state = build_state(secrets, db_pool, redis, environment).await?;
     let router = app::router(state);
 
     match TlsSettings::from_env() {
@@ -216,6 +232,7 @@ fn parse_enc_key(encoded: &str) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::er
 async fn build_state(
     secrets: Arc<ManagedSecrets>,
     db_pool: Option<sqlx::PgPool>,
+    redis: Option<redis::aio::ConnectionManager>,
     environment: Environment,
 ) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
@@ -612,6 +629,7 @@ async fn build_state(
         secrets,
         bootstrap_admin: Arc::new(bootstrap_admin),
         db: db_pool,
+        redis,
         pairing: Arc::new(PairingStore::new()),
         pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
         sdk_sessions,

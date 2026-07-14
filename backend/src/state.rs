@@ -59,6 +59,11 @@ pub struct AppState {
     /// PostgreSQL havuzu (`DATABASE_URL` verilmişse). `None` → persist
     /// isteyen yollar (Stripe webhook, usage) sadece loglar.
     pub db: Option<sqlx::PgPool>,
+    /// Redis bağlantı yöneticisi (`REDIS_URL` verilmişse — BH-04). `None` →
+    /// ephemeral/paylaşımlı state bellek-içi (tek-instance). Şu an yalnız
+    /// rate limiter'lar kullanır (bkz. `rate_limit`,
+    /// `docs/adr/0001-production-state-ownership.md`).
+    pub redis: Option<redis::aio::ConnectionManager>,
     /// SDK ↔ hesap eşleştirme kodları (bellek içi, kısa ömürlü).
     pub pairing: Arc<PairingStore>,
     /// `/api/pairing/claim` brute-force koruması (per-IP, bellek içi).
@@ -132,6 +137,7 @@ impl AppState {
             secrets,
             bootstrap_admin: Arc::new(None),
             db: None,
+            redis: None,
             pairing: Arc::new(PairingStore::new()),
             pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
             sdk_sessions: Arc::new(SdkSessionStore::in_memory()),
@@ -238,6 +244,12 @@ impl FromRef<AppState> for Arc<Option<BootstrapAdmin>> {
 impl FromRef<AppState> for Option<sqlx::PgPool> {
     fn from_ref(state: &AppState) -> Self {
         state.db.clone()
+    }
+}
+
+impl FromRef<AppState> for Option<redis::aio::ConnectionManager> {
+    fn from_ref(state: &AppState) -> Self {
+        state.redis.clone()
     }
 }
 
