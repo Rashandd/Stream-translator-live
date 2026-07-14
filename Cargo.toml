@@ -22,6 +22,7 @@ async-trait = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "macros", "migrate"] }
+redis = { version = "1", default-features = false, features = ["tokio-comp", "connection-manager", "script"] }
 aes-gcm = "0.10"
 base64 = "0.22"
 getrandom = "0.2"

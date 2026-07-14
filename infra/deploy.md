@@ -111,6 +111,7 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `BIND_ADDR` | `0.0.0.0:8080` |
 | `JWT_SECRET` | En az 32 byte rastgele dize |
 | `DATABASE_URL` | compose içi: `postgres://streamdubber:...@postgres:5432/streamdubber` |
+| `REDIS_URL` | compose içi: `redis://redis:6379` — rate limiter paylaşımlı sayacı (BH-04); boşsa bellek-içi (tek-instance), ulaşılamazsa startup durur (fail-fast). Production'da zorunlu değil (BH-08'e ertelendi) |
 | `ADMIN_EMAIL` | Panel girişi için bootstrap admin e-postası |
 | `ADMIN_PASSWORD_HASH` | `cargo run --bin hash_password` çıktısı (argon2id) |
 | `CORS_ALLOWED_ORIGINS` | `https://strovak.com,https://www.strovak.com` |
@@ -134,10 +135,13 @@ Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
 kimlikleri...) env'e KOYMAK ZORUNDA DEĞİLSİN — deploy sonrası admin panelden
 girilir (adım 4). Env'e koyarsan da çalışır; panel girişleri env'in önüne geçer.
 
-**Not — `REDIS_URL`:** compose'da `redis` servisi hazır bekliyor ama backend
-HENÜZ ona bağlanmıyor (kodda hiçbir referans yok) — hardening planı BH-04/06
-(`docs/backend-hardening-captions-plan.md`) bağlanınca zorunlu env listesine
-eklenecek. Bugün ayarlaman gerekmiyor.
+**Not — `REDIS_URL`:** rate limiter'lar (login/signup/pairing) verilmişse
+Redis'i instance'lar arası paylaşımlı sayaç olarak kullanır (BH-04). Boşsa
+bellek-içi (tek-instance) — bu bir ölçek sınırı, güvenlik gerilemesi değil.
+Ulaşılamayan bir `REDIS_URL` startup'ı durdurur (`DATABASE_URL` ile aynı
+fail-fast). Production'da zorunlu kılınması BH-08'e ertelendi
+(`docs/backend-hardening-captions-plan.md`). Diğer ephemeral state'in Redis'e
+taşınması BH-04'ün kalan kategorileridir.
 
 ### 2d. Kalıcılık ve yedek
 

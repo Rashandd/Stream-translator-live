@@ -7,6 +7,7 @@ pub mod app;
 pub mod auth;
 pub mod billing;
 pub mod bindings;
+pub mod cache;
 pub mod config;
 pub mod config_spec;
 pub mod costs;

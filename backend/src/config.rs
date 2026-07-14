@@ -17,6 +17,9 @@ pub struct Config {
     pub bind_addr: SocketAddr,
     /// PostgreSQL bağlantı dizesi (varsa migration/pool için).
     pub database_url: Option<String>,
+    /// Redis bağlantı dizesi (varsa ephemeral/paylaşımlı state için — BH-04).
+    /// `database_url` ile aynı statü: opsiyonel; yoksa bellek-içi yola düşülür.
+    pub redis_url: Option<String>,
 }
 
 /// Konfigürasyon yükleme hataları.
@@ -45,10 +48,12 @@ impl Config {
         })?;
 
         let database_url = std::env::var("DATABASE_URL").ok();
+        let redis_url = std::env::var("REDIS_URL").ok();
 
         Ok(Config {
             bind_addr,
             database_url,
+            redis_url,
         })
     }
 }
@@ -79,6 +84,15 @@ impl Environment {
         match value {
             Some(v) if v.eq_ignore_ascii_case("production") => Environment::Production,
             _ => Environment::Development,
+        }
+    }
+
+    /// Redis anahtar ad-alanı segmenti (`cache::key`'in `{env}` parçası).
+    /// Namespace için tek kaynak — ayrı bir string-üretici fonksiyon eklenmez.
+    pub fn as_label(&self) -> &'static str {
+        match self {
+            Environment::Production => "production",
+            Environment::Development => "development",
         }
     }
 }

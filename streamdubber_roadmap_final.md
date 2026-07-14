@@ -1409,11 +1409,11 @@ Faz P0
 
 Faz P1
 - [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
-  - [ ] BH-03 ADR (`docs/adr/0001-production-state-ownership.md`) — bkz. plan §14 kapsam notu
-  - [ ] BH-03A minimal: production'da `DATABASE_URL` zorunluluğu (fail-closed startup) — bkz. plan §14 kapsam notu
+  - [x] BH-03 ADR (`docs/adr/0001-production-state-ownership.md`) — bkz. plan §14 durum notu (commit `b0c9b67`)
+  - [x] BH-03A minimal: production'da `DATABASE_URL` zorunluluğu (fail-closed startup) — bkz. plan §14 durum notu (commit `5b6dd36`)
   - [ ] BH-03A repository temeli + BH-03B/C/D: schema/migration + 11 domain cutover + legacy importer (ADR+minimal sonrası, ayrı görev)
 - [ ] BH-04 Redis tabanlı paylaşılan ephemeral state kur
-  - [ ] BH-04 ilk artım: Redis connection manager + `AuthLimiter`/`ClaimLimiter` rate limiter'larının Redis'e taşınması — bkz. plan §15 kapsam notu
+  - [x] BH-04 ilk artım: Redis connection manager + `AuthLimiter`/`ClaimLimiter` rate limiter'larının Redis'e taşınması — bkz. plan §15 durum notu (commit `b862718`+`3e193bc`+`b1441d4`)
   - [ ] BH-04 kalan 7 kategori: OAuth state, pairing code, 2FA/reset code, SDK command queue, active-stream presence, overlay snapshot+Pub/Sub, entitlement/revocation cache
 - [ ] BH-05 Trusted proxy ve güvenilir client IP çözümlemesi ekle
 - [ ] BH-06 Rate-limit, OAuth state, overlay ve WS kaynaklarını sınırla

@@ -66,7 +66,7 @@ Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel S
 - Frontend: Next.js 15 + Tailwind + shadcn/ui
 - SDK: Tauri 2 + Rust (Windows: WASAPI aktif; macOS/Linux: cpal aktif — üçü de indirilebilir, "yakında" değil)
 - DB: PostgreSQL (opsiyonel — `DATABASE_URL` yoksa backend dosya-tabanlı `*_FILE` store'larla çalışır, DB best-effort ayna)
-- Redis: compose'da tanımlı ama backend HENÜZ bağlanmıyor/kullanmıyor (hardening planı BH-04/06'ya bağlı — bkz. `docs/backend-hardening-captions-plan.md`)
+- Redis: rate limiter'lar (login/signup/pairing) `REDIS_URL` verilmişse Redis'i instance'lar arası paylaşımlı sayaç olarak kullanır (BH-04); yoksa bellek-içi (tek-instance). Diğer ephemeral state (OAuth CSRF, pairing/2FA kodları, SDK komut kuyruğu, overlay fan-out) hâlâ bellek-içi — BH-04'ün kalan kategorileri (bkz. `docs/backend-hardening-captions-plan.md`, `docs/adr/0001-production-state-ownership.md`)
 - Şifreleme: TLS 1.3 (ses akışı için yeterli, üstüne AES ekleme yok); mTLS (istemci sertifikası) ERTELENDİ — bkz. `docs/security.md`
 - Key yönetimi: admin panel (`SECRETS_FILE`, AES-256-GCM) — HashiCorp Vault opsiyonel taban store
 - STT: Deepgram (prerecorded REST) + AssemblyAI fallback → self-hosted faster-whisper (roadmap 2.6, elle aktive edilir)
@@ -154,7 +154,7 @@ git diff
 - Tüm servisler env var ile konfigüre edilir, image içine değer gömülmez
 - Health check her container'da zorunlu
 - Local dev: `docker compose -f infra/docker-compose.yml --env-file .env up` ile backend + frontend + postgres
-  + vault (redis compose'da hazır ama backend henüz kullanmıyor — bkz. Stack notu)
+  + vault + redis (rate limiter'lar `REDIS_URL` ile Redis'i kullanır — bkz. Stack notu)
 
 ### Konfigürasyon — Hiçbir Şey Hard-coded Olmaz
 - STT, çeviri, TTS sağlayıcıları restart'sız değiştirilebilir — config API üzerinden (`PUT /admin/config`);
