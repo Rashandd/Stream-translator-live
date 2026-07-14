@@ -982,18 +982,21 @@ pub async fn signup(
         .get("auth.signup.rate_limit_per_min")
         .and_then(|v| v.parse().ok())
         .unwrap_or(20);
-    if !app.auth_limiter.check_signup(&client_key(&headers), signup_limit) {
-        app.logger.log(
-            LogLevel::Warn,
-            "auth",
-            "signup rate limited",
-            None,
-            None,
-        );
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            "too many signup attempts, try again later".to_string(),
-        ));
+    match app
+        .auth_limiter
+        .check_signup(&client_key(&headers), signup_limit)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            app.logger
+                .log(LogLevel::Warn, "auth", "signup rate limited", None, None);
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many signup attempts, try again later".to_string(),
+            ));
+        }
+        Err(err) => return Err(crate::rate_limit::to_http_error(&err)),
     }
 
     if !req.legal_terms_accepted {
@@ -1081,12 +1084,21 @@ pub async fn login(
         .get("auth.login.rate_limit_per_min")
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
-    if !app.auth_limiter.check_login(&client_key(&headers), login_limit) {
-        app.logger.log(LogLevel::Warn, "auth", "login rate limited", None, None);
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            "too many login attempts, try again later".to_string(),
-        ));
+    match app
+        .auth_limiter
+        .check_login(&client_key(&headers), login_limit)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            app.logger
+                .log(LogLevel::Warn, "auth", "login rate limited", None, None);
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many login attempts, try again later".to_string(),
+            ));
+        }
+        Err(err) => return Err(crate::rate_limit::to_http_error(&err)),
     }
 
     // 1) Bootstrap admin (varsa).

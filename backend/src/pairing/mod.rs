@@ -22,6 +22,8 @@ use std::sync::Arc;
 use crate::auth::authz::AuthUser;
 use crate::auth::jwt::{Claims, Jwt};
 use crate::logging::{LogLevel, Logger};
+use crate::rate_limit::{RateLimitError, RateLimiter};
+use redis::aio::ConnectionManager;
 
 /// Kod uzunluğu — SDK tarafındaki `pairing::CODE_LEN` ile birebir.
 pub const CODE_LEN: usize = 6;
@@ -36,7 +38,6 @@ const DEVICE_TOKEN_TTL_SECS: i64 = 30 * 24 * 3600;
 /// edilebilir (bkz. `waitlist::WaitlistLimiter` — aynı desen, ayrı instance).
 const CLAIM_RATE_LIMIT_PER_MIN: u32 = 10;
 const CLAIM_RATE_WINDOW: Duration = Duration::from_secs(60);
-const CLAIM_RATE_PRUNE_THRESHOLD: usize = 4096;
 
 struct PendingPairing {
     user_id: String,
@@ -121,33 +122,32 @@ impl Default for PairingStore {
     }
 }
 
-/// Sabit pencereli, bellek içi per-IP rate limiter — `/api/pairing/claim`
-/// brute-force koruması (bkz. `CLAIM_RATE_LIMIT_PER_MIN`).
+/// `/api/pairing/claim` brute-force koruması. Kendi sabit-pencere mantığını
+/// kopyalamak yerine `rate_limit::RateLimiter` çekirdeğine devreder — böylece
+/// BH-04'ün Redis desteği (instance'lar arası paylaşımlı sayaç) `AuthLimiter`
+/// ile tek bir yerde yaşar.
 pub struct ClaimLimiter {
-    rate: Mutex<HashMap<String, (Instant, u32)>>,
+    inner: RateLimiter,
 }
 
 impl ClaimLimiter {
     pub fn new() -> Self {
         ClaimLimiter {
-            rate: Mutex::new(HashMap::new()),
+            inner: RateLimiter::new(CLAIM_RATE_WINDOW),
         }
     }
 
-    fn check(&self, key: &str) -> bool {
-        let Ok(mut map) = self.rate.lock() else {
-            return false;
-        };
-        if map.len() > CLAIM_RATE_PRUNE_THRESHOLD {
-            map.retain(|_, (start, _)| start.elapsed() < CLAIM_RATE_WINDOW);
+    /// Redis-destekli varyant (BH-04) — sayaç instance'lar arası paylaşılır.
+    pub fn with_redis(redis: ConnectionManager, env_label: &str) -> Self {
+        ClaimLimiter {
+            inner: RateLimiter::with_redis(CLAIM_RATE_WINDOW, redis, env_label),
         }
-        let now = Instant::now();
-        let entry = map.entry(key.to_string()).or_insert((now, 0));
-        if entry.0.elapsed() >= CLAIM_RATE_WINDOW {
-            *entry = (now, 0);
-        }
-        entry.1 += 1;
-        entry.1 <= CLAIM_RATE_LIMIT_PER_MIN
+    }
+
+    async fn check(&self, key: &str) -> Result<bool, RateLimitError> {
+        self.inner
+            .check("pairing-claim", key, CLAIM_RATE_LIMIT_PER_MIN)
+            .await
     }
 }
 
@@ -264,18 +264,22 @@ pub async fn claim(
     headers: HeaderMap,
     Json(req): Json<ClaimRequest>,
 ) -> Result<Json<ClaimResponse>, (StatusCode, String)> {
-    if !limiter.check(&client_key(&headers)) {
-        logger.log(
-            LogLevel::Warn,
-            "pairing",
-            "pairing claim rate limited",
-            None,
-            None,
-        );
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            "too many pairing attempts, try again later".to_string(),
-        ));
+    match limiter.check(&client_key(&headers)).await {
+        Ok(true) => {}
+        Ok(false) => {
+            logger.log(
+                LogLevel::Warn,
+                "pairing",
+                "pairing claim rate limited",
+                None,
+                None,
+            );
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many pairing attempts, try again later".to_string(),
+            ));
+        }
+        Err(err) => return Err(crate::rate_limit::to_http_error(&err)),
     }
 
     let code = req.pairing_code.trim();
@@ -393,23 +397,23 @@ mod tests {
         assert_eq!(store.claim("000000"), Err(PairingError::UnknownCode));
     }
 
-    #[test]
-    fn claim_limiter_allows_up_to_limit_then_blocks() {
+    #[tokio::test]
+    async fn claim_limiter_allows_up_to_limit_then_blocks() {
         let limiter = ClaimLimiter::new();
         for _ in 0..CLAIM_RATE_LIMIT_PER_MIN {
-            assert!(limiter.check("1.2.3.4"));
+            assert!(limiter.check("1.2.3.4").await.unwrap());
         }
-        assert!(!limiter.check("1.2.3.4"));
+        assert!(!limiter.check("1.2.3.4").await.unwrap());
     }
 
-    #[test]
-    fn claim_limiter_tracks_clients_independently() {
+    #[tokio::test]
+    async fn claim_limiter_tracks_clients_independently() {
         let limiter = ClaimLimiter::new();
         for _ in 0..CLAIM_RATE_LIMIT_PER_MIN {
-            assert!(limiter.check("1.2.3.4"));
+            assert!(limiter.check("1.2.3.4").await.unwrap());
         }
-        assert!(!limiter.check("1.2.3.4"));
+        assert!(!limiter.check("1.2.3.4").await.unwrap());
         // Farklı istemci kendi bütçesini kullanır.
-        assert!(limiter.check("5.6.7.8"));
+        assert!(limiter.check("5.6.7.8").await.unwrap());
     }
 }

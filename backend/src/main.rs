@@ -613,6 +613,19 @@ async fn build_state(
         None => SessionStore::in_memory(),
     });
 
+    // Rate limiter'lar: Redis varsa instance'lar arası paylaşımlı sayaç (BH-04),
+    // yoksa bugünkü bellek-içi (tek-instance). `redis` struct alanına taşınmadan
+    // önce klonlanır (ConnectionManager Arc-içi, ucuz klonlanır). Namespace
+    // segmenti tek kaynaktan: `environment.as_label()`.
+    let auth_limiter = match &redis {
+        Some(conn) => AuthLimiter::with_redis(conn.clone(), environment.as_label()),
+        None => AuthLimiter::new(),
+    };
+    let pairing_claim_limiter = match &redis {
+        Some(conn) => ClaimLimiter::with_redis(conn.clone(), environment.as_label()),
+        None => ClaimLimiter::new(),
+    };
+
     Ok(AppState {
         jwt: Arc::new(Jwt::new(jwt_secret.as_bytes())),
         gateway: Arc::new(gateway),
@@ -631,7 +644,7 @@ async fn build_state(
         db: db_pool,
         redis,
         pairing: Arc::new(PairingStore::new()),
-        pairing_claim_limiter: Arc::new(ClaimLimiter::new()),
+        pairing_claim_limiter: Arc::new(pairing_claim_limiter),
         sdk_sessions,
         relay,
         provider_tests: Arc::new(ProviderTestStore::new()),
@@ -641,7 +654,7 @@ async fn build_state(
         users: Arc::new(users),
         twofactor: Arc::new(TwoFactorStore::new()),
         challenges: Arc::new(ChallengeStore::default()),
-        auth_limiter: Arc::new(AuthLimiter::new()),
+        auth_limiter: Arc::new(auth_limiter),
         browser_sessions,
         sdk_commands: Arc::new(sdk_link::SdkCommandQueue::new()),
         stt_settings,
