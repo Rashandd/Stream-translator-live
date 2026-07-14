@@ -80,6 +80,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env()?;
 
+    // BH-03A: production'da DATABASE_URL zorunlu — dosya-only kalıcılıkla
+    // sessizce başlamak yerine açık hata verip başlamayı reddet. `Environment`
+    // bir kez burada hesaplanır ve `build_state`'e parametre olarak geçirilir
+    // (build_state içinde ikinci bir `Environment::from_env()` yok).
+    let environment = Environment::from_env();
+    enforce_production_database_requirement(environment, &config.database_url)
+        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+
     // Taban secret kaynağı — VAULT_ADDR+VAULT_TOKEN varsa Vault, yoksa env.
     let (base_store, base_label): (Box<dyn SecretStore>, &'static str) =
         match VaultSecretStore::from_env() {
@@ -112,7 +120,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let state = build_state(secrets, db_pool).await?;
+    let state = build_state(secrets, db_pool, environment).await?;
     let router = app::router(state);
 
     match TlsSettings::from_env() {
@@ -124,6 +132,26 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             serve_plain(config.bind_addr, router).await
         }
     }
+}
+
+/// BH-03A: production'da `DATABASE_URL` yoksa başlamayı reddet.
+///
+/// Saf/test edilebilir çekirdek (`Environment::from_value`'nun `config.rs`'te
+/// env okumasından ayrılmasıyla aynı gerekçe): doğrudan env-var okumaz, böylece
+/// testler process-global `set_var` üzerinde yarışmaz. Karar tek noktada
+/// verilir — çağıran (`run`) `Environment`'ı bir kez hesaplar.
+fn enforce_production_database_requirement(
+    environment: Environment,
+    database_url: &Option<String>,
+) -> Result<(), String> {
+    if environment == Environment::Production && database_url.is_none() {
+        return Err(
+            "DATABASE_URL is required when APP_ENV=production — refusing to start \
+             with file-only persistence (BH-03A)"
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 /// `SECRETS_FILE`/`SECRETS_ENC_KEY` env'ine göre [`ManagedSecrets`] kurar.
@@ -188,9 +216,9 @@ fn parse_enc_key(encoded: &str) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::er
 async fn build_state(
     secrets: Arc<ManagedSecrets>,
     db_pool: Option<sqlx::PgPool>,
+    environment: Environment,
 ) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
-    let environment = Environment::from_env();
 
     let service_config = Arc::new(ServiceConfig::with_defaults());
 
@@ -677,5 +705,37 @@ fn health_check() -> Result<(), Box<dyn std::error::Error>> {
 async fn shutdown_signal() {
     if let Err(err) = tokio::signal::ctrl_c().await {
         tracing::error!(error = %err, "failed to listen for shutdown signal");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn production_without_database_url_is_rejected() {
+        let err = enforce_production_database_requirement(Environment::Production, &None)
+            .expect_err("production without DATABASE_URL must refuse to start");
+        assert!(
+            err.contains("DATABASE_URL"),
+            "error should name the missing variable: {err}"
+        );
+    }
+
+    #[test]
+    fn production_with_database_url_is_accepted() {
+        let result = enforce_production_database_requirement(
+            Environment::Production,
+            &Some("postgres://localhost/streamdubber".to_string()),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn development_without_database_url_is_accepted() {
+        // Yerel/CI: DATABASE_URL yokken dosya-only kalıcılık bilinçli olarak
+        // kabul edilir — sıkı kural yalnız production'da geçerli.
+        let result = enforce_production_database_requirement(Environment::Development, &None);
+        assert!(result.is_ok());
     }
 }
