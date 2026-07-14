@@ -660,11 +660,11 @@ Faz P0
 
 Faz P1
 - [ ] BH-03 PostgreSQL'i production state için tek kaynak yap (+ overlay_tokens tablosu)
-  - [ ] BH-03 ADR (`docs/adr/0001-production-state-ownership.md`) — bkz. §14 kapsam notu
-  - [ ] BH-03A minimal: production'da `DATABASE_URL` zorunluluğu (fail-closed startup) — bkz. §14 kapsam notu
+  - [x] BH-03 ADR (`docs/adr/0001-production-state-ownership.md`) — bkz. §14 durum notu (commit `b0c9b67`)
+  - [x] BH-03A minimal: production'da `DATABASE_URL` zorunluluğu (fail-closed startup) — bkz. §14 durum notu (commit `5b6dd36`)
   - [ ] BH-03A repository temeli + BH-03B/C/D: schema/migration + 11 domain cutover + legacy importer (ADR+minimal sonrası, ayrı görev)
 - [ ] BH-04 Redis tabanlı paylaşılan ephemeral state kur
-  - [ ] BH-04 ilk artım: Redis connection manager + `AuthLimiter`/`ClaimLimiter` rate limiter'larının Redis'e taşınması — bkz. §15 kapsam notu
+  - [x] BH-04 ilk artım: Redis connection manager + `AuthLimiter`/`ClaimLimiter` rate limiter'larının Redis'e taşınması — bkz. §15 durum notu (commit `b862718`+`3e193bc`+`b1441d4`)
   - [ ] BH-04 kalan 7 kategori: OAuth state, pairing code, 2FA/reset code, SDK command queue, active-stream presence, overlay snapshot+Pub/Sub, entitlement/revocation cache
 - [ ] BH-05 Trusted proxy ve güvenilir client IP çözümlemesi ekle
 - [ ] BH-06 Rate-limit, OAuth state, overlay ve WS kaynaklarını sınırla
@@ -914,6 +914,19 @@ fix: validate plan mutations before persistence
 > §15 kapsam notu) tek bir geçişte ele alınacak şekilde eşleştirildi — aralarında sıra
 > zorunluluğu yoktur, BH-04'ün rate-limit taşıması BH-03'ten bağımsız çalışır.
 
+> **Durum (2026-07-14): KISMEN — ADR + BH-03A minimal yapıldı; BH-03 bütün olarak
+> TAMAMLANMADI.** ADR `docs/adr/0001-production-state-ownership.md` yazıldı (commit
+> `b0c9b67`): her store için sahiplik/dayanıklılık/TTL/cache-invalidation/şifreleme/
+> cutover/failure-policy tablosu, migration'lar 0001–0007 + kaynak koddan doğrulandı.
+> BH-03A minimal (commit `5b6dd36`): saf, test edilebilir
+> `main.rs::enforce_production_database_requirement` — production'da `DATABASE_URL`
+> yoksa başlamayı reddeder (3 unit test). **Kapsam notundaki `app_env_label() -> String`
+> tasarımı DEĞİŞTİ:** BH-02 bu arada `main`'e merge olduğundan ikinci bir ham string
+> reader EKLENMEDİ; mevcut tipli `Environment` (`Environment::from_env`) doğrudan
+> reuse edildi ve `Environment::as_label()` eklendi (Redis namespace segmenti için tek
+> kaynak). Ertelenen: BH-03A repository temeli + BH-03B/C/D (schema/migration, 11
+> domain cutover, legacy importer) — ayrı görev.
+
 ### Amaç
 
 Production'da kalıcı domain verisinin tek kaynağını PostgreSQL yapmak ve süresiz
@@ -1057,6 +1070,25 @@ chore: disable file state stores in production
 > devredilir (mükerrer mantığı ikinci kez kopyalamamak için); `WaitlistLimiter` ve
 > `ExtTwitch::check_rate` kasıtlı olarak dışarıda bırakıldı (ayrı, gelecekteki bir
 > fold-in görevi).
+
+> **Durum (2026-07-14): KISMEN — connection manager + rate limiter'lar yapıldı; BH-04
+> bütün olarak TAMAMLANMADI.** Redis connection manager (`backend/src/cache.rs`,
+> `redis` 1.3 [`tokio-comp`,`connection-manager`,`script`], fail-fast `connect` +
+> `key()` namespace; commit `b862718`) ve rate limiter'ların Redis'e taşınması (commit
+> `3e193bc`): ortak `RateLimiter` çekirdeği (`endpoint`+`key`), `AuthLimiter` +
+> `pairing::ClaimLimiter` (mükerrer mantık çekirdeğe devredildi), tek round-trip'lik
+> atomik `INCR`+`EXPIRE` (`redis::Script`+`LazyLock`), her backend hatası → `503`
+> (fail-closed; `to_http_error`). `Config.redis_url`/`AppState.redis` eklendi;
+> `build_state` limiter'ları `REDIS_URL` varsa `with_redis` ile kurar. Rollout dokümanları
+> (docker-compose `depends_on: redis`, `.env.example`, `CLAUDE.md`, `infra/deploy.md`)
+> güncellendi (commit `b1441d4`). Testler: bellek-içi testler async/`Result`'a çevrildi
+> (davranış aynı); 4 `#[ignore]`d Redis integration testi (`TEST_REDIS_URL` gerekli —
+> paylaşımlı sayaç, TTL expiry, eşzamanlılık, parity) + fail-fast connect testi eklendi.
+> Bu oturumda local Redis/docker yok → `#[ignore]`d testler çalıştırılmadı (BH-02'nin
+> DB-gated testleriyle aynı durum). Suite: 622 passed / 0 failed / 9 ignored; clippy
+> `-D warnings` temiz. Ertelenen: kalan 7 ephemeral kategori (OAuth state, pairing/2FA
+> kodları, SDK command queue, active-stream presence, overlay snapshot+Pub/Sub,
+> entitlement cache) + `REDIS_URL`'in production'da zorunlu kılınması (BH-08).
 
 ### Amaç
 
