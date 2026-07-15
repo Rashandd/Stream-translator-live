@@ -45,8 +45,19 @@ async fn admin_ping(admin: AdminUser) -> String {
 /// [`config::PUBLIC_CONFIG_KEYS`] alanlarını okur. Sağlayıcı seçimi, mock
 /// fallback, auth/CORS/billing gibi internal anahtarlar burada DÖNMEZ; admin
 /// bunları yetkili `GET /admin/config` üzerinden okur.
-async fn get_config(State(cfg): State<Arc<ServiceConfig>>) -> Json<BTreeMap<String, String>> {
-    Json(cfg.public_snapshot())
+async fn get_config(
+    State(cfg): State<Arc<ServiceConfig>>,
+) -> Result<Json<BTreeMap<String, String>>, (StatusCode, String)> {
+    cfg.persistent_public_snapshot()
+        .await
+        .map(Json)
+        .map_err(|err| {
+            tracing::warn!(%err, "service_config: public DB read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "config service unavailable".to_string(),
+            )
+        })
 }
 
 /// Tüm runtime config'i okur (sadece admin) — internal anahtarlar dahil.
@@ -58,8 +69,14 @@ async fn get_config(State(cfg): State<Arc<ServiceConfig>>) -> Json<BTreeMap<Stri
 async fn get_admin_config(
     _admin: AdminUser,
     State(cfg): State<Arc<ServiceConfig>>,
-) -> Json<BTreeMap<String, String>> {
-    Json(cfg.snapshot())
+) -> Result<Json<BTreeMap<String, String>>, (StatusCode, String)> {
+    cfg.persistent_snapshot().await.map(Json).map_err(|err| {
+        tracing::warn!(%err, "service_config: admin DB read failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "config service unavailable".to_string(),
+        )
+    })
 }
 
 /// Admin config güncelleme gövdesi.
@@ -83,7 +100,6 @@ async fn put_config(
     State(cfg): State<Arc<ServiceConfig>>,
     State(plans): State<Arc<PlanRegistry>>,
     State(environment): State<Environment>,
-    State(db): State<Option<sqlx::PgPool>>,
     Json(update): Json<ConfigUpdate>,
 ) -> Result<Json<BTreeMap<String, String>>, (StatusCode, String)> {
     if cfg.get(&update.key).is_none() {
@@ -93,7 +109,19 @@ async fn put_config(
         ));
     }
 
-    let known_plans: Vec<String> = plans.snapshot().into_iter().map(|p| p.name).collect();
+    let known_plans: Vec<String> = plans
+        .persistent_snapshot()
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: config validation read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
     let ctx = ValidationContext {
         environment,
         known_plans: &known_plans,
@@ -101,20 +129,22 @@ async fn put_config(
     validate_config_value(&update.key, &update.value, &ctx)
         .map_err(|err| (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()))?;
 
-    if let Some(pool) = db {
-        crate::config::persist_to_db(&pool, &update.key, &update.value)
-            .await
-            .map_err(|err| {
-                tracing::warn!(%err, key = %update.key, "service_config: DB yazımı başarısız, bellek değiştirilmedi");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "failed to persist config".to_string(),
-                )
-            })?;
-    }
-
-    cfg.set_existing(&update.key, update.value.clone());
-    Ok(Json(cfg.snapshot()))
+    cfg.persistent_set_existing(&update.key, update.value.clone())
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, key = %update.key, "service_config: DB write failed; local cache unchanged");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to persist config".to_string(),
+            )
+        })?;
+    cfg.persistent_snapshot().await.map(Json).map_err(|err| {
+        tracing::warn!(%err, "service_config: DB read after write failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "config service unavailable".to_string(),
+        )
+    })
 }
 
 /// Log kayıtlarını arar/filtreler (sadece admin) — Faz 1.12.
