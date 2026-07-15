@@ -58,9 +58,9 @@ use crate::integrations::{urlencoding_light, CallbackQuery};
 use crate::logging::LogLevel;
 use crate::secrets::{names, SecretRef, SecretStore};
 use crate::state::AppState;
-use crate::users::{signup_consents, user_principal, ConsentRecord, OAuthIdentityInfo, UserError};
 #[cfg(test)]
 use crate::users::UserStore;
+use crate::users::{signup_consents, user_principal, ConsentRecord, OAuthIdentityInfo, UserError};
 
 /// OAuth başlatma niyeti — `state`'e gömülür ve callback davranışını belirler
 /// (A-03). Login butonu bilinmeyen kimlik için sessizce hesap AÇMAZ; yalnız
@@ -165,7 +165,13 @@ pub struct LoginProviders {
     http: reqwest::Client,
 }
 
-fn default_providers() -> Vec<(&'static str, OAuthProvider, &'static str, &'static str, &'static str)> {
+fn default_providers() -> Vec<(
+    &'static str,
+    OAuthProvider,
+    &'static str,
+    &'static str,
+    &'static str,
+)> {
     vec![
         (
             "google",
@@ -300,9 +306,8 @@ impl LoginProviders {
             .get("auth.oauth_redirect_base")
             .unwrap_or_else(|| "http://localhost:8080/api/auth/oauth".to_string());
         let redirect_uri = format!("{base}/{provider_name}/callback");
-        let consent_snapshot = (intent == OAuthIntent::Signup).then(|| {
-            signup_consents(cfg, false, &format!("{provider_name}_signup"))
-        });
+        let consent_snapshot = (intent == OAuthIntent::Signup)
+            .then(|| signup_consents(cfg, false, &format!("{provider_name}_signup")));
         let state = self.states.issue(LoginState {
             provider: provider_name.to_string(),
             intent,
@@ -313,7 +318,9 @@ impl LoginProviders {
             signup_consents: consent_snapshot,
             created: Instant::now(),
         });
-        Ok(creds.provider.authorize_redirect(&client_id, &redirect_uri, &state))
+        Ok(creds
+            .provider
+            .authorize_redirect(&client_id, &redirect_uri, &state))
     }
 
     /// callback adımı: `code`'u token'a çevirir, sağlayıcıdan kimlik çeker.
@@ -328,7 +335,10 @@ impl LoginProviders {
         code: &str,
         state: &str,
     ) -> Result<OAuthOutcome, OAuthLoginError> {
-        let st = self.states.consume(state).ok_or(OAuthLoginError::InvalidState)?;
+        let st = self
+            .states
+            .consume(state)
+            .ok_or(OAuthLoginError::InvalidState)?;
         if st.provider != provider_name {
             return Err(OAuthLoginError::InvalidState);
         }
@@ -337,15 +347,23 @@ impl LoginProviders {
             .providers
             .get(provider_name)
             .ok_or_else(|| OAuthLoginError::UnknownProvider(provider_name.to_string()))?;
-        let (Some(client_id), Some(client_secret)) =
-            (creds.client_id.resolve().await, creds.client_secret.resolve().await)
-        else {
+        let (Some(client_id), Some(client_secret)) = (
+            creds.client_id.resolve().await,
+            creds.client_secret.resolve().await,
+        ) else {
             return Err(OAuthLoginError::NotConfigured(provider_name.to_string()));
         };
 
-        let token = exchange_code(&self.http, &creds.provider, &client_id, &client_secret, code, &st.redirect_uri)
-            .await
-            .map_err(|e| OAuthLoginError::Exchange(e.to_string()))?;
+        let token = exchange_code(
+            &self.http,
+            &creds.provider,
+            &client_id,
+            &client_secret,
+            code,
+            &st.redirect_uri,
+        )
+        .await
+        .map_err(|e| OAuthLoginError::Exchange(e.to_string()))?;
 
         let identity = fetch_identity(
             &self.http,
@@ -361,7 +379,9 @@ impl LoginProviders {
                 .existing_user_id
                 .as_deref()
                 .ok_or(OAuthLoginError::InvalidState)?;
-            app.users.link_identity(user_id, provider_name, &identity.external_id)?;
+            app.users
+                .persistent_link_identity(user_id, provider_name, &identity.external_id)
+                .await?;
             app.logger.log(
                 LogLevel::Info,
                 "auth",
@@ -375,14 +395,18 @@ impl LoginProviders {
             });
         }
 
-        if let Some(existing) = app.users.find_by_oauth(provider_name, &identity.external_id) {
+        if let Some(existing) = app
+            .users
+            .persistent_find_by_oauth(provider_name, &identity.external_id)
+            .await?
+        {
             return Ok(OAuthOutcome::LoggedIn {
                 principal: user_principal(&existing),
                 locale: st.locale,
                 return_to: st.return_to,
             });
         }
-        if app.users.get(&identity.email).is_some() {
+        if app.users.persistent_get(&identity.email).await?.is_some() {
             return Err(OAuthLoginError::EmailExists);
         }
 
@@ -397,13 +421,16 @@ impl LoginProviders {
             .get("auth.default_plan")
             .unwrap_or_else(|| "free".to_string());
         let consents = st.signup_consents.ok_or(OAuthLoginError::InvalidState)?;
-        let user = app.users.create_oauth_user_with_consents(
-            provider_name,
-            &identity.external_id,
-            &identity.email,
-            &plan,
-            consents,
-        )?;
+        let user = app
+            .users
+            .persistent_create_oauth_user_with_consents(
+                provider_name,
+                &identity.external_id,
+                &identity.email,
+                &plan,
+                consents,
+            )
+            .await?;
         app.logger.log(
             LogLevel::Info,
             "auth",
@@ -473,10 +500,13 @@ async fn fetch_identity(
                 .json()
                 .await
                 .map_err(|e| OAuthLoginError::Identity(e.to_string()))?;
-            let email = info
-                .email
-                .ok_or_else(|| OAuthLoginError::Identity("google account has no email".to_string()))?;
-            Ok(OAuthIdentity { external_id: info.sub, email })
+            let email = info.email.ok_or_else(|| {
+                OAuthLoginError::Identity("google account has no email".to_string())
+            })?;
+            Ok(OAuthIdentity {
+                external_id: info.sub,
+                email,
+            })
         }
         "twitch" => {
             #[derive(Debug, Deserialize)]
@@ -499,15 +529,19 @@ async fn fetch_identity(
                 .json()
                 .await
                 .map_err(|e| OAuthLoginError::Identity(e.to_string()))?;
-            let user = resp
-                .data
-                .into_iter()
-                .next()
-                .ok_or_else(|| OAuthLoginError::Identity("twitch returned no user".to_string()))?;
+            let user =
+                resp.data.into_iter().next().ok_or_else(|| {
+                    OAuthLoginError::Identity("twitch returned no user".to_string())
+                })?;
             let email = user.email.ok_or_else(|| {
-                OAuthLoginError::Identity("twitch account has no email (missing user:read:email scope?)".to_string())
+                OAuthLoginError::Identity(
+                    "twitch account has no email (missing user:read:email scope?)".to_string(),
+                )
             })?;
-            Ok(OAuthIdentity { external_id: user.id, email })
+            Ok(OAuthIdentity {
+                external_id: user.id,
+                email,
+            })
         }
         other => Err(OAuthLoginError::UnknownProvider(other.to_string())),
     }
@@ -542,7 +576,9 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
         OAuthLoginError::Exchange(_) | OAuthLoginError::Identity(_) => StatusCode::BAD_GATEWAY,
         OAuthLoginError::EmailExists => StatusCode::CONFLICT,
         OAuthLoginError::AccountNotFound => StatusCode::NOT_FOUND,
-        OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => StatusCode::CONFLICT,
+        OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => {
+            StatusCode::CONFLICT
+        }
         OAuthLoginError::Account(UserError::LastLoginMethod) => StatusCode::CONFLICT,
         OAuthLoginError::Account(UserError::NotFound) => StatusCode::NOT_FOUND,
         OAuthLoginError::Account(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -578,7 +614,9 @@ fn sanitize_locale(raw: Option<&str>, default: &str) -> String {
     let two_lower = |s: &str| s.len() == 2 && s.chars().all(|c| c.is_ascii_lowercase());
     let ok = extra.is_none()
         && two_lower(primary)
-        && region.map(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_alphabetic())).unwrap_or(true);
+        && region
+            .map(|r| r.len() == 2 && r.chars().all(|c| c.is_ascii_alphabetic()))
+            .unwrap_or(true);
     if ok {
         value.to_string()
     } else {
@@ -640,7 +678,8 @@ fn frontend_url(origin: &str, locale: &str, path: &str, query: &str, fragment: &
 }
 
 fn default_locale(cfg: &ServiceConfig) -> String {
-    cfg.get("auth.default_locale").unwrap_or_else(|| "en".to_string())
+    cfg.get("auth.default_locale")
+        .unwrap_or_else(|| "en".to_string())
 }
 
 /// `GET /api/auth/oauth/{provider}/start` başlatma parametreleri. Tarayıcı
@@ -723,11 +762,27 @@ pub async fn list_identities(
 ) -> Result<Json<IdentitiesResponse>, (StatusCode, String)> {
     let record = app
         .users
-        .get_by_id(&user.claims.sub)
+        .persistent_get_by_id(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "user service unavailable".to_string(),
+            )
+        })?
         .ok_or((StatusCode::NOT_FOUND, "user not found".to_string()))?;
     Ok(Json(IdentitiesResponse {
         has_password: record.password_hash.is_some(),
-        identities: app.users.oauth_identities(&user.claims.sub),
+        identities: app
+            .users
+            .persistent_oauth_identities(&user.claims.sub)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "user service unavailable".to_string(),
+                )
+            })?,
     }))
 }
 
@@ -739,13 +794,14 @@ pub async fn unlink(
     State(app): State<AppState>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     app.users
-        .unlink_identity(&user.claims.sub, &provider)
+        .persistent_unlink_identity(&user.claims.sub, &provider)
+        .await
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(|err| {
             let status = match err {
-                UserError::LastLoginMethod | UserError::OAuthIdentityTaken | UserError::AlreadyLinked => {
-                    StatusCode::CONFLICT
-                }
+                UserError::LastLoginMethod
+                | UserError::OAuthIdentityTaken
+                | UserError::AlreadyLinked => StatusCode::CONFLICT,
                 UserError::NotFound => StatusCode::NOT_FOUND,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             };
@@ -765,7 +821,11 @@ pub async fn callback(
     Query(q): Query<CallbackQuery>,
     State(app): State<AppState>,
 ) -> Response {
-    let origin = frontend_origin(&app.service_config.get("integration.frontend_base").unwrap_or_default());
+    let origin = frontend_origin(
+        &app.service_config
+            .get("integration.frontend_base")
+            .unwrap_or_default(),
+    );
     // Hata yolunda `state` henüz tüketilmediği/geçersiz olduğu için locale
     // bilinmez → yapılandırılmış varsayılan locale kullanılır.
     let default_locale = default_locale(&app.service_config);
@@ -780,14 +840,32 @@ pub async fn callback(
             None,
             None,
         );
-        return error_response(origin.as_deref(), &default_locale, "oauth_failed", StatusCode::BAD_GATEWAY);
+        return error_response(
+            origin.as_deref(),
+            &default_locale,
+            "oauth_failed",
+            StatusCode::BAD_GATEWAY,
+        );
     }
     let (Some(code), Some(state)) = (q.code, q.state) else {
-        return error_response(origin.as_deref(), &default_locale, "invalid_state", StatusCode::BAD_REQUEST);
+        return error_response(
+            origin.as_deref(),
+            &default_locale,
+            "invalid_state",
+            StatusCode::BAD_REQUEST,
+        );
     };
 
-    match app.oauth_login.complete(&app, &provider, &code, &state).await {
-        Ok(OAuthOutcome::LoggedIn { principal, locale, return_to }) => {
+    match app
+        .oauth_login
+        .complete(&app, &provider, &code, &state)
+        .await
+    {
+        Ok(OAuthOutcome::LoggedIn {
+            principal,
+            locale,
+            return_to,
+        }) => {
             app.logger.log(
                 LogLevel::Info,
                 "auth",
@@ -801,7 +879,9 @@ pub async fn callback(
                 // in any URL.
                 None => match create_browser_session(&app, principal).await {
                     Ok(response) => response,
-                    Err((status, _)) => error_response(None, &default_locale, "oauth_failed", status),
+                    Err((status, _)) => {
+                        error_response(None, &default_locale, "oauth_failed", status)
+                    }
                 },
                 // Faz 2: the browser lands on oauth-complete with the session
                 // cookies already set (no token in the fragment); the page then
@@ -814,7 +894,9 @@ pub async fn callback(
                     let redirect = Redirect::to(&url).into_response();
                     match attach_new_browser_session(&app, principal, redirect).await {
                         Ok(response) => response,
-                        Err((status, _)) => error_response(Some(&origin), &locale, "oauth_failed", status),
+                        Err((status, _)) => {
+                            error_response(Some(&origin), &locale, "oauth_failed", status)
+                        }
                     }
                 }
             }
@@ -822,7 +904,13 @@ pub async fn callback(
         Ok(OAuthOutcome::Linked { provider, locale }) => match origin {
             None => axum::Json(serde_json::json!({ "linked": provider })).into_response(),
             Some(origin) => {
-                let url = frontend_url(&origin, &locale, "/dashboard/account", &format!("linked={provider}"), "");
+                let url = frontend_url(
+                    &origin,
+                    &locale,
+                    "/dashboard/account",
+                    &format!("linked={provider}"),
+                    "",
+                );
                 Redirect::to(&url).into_response()
             }
         },
@@ -835,7 +923,12 @@ pub async fn callback(
                 None,
             );
             let code = oauth_error_code(&err);
-            error_response(origin.as_deref(), &default_locale, code, oauth_login_status(&err))
+            error_response(
+                origin.as_deref(),
+                &default_locale,
+                code,
+                oauth_login_status(&err),
+            )
         }
     }
 }
@@ -847,7 +940,13 @@ pub async fn callback(
 fn error_response(origin: Option<&str>, locale: &str, code: &str, status: StatusCode) -> Response {
     match origin {
         Some(origin) => {
-            let url = frontend_url(origin, locale, "/login/oauth-complete", &format!("error={code}"), "");
+            let url = frontend_url(
+                origin,
+                locale,
+                "/login/oauth-complete",
+                &format!("error={code}"),
+                "",
+            );
             Redirect::to(&url).into_response()
         }
         None => (status, axum::Json(serde_json::json!({ "error": code }))).into_response(),
@@ -908,7 +1007,9 @@ mod tests {
 
     /// Sahte Google token+userinfo uç noktaları — sabit `g-123` sub'ı, verilen e-posta.
     async fn spawn_google_mock(email: &str) -> String {
-        async fn token(axum::extract::Form(_): axum::extract::Form<Map<String, String>>) -> axum::Json<serde_json::Value> {
+        async fn token(
+            axum::extract::Form(_): axum::extract::Form<Map<String, String>>,
+        ) -> axum::Json<serde_json::Value> {
             axum::Json(serde_json::json!({ "access_token": "at-xyz", "expires_in": 3600 }))
         }
         async fn userinfo(
@@ -931,7 +1032,10 @@ mod tests {
     /// Sadece bu testler için: `begin()` üzerinden gerçek bir `state` üretip
     /// callback'in bekleyeceği kod/state ikilisini simüle eder.
     async fn begin_and_capture_state(providers: &LoginProviders, intent: OAuthIntent) -> String {
-        let url = providers.begin("google", intent, "en", None, &cfg()).await.unwrap();
+        let url = providers
+            .begin("google", intent, "en", None, &cfg())
+            .await
+            .unwrap();
         state_param_of(&url)
     }
 
@@ -958,15 +1062,23 @@ mod tests {
             .await
             .expect("first login creates an account");
 
-        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else {
+            panic!("expected a login outcome")
+        };
         assert_eq!(principal.role, "broadcaster");
-        let user = app.users.find_by_oauth("google", "g-123").expect("account created");
+        let user = app
+            .users
+            .find_by_oauth("google", "g-123")
+            .expect("account created");
         assert_eq!(principal.sub, user.id);
         assert_eq!(user.email, "streamer@example.com");
         assert!(user.password_hash.is_none());
         assert!(user.email_verified);
         assert_eq!(user.consents.len(), 6);
-        assert!(user.consents.iter().all(|record| record.source == "google_signup"));
+        assert!(user
+            .consents
+            .iter()
+            .all(|record| record.source == "google_signup"));
         assert!(user
             .consents
             .iter()
@@ -991,11 +1103,16 @@ mod tests {
             .complete(&app, "google", "code-1", &state_param)
             .await
             .expect("existing identity logs in");
-        let OAuthOutcome::LoggedIn { principal, .. } = outcome else { panic!("expected a login outcome") };
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else {
+            panic!("expected a login outcome")
+        };
         assert_eq!(principal.sub, existing.id);
 
         // Still exactly one account for this identity — no duplicate created.
-        let by_email = app.users.get("streamer@example.com").expect("account exists");
+        let by_email = app
+            .users
+            .get("streamer@example.com")
+            .expect("account exists");
         assert_eq!(by_email.id, existing.id);
     }
 
@@ -1005,7 +1122,9 @@ mod tests {
         let providers = providers_with(&base, true);
 
         let users = UserStore::in_memory();
-        users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        users
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         let app = skeleton_state(users, providers);
         let state_param = begin_and_capture_state(&app.oauth_login, OAuthIntent::Signup).await;
 
@@ -1023,7 +1142,10 @@ mod tests {
     /// `begin_link()` üzerinden gerçek bir `state` üretip callback'in
     /// bekleyeceği kod/state ikilisini simüle eder (linkleme akışı).
     async fn begin_link_and_capture_state(providers: &LoginProviders, user_id: &str) -> String {
-        let url = providers.begin_link(user_id, "google", "en", &cfg()).await.unwrap();
+        let url = providers
+            .begin_link(user_id, "google", "en", &cfg())
+            .await
+            .unwrap();
         state_param_of(&url)
     }
 
@@ -1033,7 +1155,9 @@ mod tests {
         let providers = providers_with(&base, true);
 
         let users = UserStore::in_memory();
-        let existing = users.signup("existing@example.com", "hunter2-strong", "free").unwrap();
+        let existing = users
+            .signup("existing@example.com", "hunter2-strong", "free")
+            .unwrap();
         let app = skeleton_state(users, providers);
         let state_param = begin_link_and_capture_state(&app.oauth_login, &existing.id).await;
 
@@ -1044,7 +1168,10 @@ mod tests {
             .expect("link succeeds");
         assert!(matches!(outcome, OAuthOutcome::Linked { provider, .. } if provider == "google"));
 
-        let linked = app.users.find_by_oauth("google", "g-123").expect("identity now resolves");
+        let linked = app
+            .users
+            .find_by_oauth("google", "g-123")
+            .expect("identity now resolves");
         assert_eq!(linked.id, existing.id);
     }
 
@@ -1054,8 +1181,12 @@ mod tests {
         let providers = providers_with(&base, true);
 
         let users = UserStore::in_memory();
-        users.create_oauth_user("google", "g-123", "owner@example.com", "free").unwrap();
-        let other = users.signup("other@example.com", "hunter2-strong", "free").unwrap();
+        users
+            .create_oauth_user("google", "g-123", "owner@example.com", "free")
+            .unwrap();
+        let other = users
+            .signup("other@example.com", "hunter2-strong", "free")
+            .unwrap();
         let app = skeleton_state(users, providers);
         let state_param = begin_link_and_capture_state(&app.oauth_login, &other.id).await;
 
@@ -1064,7 +1195,10 @@ mod tests {
             .complete(&app, "google", "code-1", &state_param)
             .await
             .unwrap_err();
-        assert!(matches!(err, OAuthLoginError::Account(UserError::OAuthIdentityTaken)));
+        assert!(matches!(
+            err,
+            OAuthLoginError::Account(UserError::OAuthIdentityTaken)
+        ));
     }
 
     fn authed(user_id: &str) -> crate::auth::authz::AuthUser {
@@ -1083,7 +1217,9 @@ mod tests {
     async fn link_start_returns_an_authorize_url_for_the_logged_in_user() {
         let providers = providers_with("http://unused", true);
         let users = UserStore::in_memory();
-        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = users
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         let app = skeleton_state(users, providers);
 
         let Json(resp) = link_start(
@@ -1101,11 +1237,15 @@ mod tests {
     #[tokio::test]
     async fn list_identities_reports_password_and_linked_providers() {
         let users = UserStore::in_memory();
-        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = users
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         users.link_identity(&user.id, "twitch", "t-1").unwrap();
         let app = skeleton_state(users, LoginProviders::empty());
 
-        let Json(resp) = list_identities(authed(&user.id), State(app)).await.expect("list succeeds");
+        let Json(resp) = list_identities(authed(&user.id), State(app))
+            .await
+            .expect("list succeeds");
         assert!(resp.has_password);
         assert_eq!(resp.identities.len(), 1);
         assert_eq!(resp.identities[0].provider, "twitch");
@@ -1114,7 +1254,9 @@ mod tests {
     #[tokio::test]
     async fn unlink_rejects_removing_the_only_login_method() {
         let users = UserStore::in_memory();
-        let user = users.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
+        let user = users
+            .create_oauth_user("google", "g-1", "oauth-only@example.com", "free")
+            .unwrap();
         let app = skeleton_state(users, LoginProviders::empty());
 
         let err = unlink(authed(&user.id), Path("google".to_string()), State(app))
@@ -1126,13 +1268,19 @@ mod tests {
     #[tokio::test]
     async fn unlink_removes_a_linked_provider_when_another_method_remains() {
         let users = UserStore::in_memory();
-        let user = users.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = users
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         users.link_identity(&user.id, "twitch", "t-1").unwrap();
         let app = skeleton_state(users, LoginProviders::empty());
 
-        let status = unlink(authed(&user.id), Path("twitch".to_string()), State(app.clone()))
-            .await
-            .expect("unlink succeeds");
+        let status = unlink(
+            authed(&user.id),
+            Path("twitch".to_string()),
+            State(app.clone()),
+        )
+        .await
+        .expect("unlink succeeds");
         assert_eq!(status, StatusCode::NO_CONTENT);
         assert!(app.users.find_by_oauth("twitch", "t-1").is_none());
     }
@@ -1150,7 +1298,10 @@ mod tests {
 
     #[test]
     fn oauth_login_status_maps_email_exists_to_conflict() {
-        assert_eq!(oauth_login_status(&OAuthLoginError::EmailExists), StatusCode::CONFLICT);
+        assert_eq!(
+            oauth_login_status(&OAuthLoginError::EmailExists),
+            StatusCode::CONFLICT
+        );
         assert_eq!(
             oauth_login_status(&OAuthLoginError::InvalidState),
             StatusCode::BAD_REQUEST
@@ -1176,17 +1327,28 @@ mod tests {
     #[test]
     fn default_providers_point_at_the_real_endpoints() {
         let providers = default_providers();
-        let (google_name, google, google_id_key, google_secret_key, google_userinfo) = &providers[0];
+        let (google_name, google, google_id_key, google_secret_key, google_userinfo) =
+            &providers[0];
         assert_eq!(*google_name, "google");
-        assert_eq!(google.authorize_url, "https://accounts.google.com/o/oauth2/v2/auth");
+        assert_eq!(
+            google.authorize_url,
+            "https://accounts.google.com/o/oauth2/v2/auth"
+        );
         assert_eq!(google.token_url, "https://oauth2.googleapis.com/token");
-        assert_eq!(*google_userinfo, "https://www.googleapis.com/oauth2/v3/userinfo");
+        assert_eq!(
+            *google_userinfo,
+            "https://www.googleapis.com/oauth2/v3/userinfo"
+        );
         assert_eq!(*google_id_key, names::GOOGLE_LOGIN_CLIENT_ID);
         assert_eq!(*google_secret_key, names::GOOGLE_LOGIN_CLIENT_SECRET);
 
-        let (twitch_name, twitch, twitch_id_key, twitch_secret_key, twitch_userinfo) = &providers[1];
+        let (twitch_name, twitch, twitch_id_key, twitch_secret_key, twitch_userinfo) =
+            &providers[1];
         assert_eq!(*twitch_name, "twitch");
-        assert_eq!(twitch.authorize_url, "https://id.twitch.tv/oauth2/authorize");
+        assert_eq!(
+            twitch.authorize_url,
+            "https://id.twitch.tv/oauth2/authorize"
+        );
         assert_eq!(twitch.token_url, "https://id.twitch.tv/oauth2/token");
         assert_eq!(*twitch_userinfo, "https://api.twitch.tv/helix/users");
         assert_eq!(*twitch_id_key, names::TWITCH_CLIENT_ID);
@@ -1214,7 +1376,9 @@ mod tests {
     }
 
     async fn body_text(resp: Response) -> String {
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         String::from_utf8_lossy(&bytes).to_string()
     }
 
@@ -1225,7 +1389,11 @@ mod tests {
 
         let resp = callback(
             Path("google".to_string()),
-            Query(CallbackQuery { code: None, state: None, error: None }),
+            Query(CallbackQuery {
+                code: None,
+                state: None,
+                error: None,
+            }),
             State(app),
         )
         .await;
@@ -1234,24 +1402,36 @@ mod tests {
         assert!(resp.headers().get("location").is_none());
         // JSON fallback carries only the opaque A-02 code, never raw text.
         let body = body_text(resp).await;
-        assert!(body.contains("\"error\":\"invalid_state\""), "body was {body}");
+        assert!(
+            body.contains("\"error\":\"invalid_state\""),
+            "body was {body}"
+        );
         assert!(!body.contains("missing code or state"));
     }
 
     #[tokio::test]
     async fn callback_redirects_to_frontend_on_error_when_configured() {
         let app = skeleton_state(UserStore::in_memory(), LoginProviders::empty());
-        app.service_config.set("integration.frontend_base", "https://panel.example.com");
+        app.service_config
+            .set("integration.frontend_base", "https://panel.example.com");
 
         let resp = callback(
             Path("google".to_string()),
-            Query(CallbackQuery { code: None, state: None, error: Some("access_denied".to_string()) }),
+            Query(CallbackQuery {
+                code: None,
+                state: None,
+                error: Some("access_denied".to_string()),
+            }),
             State(app),
         )
         .await;
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
         // Locale-safe path (no more locale-less 404) + opaque code, no raw
         // provider text like "access_denied".
         assert!(location.starts_with("https://panel.example.com/en/login/oauth-complete?"));
@@ -1267,13 +1447,20 @@ mod tests {
         // Signup intent (capture a locale so the callback can build a
         // locale-safe path) + a valid same-origin return_to.
         let url = providers
-            .begin("google", OAuthIntent::Signup, "tr", Some("/dashboard".to_string()), &cfg())
+            .begin(
+                "google",
+                OAuthIntent::Signup,
+                "tr",
+                Some("/dashboard".to_string()),
+                &cfg(),
+            )
             .await
             .unwrap();
         let state_param = state_param_of(&url);
 
         let app = skeleton_state(UserStore::in_memory(), providers);
-        app.service_config.set("integration.frontend_base", "https://panel.example.com");
+        app.service_config
+            .set("integration.frontend_base", "https://panel.example.com");
 
         let resp = callback(
             Path("google".to_string()),
@@ -1287,7 +1474,11 @@ mod tests {
         .await;
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
         // Faz 2: locale-safe path + return_to, but NO token anywhere in the URL.
         assert!(location.starts_with("https://panel.example.com/tr/login/oauth-complete?"));
         assert!(location.contains("return_to=/dashboard"));
@@ -1301,7 +1492,9 @@ mod tests {
             .filter_map(|v| v.to_str().ok())
             .map(str::to_string)
             .collect();
-        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        assert!(cookies
+            .iter()
+            .any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
         assert!(cookies.iter().any(|c| c.starts_with("sd_refresh=")));
         assert!(cookies.iter().any(|c| c.starts_with("sd_csrf=")));
     }
@@ -1333,7 +1526,9 @@ mod tests {
             .filter_map(|v| v.to_str().ok())
             .map(str::to_string)
             .collect();
-        assert!(cookies.iter().any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
+        assert!(cookies
+            .iter()
+            .any(|c| c.starts_with("sd_access=") && c.contains("HttpOnly")));
         // Even the JSON fallback returns a cookie session, never a bearer token.
         let body = body_text(resp).await;
         assert!(!body.contains("\"token\""), "body was {body}");
@@ -1357,7 +1552,10 @@ mod tests {
 
     #[test]
     fn sanitize_return_to_allows_only_same_origin_relative_routes() {
-        assert_eq!(sanitize_return_to(Some("/dashboard")), Some("/dashboard".to_string()));
+        assert_eq!(
+            sanitize_return_to(Some("/dashboard")),
+            Some("/dashboard".to_string())
+        );
         assert_eq!(
             sanitize_return_to(Some("/en/dashboard/billing")),
             Some("/en/dashboard/billing".to_string())
@@ -1392,15 +1590,30 @@ mod tests {
 
     #[test]
     fn oauth_error_code_maps_to_the_a02_allowlist_only() {
-        assert_eq!(oauth_error_code(&OAuthLoginError::AccountNotFound), "account_not_found");
-        assert_eq!(oauth_error_code(&OAuthLoginError::EmailExists), "email_exists");
-        assert_eq!(oauth_error_code(&OAuthLoginError::InvalidState), "invalid_state");
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::AccountNotFound),
+            "account_not_found"
+        );
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::EmailExists),
+            "email_exists"
+        );
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::InvalidState),
+            "invalid_state"
+        );
         assert_eq!(
             oauth_error_code(&OAuthLoginError::NotConfigured("google".into())),
             "provider_unavailable"
         );
-        assert_eq!(oauth_error_code(&OAuthLoginError::Exchange("boom".into())), "oauth_failed");
-        assert_eq!(oauth_error_code(&OAuthLoginError::Identity("boom".into())), "oauth_failed");
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::Exchange("boom".into())),
+            "oauth_failed"
+        );
+        assert_eq!(
+            oauth_error_code(&OAuthLoginError::Identity("boom".into())),
+            "oauth_failed"
+        );
     }
 
     #[tokio::test]
@@ -1426,7 +1639,8 @@ mod tests {
         // An invalid/expired state cannot reveal a locale, so the error path
         // uses the configured default locale (here overridden to tr).
         let app = skeleton_state(UserStore::in_memory(), LoginProviders::empty());
-        app.service_config.set("integration.frontend_base", "https://panel.example.com");
+        app.service_config
+            .set("integration.frontend_base", "https://panel.example.com");
         app.service_config.set("auth.default_locale", "tr");
 
         let resp = callback(
@@ -1441,8 +1655,15 @@ mod tests {
         .await;
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        assert_eq!(location, "https://panel.example.com/tr/login/oauth-complete?error=invalid_state");
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        assert_eq!(
+            location,
+            "https://panel.example.com/tr/login/oauth-complete?error=invalid_state"
+        );
     }
 
     #[tokio::test]
@@ -1450,18 +1671,31 @@ mod tests {
         // Admin accidentally saved a path on the base; the callback must still
         // produce a single well-formed locale path, not a double segment.
         let app = skeleton_state(UserStore::in_memory(), LoginProviders::empty());
-        app.service_config
-            .set("integration.frontend_base", "https://panel.example.com/oops/");
+        app.service_config.set(
+            "integration.frontend_base",
+            "https://panel.example.com/oops/",
+        );
 
         let resp = callback(
             Path("google".to_string()),
-            Query(CallbackQuery { code: None, state: None, error: None }),
+            Query(CallbackQuery {
+                code: None,
+                state: None,
+                error: None,
+            }),
             State(app),
         )
         .await;
 
         assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-        let location = resp.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or_default();
-        assert_eq!(location, "https://panel.example.com/en/login/oauth-complete?error=invalid_state");
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        assert_eq!(
+            location,
+            "https://panel.example.com/en/login/oauth-complete?error=invalid_state"
+        );
     }
 }

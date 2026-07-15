@@ -171,7 +171,10 @@ impl TokenVault {
     }
 }
 
-fn load_entries(path: &Path, cipher: &Cipher) -> Result<HashMap<String, StoredToken>, TokenStoreError> {
+fn load_entries(
+    path: &Path,
+    cipher: &Cipher,
+) -> Result<HashMap<String, StoredToken>, TokenStoreError> {
     let sealed = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(HashMap::new()),
@@ -260,7 +263,9 @@ mod tests {
 
         {
             let vault = TokenVault::with_file(&path, &key).unwrap();
-            vault.store("u1", "youtube", &token("at-secret-youtube")).unwrap();
+            vault
+                .store("u1", "youtube", &token("at-secret-youtube"))
+                .unwrap();
         }
 
         // Dosyada düz metin token/refresh yok.
@@ -272,7 +277,10 @@ mod tests {
         // Aynı anahtarla yeniden açılır, kayıt durur.
         let reloaded = TokenVault::with_file(&path, &key).unwrap();
         assert!(reloaded.connected("u1", "youtube"));
-        assert_eq!(reloaded.get("u1", "youtube").unwrap().access_token, "at-secret-youtube");
+        assert_eq!(
+            reloaded.get("u1", "youtube").unwrap().access_token,
+            "at-secret-youtube"
+        );
 
         // Yanlış anahtar reddedilir.
         let wrong = crate::crypto::derive_key(b"other", "streamdubber.tokens.v1");

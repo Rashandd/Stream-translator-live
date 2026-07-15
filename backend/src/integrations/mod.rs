@@ -418,7 +418,10 @@ impl Integrations {
         .map_err(|_| ConnectionCheckError::TokenRefreshFailed(provider_name.to_string()))?;
 
         let access_token = refreshed.access_token.clone();
-        if let Err(err) = self.tokens.store_refreshed(user_id, provider_name, &refreshed) {
+        if let Err(err) = self
+            .tokens
+            .store_refreshed(user_id, provider_name, &refreshed)
+        {
             tracing::warn!(provider = %provider_name, error = %err, "refreshed token persist failed");
         }
         Ok(access_token)
@@ -740,11 +743,20 @@ async fn auto_apply_founding(
     if founding.get(&conn.user_id).is_some() {
         return;
     }
-    let Some(email) = users.get_by_id(&conn.user_id).map(|record| record.email) else {
+    let Some(email) = users
+        .persistent_get_by_id(&conn.user_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|record| record.email)
+    else {
         tracing::warn!(user_id = %conn.user_id, "auto founding: user record not found, skipping");
         return;
     };
-    let access_token = match integ.get_fresh_access_token(&conn.user_id, &conn.provider).await {
+    let access_token = match integ
+        .get_fresh_access_token(&conn.user_id, &conn.provider)
+        .await
+    {
         Ok(token) => token,
         Err(err) => {
             tracing::warn!(provider = %conn.provider, error = %err, "auto founding: token unavailable, skipping");
@@ -757,8 +769,14 @@ async fn auto_apply_founding(
         None
     };
     let http = reqwest::Client::new();
-    let Some(channel_url) =
-        resolve_channel_url(&http, cfg, &conn.provider, &access_token, client_id.as_deref()).await
+    let Some(channel_url) = resolve_channel_url(
+        &http,
+        cfg,
+        &conn.provider,
+        &access_token,
+        client_id.as_deref(),
+    )
+    .await
     else {
         tracing::warn!(provider = %conn.provider, "auto founding: channel identity fetch failed, skipping");
         return;
@@ -1115,18 +1133,20 @@ mod tests {
         );
         let cfg = cfg();
         let url = integ.begin("u", "pro", "twitch", &cfg).await.unwrap();
-        assert!(url.starts_with("https://id.twitch.tv/oauth2/authorize?"), "url: {url}");
+        assert!(
+            url.starts_with("https://id.twitch.tv/oauth2/authorize?"),
+            "url: {url}"
+        );
         assert!(url.contains("client_id=tw-cid"), "url: {url}");
         assert_eq!(integ.client_id("twitch").await.as_deref(), Some("tw-cid"));
     }
 
     async fn spawn_twitch_helix_users_mock() -> String {
         async fn users(headers: axum::http::HeaderMap) -> (StatusCode, Json<serde_json::Value>) {
-            let bearer_ok = headers
-                .get("authorization")
-                .and_then(|v| v.to_str().ok())
+            let bearer_ok = headers.get("authorization").and_then(|v| v.to_str().ok())
                 == Some("Bearer at-good");
-            let client_id_ok = headers.get("client-id").and_then(|v| v.to_str().ok()) == Some("tw-cid");
+            let client_id_ok =
+                headers.get("client-id").and_then(|v| v.to_str().ok()) == Some("tw-cid");
             if bearer_ok && client_id_ok {
                 (
                     StatusCode::OK,
@@ -1369,7 +1389,10 @@ mod tests {
 
         let application = founding.get(&user.id).expect("auto-created application");
         assert!(application.auto_created_via_oauth);
-        assert_eq!(application.platform, crate::founding::FoundingPlatform::Youtube);
+        assert_eq!(
+            application.platform,
+            crate::founding::FoundingPlatform::Youtube
+        );
         assert_eq!(application.channel_url, "https://youtube.com/@teststreamer");
         assert_eq!(application.email, "streamer@example.com");
         assert_eq!(application.status, crate::founding::FoundingStatus::Pending);
