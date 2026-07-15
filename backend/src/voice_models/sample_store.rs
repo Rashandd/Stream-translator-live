@@ -30,6 +30,8 @@ pub enum VoiceSampleError {
 pub struct VoiceSampleStore {
     entries: RwLock<HashMap<String, String>>,
     persist: Option<(PathBuf, Cipher)>,
+    db: Option<sqlx::PgPool>,
+    db_cipher: Option<Cipher>,
 }
 
 impl VoiceSampleStore {
@@ -38,6 +40,8 @@ impl VoiceSampleStore {
         VoiceSampleStore {
             entries: RwLock::new(HashMap::new()),
             persist: None,
+            db: None,
+            db_cipher: None,
         }
     }
 
@@ -49,7 +53,26 @@ impl VoiceSampleStore {
         Ok(VoiceSampleStore {
             entries: RwLock::new(entries),
             persist: Some((path, cipher)),
+            db: None,
+            db_cipher: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool, key: &[u8]) -> Result<Self, VoiceSampleError> {
+        self.db = Some(pool);
+        self.db_cipher = Some(Cipher::new(key).map_err(|e| VoiceSampleError::Crypto(e.to_string()))?);
+        Ok(self)
+    }
+
+    pub async fn persistent_put(&self, model_id: &str, user_id: &str, sample: &[u8]) -> Result<(), VoiceSampleError> {
+        let Some(pool) = &self.db else { return self.put(model_id, sample); };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| VoiceSampleError::Crypto("invalid user id".into()))?;
+        let encoded = B64.encode(sample);
+        let cipher = self.db_cipher.as_ref().ok_or_else(|| VoiceSampleError::Crypto("database voice sample encryption key unavailable".into()))?;
+        let sealed = cipher.encrypt_str(&encoded).map_err(|e| VoiceSampleError::Crypto(e.to_string()))?;
+        sqlx::query("INSERT INTO voice_sample_references (voice_model_id, user_id, sample_encrypted, byte_length) VALUES ($1,$2,$3,$4) ON CONFLICT (voice_model_id) DO UPDATE SET sample_encrypted=EXCLUDED.sample_encrypted, byte_length=EXCLUDED.byte_length, user_id=EXCLUDED.user_id")
+            .bind(model_id).bind(user_id).bind(sealed).bind(sample.len() as i32).execute(pool).await.map_err(|_| VoiceSampleError::Crypto("voice sample database write failed".into()))?;
+        Ok(())
     }
 
     /// Bir modelin ham örneğini (üstüne) yazar.

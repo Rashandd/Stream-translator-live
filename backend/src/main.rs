@@ -551,6 +551,14 @@ async fn build_state(
             Arc::new(voice_models::VoiceModelStore::in_memory())
         }
     };
+    let voice_models = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(voice_models)
+                .map_err(|_| "voice model store unexpectedly shared during startup")?
+                .with_db(pool.clone()),
+        ),
+        None => voice_models,
+    };
 
     // "Founding 5" kapalı beta başvuruları: FOUNDING_APPS_FILE verilirse
     // düz JSON kalıcı (kanal linki secret değil); yoksa bellek içi.
@@ -607,16 +615,29 @@ async fn build_state(
     let voice_samples_file = std::env::var("VOICE_SAMPLES_FILE")
         .ok()
         .filter(|p| !p.is_empty());
+    let voice_sample_key = if voice_samples_file.is_some() || db_pool.is_some() {
+        Some(resolve_enc_key(secrets.as_ref(), "streamdubber.voice_samples.v1").await?)
+    } else {
+        None
+    };
     let voice_samples = match voice_samples_file {
         Some(path) => {
-            let key = resolve_enc_key(secrets.as_ref(), "streamdubber.voice_samples.v1").await?;
+            let key = voice_sample_key.as_ref().expect("voice sample key resolved");
             tracing::info!(%path, "voice sample store: encrypted persistent file");
-            Arc::new(voice_models::VoiceSampleStore::with_file(path, &key)?)
+            Arc::new(voice_models::VoiceSampleStore::with_file(path, key)?)
         }
         None => {
             tracing::warn!("VOICE_SAMPLES_FILE not set — raw voice samples are lost on restart");
             Arc::new(voice_models::VoiceSampleStore::in_memory())
         }
+    };
+    let voice_samples = match (&db_pool, &voice_sample_key) {
+        (Some(pool), Some(key)) => Arc::new(
+            Arc::try_unwrap(voice_samples)
+                .map_err(|_| "voice sample store unexpectedly shared during startup")?
+                .with_db(pool.clone(), key)?,
+        ),
+        _ => voice_samples,
     };
 
     // Self-hosted GPU STT sunucuları (roadmap 2.6): STT_SERVERS_FILE
