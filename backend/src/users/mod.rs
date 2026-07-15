@@ -1,9 +1,9 @@
 //! Yayıncı kullanıcı sistemi (1.4) — signup, login, email 2FA, şifre sıfırlama.
 //!
-//! Depolama diğer store'larla aynı deseni izler: bellek içi kaynak-of-truth,
-//! `USERS_FILE` verilirse AES-256-GCM şifreli dosya kalıcılığı, `DATABASE_URL`
-//! varsa `users` tablosuna best-effort write-behind (dosya asıl, DB yansıma —
-//! Stripe webhook eşleşmesi `users.stripe_customer_id` üzerinden DB'de çalışır).
+//! Production'da PostgreSQL hesapların kaynağıdır: HTTP/OAuth yolları her
+//! kalıcı okuma ve yazmayı awaited repository üzerinden yapar. Bellek ve
+//! `USERS_FILE` yalnız DB'siz development/test adapter'larıdır; eski dosya
+//! hiçbir production kararında kaynak olarak kullanılmaz.
 //!
 //! Login akışı `auth.email_2fa` config'ine bağlıdır (restart'sız değişir):
 //! - `auto` (varsayılan): SMTP panelden yapılandırıldıysa 6 haneli kod maillenir,
@@ -69,8 +69,8 @@ pub struct UserRecord {
     pub oauth_provider: Option<String>,
     #[serde(default)]
     pub oauth_external_id: Option<String>,
-    /// Versiyonlu legal/marketing consent ledger. `USERS_FILE` şifreli
-    /// snapshot'ında asıl kaynak; Postgres yalnız best-effort aynadır.
+    /// Versiyonlu legal/marketing consent ledger. Production'da `user_consents`
+    /// tablosundan okunur; dosya adapter'ı yalnız development/test içindir.
     #[serde(default)]
     pub consents: Vec<ConsentRecord>,
 }
@@ -123,7 +123,9 @@ pub enum UserError {
     OAuthIdentityTaken,
     #[error("this provider is already linked to your account")]
     AlreadyLinked,
-    #[error("cannot unlink your only sign-in method — set a password or link another provider first")]
+    #[error(
+        "cannot unlink your only sign-in method — set a password or link another provider first"
+    )]
     LastLoginMethod,
     #[error("invalid email address")]
     InvalidEmail,
@@ -137,6 +139,8 @@ pub enum UserError {
     Crypto(String),
     #[error("user store serde error: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("user repository error")]
+    Database,
     #[error("internal user store error: {0}")]
     Internal(String),
 }
@@ -162,7 +166,8 @@ pub struct OAuthIdentityInfo {
     pub linked_at_ms: Option<i64>,
 }
 
-/// E-posta (lowercase) → kayıt deposu; opsiyonel şifreli dosya + DB yansıması.
+/// E-posta (lowercase) → kayıt deposu; DB'siz adapter için opsiyonel şifreli
+/// dosya, production için PostgreSQL repository.
 pub struct UserStore {
     entries: RwLock<HashMap<String, UserRecord>>,
     /// `user_id` → sonradan bağlanan ek kimlikler (birincil hariç, bkz.
@@ -212,6 +217,219 @@ impl UserStore {
     pub fn with_db(mut self, db: Option<sqlx::PgPool>) -> Self {
         self.db = db;
         self
+    }
+
+    /// Production repository entry points.  A configured pool is the durable
+    /// authority: these methods await PostgreSQL and update the local map only
+    /// after the transaction commits.  The synchronous methods below remain
+    /// the in-memory adapter used by tests and DB-less development.
+    pub async fn persistent_signup_with_consents(
+        &self,
+        email: &str,
+        password: &str,
+        plan: &str,
+        consents: Vec<ConsentRecord>,
+    ) -> Result<UserRecord, UserError> {
+        let email = email.trim();
+        if !email_looks_valid(email) {
+            return Err(UserError::InvalidEmail);
+        }
+        if password.len() < MIN_PASSWORD_LEN {
+            return Err(UserError::WeakPassword);
+        }
+        let record = UserRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            email: email.to_string(),
+            password_hash: Some(hash_password(password)?),
+            plan: plan.to_string(),
+            email_verified: false,
+            created_at_ms: chrono::Utc::now().timestamp_millis(),
+            oauth_provider: None,
+            oauth_external_id: None,
+            consents,
+        };
+        if let Some(pool) = &self.db {
+            repository::create_user(pool, &record).await?;
+            self.cache_record(record.clone())?;
+            return Ok(record);
+        }
+        self.signup_with_consents(email, password, plan, record.consents)
+    }
+
+    pub async fn persistent_create_oauth_user_with_consents(
+        &self,
+        provider: &str,
+        external_id: &str,
+        email: &str,
+        plan: &str,
+        consents: Vec<ConsentRecord>,
+    ) -> Result<UserRecord, UserError> {
+        let email = email.trim();
+        if !email_looks_valid(email) {
+            return Err(UserError::InvalidEmail);
+        }
+        let record = UserRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            email: email.to_string(),
+            password_hash: None,
+            plan: plan.to_string(),
+            email_verified: true,
+            created_at_ms: chrono::Utc::now().timestamp_millis(),
+            oauth_provider: Some(provider.to_string()),
+            oauth_external_id: Some(external_id.to_string()),
+            consents,
+        };
+        if let Some(pool) = &self.db {
+            repository::create_user(pool, &record).await?;
+            self.cache_record(record.clone())?;
+            return Ok(record);
+        }
+        self.create_oauth_user_with_consents(provider, external_id, email, plan, record.consents)
+    }
+
+    pub async fn persistent_get(&self, email: &str) -> Result<Option<UserRecord>, UserError> {
+        match &self.db {
+            Some(pool) => repository::get_by_email(pool, email).await,
+            None => Ok(self.get(email)),
+        }
+    }
+
+    pub async fn persistent_get_by_id(&self, id: &str) -> Result<Option<UserRecord>, UserError> {
+        match &self.db {
+            Some(pool) => repository::get_by_id(pool, id).await,
+            None => Ok(self.get_by_id(id)),
+        }
+    }
+
+    pub async fn persistent_list(&self) -> Result<Vec<UserRecord>, UserError> {
+        match &self.db {
+            Some(pool) => repository::list(pool).await,
+            None => Ok(self.list()),
+        }
+    }
+
+    pub async fn persistent_verify_login(
+        &self,
+        email: &str,
+        password: &str,
+    ) -> Result<Option<UserRecord>, UserError> {
+        let record = self.persistent_get(email).await?;
+        Ok(match record {
+            Some(record)
+                if record
+                    .password_hash
+                    .as_deref()
+                    .is_some_and(|hash| verify_password(hash, password)) =>
+            {
+                Some(record)
+            }
+            _ => {
+                let _ = verify_password(dummy_hash(), password);
+                None
+            }
+        })
+    }
+
+    pub async fn persistent_mark_verified(&self, email: &str) -> Result<(), UserError> {
+        if let Some(pool) = &self.db {
+            repository::mark_verified(pool, email).await
+        } else {
+            self.mark_verified(email)
+        }
+    }
+
+    pub async fn persistent_set_password(
+        &self,
+        email: &str,
+        password: &str,
+    ) -> Result<(), UserError> {
+        if password.len() < MIN_PASSWORD_LEN {
+            return Err(UserError::WeakPassword);
+        }
+        let hash = hash_password(password)?;
+        if let Some(pool) = &self.db {
+            repository::set_password(pool, email, &hash).await
+        } else {
+            self.set_password(email, password)
+        }
+    }
+
+    pub async fn persistent_set_plan_by_id(
+        &self,
+        id: &str,
+        plan: &str,
+    ) -> Result<UserRecord, UserError> {
+        if let Some(pool) = &self.db {
+            repository::set_plan(pool, id, plan).await
+        } else {
+            self.set_plan_by_id(id, plan)
+        }
+    }
+
+    pub async fn persistent_record_consent(
+        &self,
+        id: &str,
+        consent: ConsentRecord,
+    ) -> Result<(), UserError> {
+        if let Some(pool) = &self.db {
+            repository::record_consent(pool, id, &consent).await
+        } else {
+            self.record_consent(id, consent)
+        }
+    }
+
+    pub async fn persistent_find_by_oauth(
+        &self,
+        provider: &str,
+        external_id: &str,
+    ) -> Result<Option<UserRecord>, UserError> {
+        match &self.db {
+            Some(pool) => repository::get_by_oauth(pool, provider, external_id).await,
+            None => Ok(self.find_by_oauth(provider, external_id)),
+        }
+    }
+
+    pub async fn persistent_link_identity(
+        &self,
+        user_id: &str,
+        provider: &str,
+        external_id: &str,
+    ) -> Result<(), UserError> {
+        if let Some(pool) = &self.db {
+            repository::link_identity(pool, user_id, provider, external_id).await
+        } else {
+            self.link_identity(user_id, provider, external_id)
+        }
+    }
+
+    pub async fn persistent_oauth_identities(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<OAuthIdentityInfo>, UserError> {
+        match &self.db {
+            Some(pool) => repository::oauth_identities(pool, user_id).await,
+            None => Ok(self.oauth_identities(user_id)),
+        }
+    }
+
+    pub async fn persistent_unlink_identity(
+        &self,
+        user_id: &str,
+        provider: &str,
+    ) -> Result<(), UserError> {
+        if let Some(pool) = &self.db {
+            repository::unlink_identity(pool, user_id, provider).await
+        } else {
+            self.unlink_identity(user_id, provider)
+        }
+    }
+
+    fn cache_record(&self, record: UserRecord) -> Result<(), UserError> {
+        self.entries
+            .write()
+            .map_err(|_| UserError::Internal("user lock poisoned".into()))?
+            .insert(record.email.to_lowercase(), record);
+        Ok(())
     }
 
     /// Yeni kullanıcı oluşturur. E-posta benzersizdir (case-insensitive).
@@ -272,13 +490,7 @@ impl UserStore {
         email: &str,
         plan: &str,
     ) -> Result<UserRecord, UserError> {
-        self.create_oauth_user_with_consents(
-            provider,
-            external_id,
-            email,
-            plan,
-            Vec::new(),
-        )
+        self.create_oauth_user_with_consents(provider, external_id, email, plan, Vec::new())
     }
 
     pub fn create_oauth_user_with_consents(
@@ -347,7 +559,10 @@ impl UserStore {
         }
         let user_id = self.links.read().ok().and_then(|m| {
             m.iter()
-                .find(|(_, list)| list.iter().any(|l| l.provider == provider && l.external_id == external_id))
+                .find(|(_, list)| {
+                    list.iter()
+                        .any(|l| l.provider == provider && l.external_id == external_id)
+                })
                 .map(|(user_id, _)| user_id.clone())
         })?;
         self.get_by_id(&user_id)
@@ -357,7 +572,8 @@ impl UserStore {
     /// (varsa) + sonradan bağlanan her kimlik. Son yöntemin unlink'lenip
     /// hesabın kilitlenmesini engellemek için kullanılır.
     fn login_method_count(&self, user: &UserRecord) -> usize {
-        let mut n = usize::from(user.password_hash.is_some()) + usize::from(user.oauth_provider.is_some());
+        let mut n =
+            usize::from(user.password_hash.is_some()) + usize::from(user.oauth_provider.is_some());
         n += self
             .links
             .read()
@@ -372,7 +588,12 @@ impl UserStore {
     /// (provider, external_id) — birincil sütun olarak ya da daha önce
     /// linklenmiş olarak — başka bir hesaba aitse reddedilir; bu hesaba zaten
     /// bağlıysa idempotent olarak başarı döner.
-    pub fn link_identity(&self, user_id: &str, provider: &str, external_id: &str) -> Result<(), UserError> {
+    pub fn link_identity(
+        &self,
+        user_id: &str,
+        provider: &str,
+        external_id: &str,
+    ) -> Result<(), UserError> {
         let user = self.get_by_id(user_id).ok_or(UserError::NotFound)?;
         if user.oauth_provider.as_deref() == Some(provider) {
             if user.oauth_external_id.as_deref() == Some(external_id) {
@@ -396,8 +617,15 @@ impl UserStore {
             .write()
             .map_err(|_| UserError::Internal("links lock poisoned".into()))?;
         for (uid, list) in links.iter() {
-            if list.iter().any(|l| l.provider == provider && l.external_id == external_id) {
-                return if uid == user_id { Ok(()) } else { Err(UserError::OAuthIdentityTaken) };
+            if list
+                .iter()
+                .any(|l| l.provider == provider && l.external_id == external_id)
+            {
+                return if uid == user_id {
+                    Ok(())
+                } else {
+                    Err(UserError::OAuthIdentityTaken)
+                };
             }
         }
         let entry = links.entry(user_id.to_string()).or_default();
@@ -411,7 +639,11 @@ impl UserStore {
         });
         drop(links);
         self.save()?;
-        self.persist_link_db(user_id.to_string(), provider.to_string(), external_id.to_string());
+        self.persist_link_db(
+            user_id.to_string(),
+            provider.to_string(),
+            external_id.to_string(),
+        );
         Ok(())
     }
 
@@ -421,11 +653,10 @@ impl UserStore {
     pub fn unlink_identity(&self, user_id: &str, provider: &str) -> Result<(), UserError> {
         let user = self.get_by_id(user_id).ok_or(UserError::NotFound)?;
         let is_primary = user.oauth_provider.as_deref() == Some(provider);
-        let has_linked = self
-            .links
-            .read()
-            .ok()
-            .is_some_and(|m| m.get(user_id).is_some_and(|list| list.iter().any(|l| l.provider == provider)));
+        let has_linked = self.links.read().ok().is_some_and(|m| {
+            m.get(user_id)
+                .is_some_and(|list| list.iter().any(|l| l.provider == provider))
+        });
         if !is_primary && !has_linked {
             return Err(UserError::NotFound);
         }
@@ -459,7 +690,10 @@ impl UserStore {
     pub fn oauth_identities(&self, user_id: &str) -> Vec<OAuthIdentityInfo> {
         let mut out = Vec::new();
         if let Some(provider) = self.get_by_id(user_id).and_then(|u| u.oauth_provider) {
-            out.push(OAuthIdentityInfo { provider, linked_at_ms: None });
+            out.push(OAuthIdentityInfo {
+                provider,
+                linked_at_ms: None,
+            });
         }
         if let Ok(map) = self.links.read() {
             if let Some(list) = map.get(user_id) {
@@ -482,7 +716,12 @@ impl UserStore {
             .ok()
             .and_then(|m| m.get(&email.trim().to_lowercase()).cloned());
         match record {
-            Some(record) if record.password_hash.as_deref().is_some_and(|hash| verify_password(hash, password)) => {
+            Some(record)
+                if record
+                    .password_hash
+                    .as_deref()
+                    .is_some_and(|hash| verify_password(hash, password)) =>
+            {
                 Some(record)
             }
             Some(_) => {
@@ -519,11 +758,18 @@ impl UserStore {
     /// anahtarlı olduğundan tarama gerekir; kullanıcı sayısı Faz 1 ölçeğinde
     /// bunu haklı çıkarır.
     pub fn get_by_id(&self, id: &str) -> Option<UserRecord> {
-        self.entries.read().ok()?.values().find(|r| r.id == id).cloned()
+        self.entries
+            .read()
+            .ok()?
+            .values()
+            .find(|r| r.id == id)
+            .cloned()
     }
 
     pub fn consents_by_user_id(&self, id: &str) -> Vec<ConsentRecord> {
-        self.get_by_id(id).map(|record| record.consents).unwrap_or_default()
+        self.get_by_id(id)
+            .map(|record| record.consents)
+            .unwrap_or_default()
     }
 
     pub fn record_consent(&self, user_id: &str, consent: ConsentRecord) -> Result<(), UserError> {
@@ -532,10 +778,12 @@ impl UserStore {
                 .entries
                 .write()
                 .map_err(|_| UserError::Internal("user lock poisoned".into()))?;
-            map.values_mut().find(|record| record.id == user_id).map(|record| {
-                record.consents.push(consent);
-                record.clone()
-            })
+            map.values_mut()
+                .find(|record| record.id == user_id)
+                .map(|record| {
+                    record.consents.push(consent);
+                    record.clone()
+                })
         };
         let Some(record) = updated else {
             return Err(UserError::NotFound);
@@ -693,15 +941,282 @@ impl UserStore {
             return;
         };
         handle.spawn(async move {
-            let result = sqlx::query("DELETE FROM user_oauth_links WHERE user_id = $1::uuid AND provider = $2")
-                .bind(&user_id)
-                .bind(&provider)
-                .execute(&pool)
-                .await;
+            let result = sqlx::query(
+                "DELETE FROM user_oauth_links WHERE user_id = $1::uuid AND provider = $2",
+            )
+            .bind(&user_id)
+            .bind(&provider)
+            .execute(&pool)
+            .await;
             if let Err(err) = result {
                 tracing::warn!(error = %err, user_id, "oauth link db remove failed");
             }
         });
+    }
+}
+
+/// PostgreSQL adapter for the Users domain.  Each mutation is awaited and the
+/// multi-row create path uses one transaction, so PostgreSQL—not a process
+/// local snapshot—is the production source of truth.
+mod repository {
+    use super::{ConsentRecord, OAuthIdentityInfo, UserError, UserRecord};
+    use sqlx::{PgPool, Row};
+
+    fn map_user(
+        row: sqlx::postgres::PgRow,
+        consents: Vec<ConsentRecord>,
+    ) -> Result<UserRecord, UserError> {
+        Ok(UserRecord {
+            id: row
+                .try_get::<uuid::Uuid, _>("id")
+                .map_err(|_| UserError::Database)?
+                .to_string(),
+            email: row.try_get("email").map_err(|_| UserError::Database)?,
+            password_hash: row
+                .try_get("password_hash")
+                .map_err(|_| UserError::Database)?,
+            plan: row.try_get("plan").map_err(|_| UserError::Database)?,
+            email_verified: row
+                .try_get("email_verified")
+                .map_err(|_| UserError::Database)?,
+            created_at_ms: row
+                .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .map_err(|_| UserError::Database)?
+                .timestamp_millis(),
+            oauth_provider: row
+                .try_get("oauth_provider")
+                .map_err(|_| UserError::Database)?,
+            oauth_external_id: row
+                .try_get("oauth_external_id")
+                .map_err(|_| UserError::Database)?,
+            consents,
+        })
+    }
+
+    async fn consents(pool: &PgPool, id: uuid::Uuid) -> Result<Vec<ConsentRecord>, UserError> {
+        let rows = sqlx::query("SELECT kind, document_version, accepted, recorded_at, source FROM user_consents WHERE user_id = $1 ORDER BY recorded_at")
+            .bind(id).fetch_all(pool).await.map_err(|_| UserError::Database)?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(ConsentRecord {
+                    kind: row.try_get("kind").map_err(|_| UserError::Database)?,
+                    document_version: row
+                        .try_get("document_version")
+                        .map_err(|_| UserError::Database)?,
+                    accepted: row.try_get("accepted").map_err(|_| UserError::Database)?,
+                    recorded_at_ms: row
+                        .try_get::<chrono::DateTime<chrono::Utc>, _>("recorded_at")
+                        .map_err(|_| UserError::Database)?
+                        .timestamp_millis(),
+                    source: row.try_get("source").map_err(|_| UserError::Database)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn hydrate(pool: &PgPool, row: sqlx::postgres::PgRow) -> Result<UserRecord, UserError> {
+        let id = row
+            .try_get::<uuid::Uuid, _>("id")
+            .map_err(|_| UserError::Database)?;
+        map_user(row, consents(pool, id).await?)
+    }
+
+    const USER_SELECT: &str = "SELECT u.id, u.email, u.password_hash, p.name AS plan, u.email_verified, u.created_at, u.oauth_provider, u.oauth_external_id FROM users u JOIN plans p ON p.id = u.plan_id";
+
+    pub async fn create_user(pool: &PgPool, record: &UserRecord) -> Result<(), UserError> {
+        let mut tx = pool.begin().await.map_err(|_| UserError::Database)?;
+        let inserted = sqlx::query("INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id) VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4 AND is_active), 'broadcaster', $5, $6, $7)")
+            .bind(&record.id).bind(record.email.to_lowercase()).bind(&record.password_hash).bind(&record.plan)
+            .bind(record.email_verified).bind(&record.oauth_provider).bind(&record.oauth_external_id)
+            .execute(&mut *tx).await.map_err(|err| if err.as_database_error().is_some_and(|db| db.is_unique_violation()) { UserError::EmailTaken } else { UserError::Database })?;
+        if inserted.rows_affected() != 1 {
+            return Err(UserError::Database);
+        }
+        for consent in &record.consents {
+            sqlx::query("INSERT INTO user_consents (user_id, kind, document_version, accepted, recorded_at, source) VALUES ($1::uuid, $2, $3, $4, to_timestamp($5::double precision / 1000.0), $6)")
+                .bind(&record.id).bind(&consent.kind).bind(&consent.document_version).bind(consent.accepted).bind(consent.recorded_at_ms).bind(&consent.source)
+                .execute(&mut *tx).await.map_err(|_| UserError::Database)?;
+        }
+        tx.commit().await.map_err(|_| UserError::Database)
+    }
+
+    pub async fn get_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRecord>, UserError> {
+        let row = sqlx::query(&format!("{USER_SELECT} WHERE lower(u.email) = lower($1)"))
+            .bind(email.trim())
+            .fetch_optional(pool)
+            .await
+            .map_err(|_| UserError::Database)?;
+        match row {
+            Some(row) => Ok(Some(hydrate(pool, row).await?)),
+            None => Ok(None),
+        }
+    }
+    pub async fn get_by_id(pool: &PgPool, id: &str) -> Result<Option<UserRecord>, UserError> {
+        let row = sqlx::query(&format!("{USER_SELECT} WHERE u.id = $1::uuid"))
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|_| UserError::Database)?;
+        match row {
+            Some(row) => Ok(Some(hydrate(pool, row).await?)),
+            None => Ok(None),
+        }
+    }
+    pub async fn list(pool: &PgPool) -> Result<Vec<UserRecord>, UserError> {
+        let rows = sqlx::query(&format!("{USER_SELECT} ORDER BY u.email"))
+            .fetch_all(pool)
+            .await
+            .map_err(|_| UserError::Database)?;
+        let mut users = Vec::with_capacity(rows.len());
+        for row in rows {
+            users.push(hydrate(pool, row).await?);
+        }
+        Ok(users)
+    }
+    pub async fn mark_verified(pool: &PgPool, email: &str) -> Result<(), UserError> {
+        let result = sqlx::query("UPDATE users SET email_verified = TRUE, updated_at = NOW() WHERE lower(email) = lower($1)").bind(email.trim()).execute(pool).await.map_err(|_| UserError::Database)?;
+        if result.rows_affected() == 0 {
+            Err(UserError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+    pub async fn set_password(pool: &PgPool, email: &str, hash: &str) -> Result<(), UserError> {
+        let result = sqlx::query("UPDATE users SET password_hash = $2, password_changed_at = NOW(), updated_at = NOW() WHERE lower(email) = lower($1)").bind(email.trim()).bind(hash).execute(pool).await.map_err(|_| UserError::Database)?;
+        if result.rows_affected() == 0 {
+            Err(UserError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+    pub async fn set_plan(pool: &PgPool, id: &str, plan: &str) -> Result<UserRecord, UserError> {
+        let row = sqlx::query(&format!("UPDATE users SET plan_id = (SELECT id FROM plans WHERE name = $2 AND is_active), updated_at = NOW() WHERE id = $1::uuid RETURNING id;"))
+            .bind(id).bind(plan).fetch_optional(pool).await.map_err(|_| UserError::Database)?;
+        let Some(row) = row else {
+            return Err(UserError::NotFound);
+        };
+        let id: uuid::Uuid = row.try_get("id").map_err(|_| UserError::Database)?;
+        get_by_id(pool, &id.to_string())
+            .await?
+            .ok_or(UserError::NotFound)
+    }
+    pub async fn record_consent(
+        pool: &PgPool,
+        id: &str,
+        consent: &ConsentRecord,
+    ) -> Result<(), UserError> {
+        let result = sqlx::query("INSERT INTO user_consents (user_id, kind, document_version, accepted, recorded_at, source) SELECT $1::uuid, $2, $3, $4, to_timestamp($5::double precision / 1000.0), $6 WHERE EXISTS (SELECT 1 FROM users WHERE id = $1::uuid)")
+            .bind(id).bind(&consent.kind).bind(&consent.document_version).bind(consent.accepted).bind(consent.recorded_at_ms).bind(&consent.source).execute(pool).await.map_err(|_| UserError::Database)?;
+        if result.rows_affected() == 0 {
+            Err(UserError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+    pub async fn get_by_oauth(
+        pool: &PgPool,
+        provider: &str,
+        external_id: &str,
+    ) -> Result<Option<UserRecord>, UserError> {
+        let row = sqlx::query(&format!("{USER_SELECT} WHERE (u.oauth_provider = $1 AND u.oauth_external_id = $2) OR EXISTS (SELECT 1 FROM user_oauth_links l WHERE l.user_id = u.id AND l.provider = $1 AND l.external_id = $2)"))
+            .bind(provider).bind(external_id).fetch_optional(pool).await.map_err(|_| UserError::Database)?;
+        match row {
+            Some(row) => Ok(Some(hydrate(pool, row).await?)),
+            None => Ok(None),
+        }
+    }
+    pub async fn link_identity(
+        pool: &PgPool,
+        user_id: &str,
+        provider: &str,
+        external_id: &str,
+    ) -> Result<(), UserError> {
+        let result = sqlx::query("INSERT INTO user_oauth_links (user_id, provider, external_id) VALUES ($1::uuid, $2, $3) ON CONFLICT (user_id, provider) DO UPDATE SET external_id = EXCLUDED.external_id, linked_at = NOW()")
+            .bind(user_id).bind(provider).bind(external_id).execute(pool).await.map_err(|err| if err.as_database_error().is_some_and(|db| db.is_unique_violation()) { UserError::OAuthIdentityTaken } else { UserError::Database })?;
+        if result.rows_affected() == 0 {
+            Err(UserError::NotFound)
+        } else {
+            Ok(())
+        }
+    }
+    pub async fn oauth_identities(
+        pool: &PgPool,
+        user_id: &str,
+    ) -> Result<Vec<OAuthIdentityInfo>, UserError> {
+        let mut out = Vec::new();
+        let primary = sqlx::query("SELECT oauth_provider FROM users WHERE id = $1::uuid")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|_| UserError::Database)?;
+        let Some(primary) = primary else {
+            return Err(UserError::NotFound);
+        };
+        if let Some(provider) = primary
+            .try_get::<Option<String>, _>("oauth_provider")
+            .map_err(|_| UserError::Database)?
+        {
+            out.push(OAuthIdentityInfo {
+                provider,
+                linked_at_ms: None,
+            });
+        }
+        let rows = sqlx::query("SELECT provider, linked_at FROM user_oauth_links WHERE user_id = $1::uuid ORDER BY linked_at").bind(user_id).fetch_all(pool).await.map_err(|_| UserError::Database)?;
+        for row in rows {
+            out.push(OAuthIdentityInfo {
+                provider: row.try_get("provider").map_err(|_| UserError::Database)?,
+                linked_at_ms: Some(
+                    row.try_get::<chrono::DateTime<chrono::Utc>, _>("linked_at")
+                        .map_err(|_| UserError::Database)?
+                        .timestamp_millis(),
+                ),
+            });
+        }
+        Ok(out)
+    }
+    pub async fn unlink_identity(
+        pool: &PgPool,
+        user_id: &str,
+        provider: &str,
+    ) -> Result<(), UserError> {
+        let mut tx = pool.begin().await.map_err(|_| UserError::Database)?;
+        let row = sqlx::query("SELECT password_hash IS NOT NULL AS has_password, oauth_provider FROM users WHERE id = $1::uuid FOR UPDATE")
+            .bind(user_id).fetch_optional(&mut *tx).await.map_err(|_| UserError::Database)?;
+        let Some(row) = row else {
+            return Err(UserError::NotFound);
+        };
+        let has_password: bool = row
+            .try_get("has_password")
+            .map_err(|_| UserError::Database)?;
+        let primary: Option<String> = row
+            .try_get("oauth_provider")
+            .map_err(|_| UserError::Database)?;
+        let linked: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM user_oauth_links WHERE user_id = $1::uuid")
+                .bind(user_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|_| UserError::Database)?;
+        let is_primary = primary.as_deref() == Some(provider);
+        let is_linked: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM user_oauth_links WHERE user_id = $1::uuid AND provider = $2)")
+            .bind(user_id).bind(provider).fetch_one(&mut *tx).await.map_err(|_| UserError::Database)?;
+        if !is_primary && !is_linked {
+            return Err(UserError::NotFound);
+        }
+        if usize::from(has_password) + usize::from(primary.is_some()) + linked as usize <= 1 {
+            return Err(UserError::LastLoginMethod);
+        }
+        if is_primary {
+            sqlx::query("UPDATE users SET oauth_provider = NULL, oauth_external_id = NULL, updated_at = NOW() WHERE id = $1::uuid").bind(user_id).execute(&mut *tx).await.map_err(|_| UserError::Database)?;
+        } else {
+            sqlx::query("DELETE FROM user_oauth_links WHERE user_id = $1::uuid AND provider = $2")
+                .bind(user_id)
+                .bind(provider)
+                .execute(&mut *tx)
+                .await
+                .map_err(|_| UserError::Database)?;
+        }
+        tx.commit().await.map_err(|_| UserError::Database)
     }
 }
 
@@ -771,7 +1286,10 @@ fn load_entries(path: &Path, cipher: &Cipher) -> Result<StoreSnapshot, UserError
         return Ok(snapshot);
     }
     let users: HashMap<String, UserRecord> = serde_json::from_str(&json)?;
-    Ok(StoreSnapshot { users, links: HashMap::new() })
+    Ok(StoreSnapshot {
+        users,
+        links: HashMap::new(),
+    })
 }
 
 /// Kaba e-posta doğrulaması — tam RFC değil, bariz bozukları eler.
@@ -892,7 +1410,12 @@ impl TwoFactorStore {
 
     /// Kodu doğrular ve tüketir (tek kullanımlık). Yanlış denemeler sayılır;
     /// limit aşılınca kod iptal edilir.
-    pub fn verify(&self, email: &str, purpose: CodePurpose, code: &str) -> Result<(), TwoFactorError> {
+    pub fn verify(
+        &self,
+        email: &str,
+        purpose: CodePurpose,
+        code: &str,
+    ) -> Result<(), TwoFactorError> {
         let key = (email.trim().to_lowercase(), purpose);
         let mut map = self
             .codes
@@ -1016,11 +1539,14 @@ pub async fn signup(
     );
     let record = app
         .users
-        .signup_with_consents(&req.email, &req.password, &plan, consents)
+        .persistent_signup_with_consents(&req.email, &req.password, &plan, consents)
+        .await
         .map_err(|err| {
             let status = match err {
                 UserError::EmailTaken => StatusCode::CONFLICT,
-                UserError::InvalidEmail | UserError::WeakPassword => StatusCode::UNPROCESSABLE_ENTITY,
+                UserError::InvalidEmail | UserError::WeakPassword => {
+                    StatusCode::UNPROCESSABLE_ENTITY
+                }
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             };
             (status, err.to_string())
@@ -1110,13 +1636,8 @@ pub async fn login(
                 role: "admin".to_string(),
                 plan: "streamer".to_string(),
             };
-            if let Some(pending) = begin_login_twofactor(
-                &app,
-                &admin_email,
-                "admin-bootstrap",
-                "admin",
-            )
-            .await?
+            if let Some(pending) =
+                begin_login_twofactor(&app, &admin_email, "admin-bootstrap", "admin").await?
             {
                 return Ok(pending);
             }
@@ -1125,7 +1646,12 @@ pub async fn login(
     }
 
     // 2) Yayıncı deposu.
-    let Some(user) = app.users.verify_login(&req.email, &req.password) else {
+    let Some(user) = app
+        .users
+        .persistent_verify_login(&req.email, &req.password)
+        .await
+        .map_err(internal_user_error)?
+    else {
         app.logger.log(
             LogLevel::Warn,
             "auth",
@@ -1136,13 +1662,7 @@ pub async fn login(
         return Err((StatusCode::UNAUTHORIZED, "invalid credentials".to_string()));
     };
 
-    if let Some(pending) = begin_login_twofactor(
-        &app,
-        &user.email,
-        &user.id,
-        "broadcaster",
-    )
-    .await?
+    if let Some(pending) = begin_login_twofactor(&app, &user.email, &user.id, "broadcaster").await?
     {
         return Ok(pending);
     }
@@ -1198,13 +1718,8 @@ async fn begin_login_twofactor(
 
     match mail_result {
         Ok(()) => {
-            app.logger.log(
-                LogLevel::Info,
-                "auth",
-                "2fa code sent",
-                Some(subject),
-                None,
-            );
+            app.logger
+                .log(LogLevel::Info, "auth", "2fa code sent", Some(subject), None);
             Ok(Some(pending_response()))
         }
         Err(crate::mail::MailError::NotConfigured) if mode != "required" => {
@@ -1304,17 +1819,19 @@ pub async fn twofa_verify(
     headers: HeaderMap,
     Json(req): Json<TwoFactorRequest>,
 ) -> Result<Response, (StatusCode, String)> {
-    let challenge_id = challenge_cookie(&headers)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
-    let challenge = app
-        .challenges
-        .peek(&challenge_id)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    let challenge_id = challenge_cookie(&headers).ok_or((
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired challenge".to_string(),
+    ))?;
+    let challenge = app.challenges.peek(&challenge_id).ok_or((
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired challenge".to_string(),
+    ))?;
     verify_code_or_status(&app, &challenge.email, CodePurpose::Login, &req.code)?;
-    let challenge = app
-        .challenges
-        .consume(&challenge_id)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
+    let challenge = app.challenges.consume(&challenge_id).ok_or((
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired challenge".to_string(),
+    ))?;
 
     let mut response = if challenge.role == "admin" && challenge.subject == "admin-bootstrap" {
         finish_principal_login(
@@ -1328,18 +1845,32 @@ pub async fn twofa_verify(
         )
         .await?
     } else if challenge.role == "broadcaster" {
-        let Some(user) = app.users.get_by_id(&challenge.subject) else {
-            return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
+        let Some(user) = app
+            .users
+            .persistent_get_by_id(&challenge.subject)
+            .await
+            .map_err(internal_user_error)?
+        else {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "invalid or expired challenge".to_string(),
+            ));
         };
         if !user.email.eq_ignore_ascii_case(&challenge.email) {
-            return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "invalid or expired challenge".to_string(),
+            ));
         }
-        if let Err(err) = app.users.mark_verified(&user.email) {
+        if let Err(err) = app.users.persistent_mark_verified(&user.email).await {
             tracing::warn!(error = %err, "mark_verified failed");
         }
         finish_user_login(&app, &user, &headers).await?
     } else {
-        return Err((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "invalid or expired challenge".to_string(),
+        ));
     };
     clear_challenge_cookie(&mut response);
     Ok(response)
@@ -1349,20 +1880,25 @@ pub async fn twofa_resend(
     State(app): State<AppState>,
     headers: HeaderMap,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let challenge_id = challenge_cookie(&headers)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
-    let challenge = app
-        .challenges
-        .peek(&challenge_id)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid or expired challenge".to_string()))?;
-    let code = app.twofactor.issue(&challenge.email, CodePurpose::Login).map_err(|error| {
-        let status = match error {
-            TwoFactorError::TooSoon => StatusCode::TOO_MANY_REQUESTS,
-            TwoFactorError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            _ => StatusCode::UNAUTHORIZED,
-        };
-        (status, error.to_string())
-    })?;
+    let challenge_id = challenge_cookie(&headers).ok_or((
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired challenge".to_string(),
+    ))?;
+    let challenge = app.challenges.peek(&challenge_id).ok_or((
+        StatusCode::UNAUTHORIZED,
+        "invalid or expired challenge".to_string(),
+    ))?;
+    let code = app
+        .twofactor
+        .issue(&challenge.email, CodePurpose::Login)
+        .map_err(|error| {
+            let status = match error {
+                TwoFactorError::TooSoon => StatusCode::TOO_MANY_REQUESTS,
+                TwoFactorError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                _ => StatusCode::UNAUTHORIZED,
+            };
+            (status, error.to_string())
+        })?;
     crate::mail::send(
         app.secrets.as_ref(),
         &app.service_config,
@@ -1406,7 +1942,8 @@ pub async fn update_marketing_consent(
         source: "settings".to_string(),
     };
     app.users
-        .record_consent(&user.claims.sub, consent)
+        .persistent_record_consent(&user.claims.sub, consent)
+        .await
         .map_err(|error| match error {
             UserError::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
@@ -1441,13 +1978,18 @@ pub struct ResetRequest {
 pub async fn reset_request(
     State(app): State<AppState>,
     Json(req): Json<ResetRequest>,
-) -> Json<OkResponse> {
-    let Some(user) = app.users.get(&req.email) else {
-        return Json(OkResponse { ok: true });
+) -> Result<Json<OkResponse>, (StatusCode, String)> {
+    let Some(user) = app
+        .users
+        .persistent_get(&req.email)
+        .await
+        .map_err(internal_user_error)?
+    else {
+        return Ok(Json(OkResponse { ok: true }));
     };
     let code = match app.twofactor.issue(&user.email, CodePurpose::Reset) {
         Ok(code) => code,
-        Err(_) => return Json(OkResponse { ok: true }), // TooSoon dahil — sessiz
+        Err(_) => return Ok(Json(OkResponse { ok: true })), // TooSoon dahil — sessiz
     };
     let result = crate::mail::send(
         app.secrets.as_ref(),
@@ -1476,7 +2018,7 @@ pub async fn reset_request(
             );
         }
     }
-    Json(OkResponse { ok: true })
+    Ok(Json(OkResponse { ok: true }))
 }
 
 /// `POST /api/auth/reset/confirm` gövdesi.
@@ -1502,12 +2044,18 @@ pub async fn reset_confirm(
     }
     verify_code_or_status(&app, &req.email, CodePurpose::Reset, &req.code)?;
     app.users
-        .set_password(&req.email, &req.new_password)
+        .persistent_set_password(&req.email, &req.new_password)
+        .await
         .map_err(|err| match err {
             UserError::WeakPassword => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
             other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
         })?;
-    if let Some(user) = app.users.get(&req.email) {
+    if let Some(user) = app
+        .users
+        .persistent_get(&req.email)
+        .await
+        .map_err(internal_user_error)?
+    {
         app.logger.log(
             LogLevel::Info,
             "auth",
@@ -1566,12 +2114,20 @@ pub async fn admin_list_users(
     State(users): State<Arc<UserStore>>,
     Query(query): Query<AdminUsersQuery>,
 ) -> Json<Vec<AdminUserSummary>> {
-    let mut records = users.list();
-    if let Some(needle) = query.q.as_deref().map(str::to_lowercase).filter(|q| !q.is_empty()) {
+    let mut records = users.persistent_list().await.unwrap_or_default();
+    if let Some(needle) = query
+        .q
+        .as_deref()
+        .map(str::to_lowercase)
+        .filter(|q| !q.is_empty())
+    {
         records.retain(|r| r.email.to_lowercase().contains(&needle));
     }
     let offset = query.offset.unwrap_or(0);
-    let limit = query.limit.unwrap_or(ADMIN_USERS_DEFAULT_LIMIT).min(ADMIN_USERS_MAX_LIMIT);
+    let limit = query
+        .limit
+        .unwrap_or(ADMIN_USERS_DEFAULT_LIMIT)
+        .min(ADMIN_USERS_MAX_LIMIT);
     let page = records
         .into_iter()
         .skip(offset)
@@ -1588,7 +2144,9 @@ pub async fn admin_get_user(
     RoutePath(id): RoutePath<String>,
 ) -> Result<Json<AdminUserSummary>, StatusCode> {
     users
-        .get_by_id(&id)
+        .persistent_get_by_id(&id)
+        .await
+        .unwrap_or(None)
         .map(|r| Json(r.into()))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -1610,12 +2168,18 @@ pub async fn admin_set_user_plan(
     Json(req): Json<AdminSetPlanRequest>,
 ) -> Result<Json<AdminUserSummary>, (StatusCode, String)> {
     if plans.get(&req.plan).is_none() {
-        return Err((StatusCode::NOT_FOUND, format!("unknown plan '{}'", req.plan)));
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("unknown plan '{}'", req.plan),
+        ));
     }
-    let record = users.set_plan_by_id(&id, &req.plan).map_err(|err| match err {
-        UserError::NotFound => (StatusCode::NOT_FOUND, err.to_string()),
-        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
-    })?;
+    let record = users
+        .persistent_set_plan_by_id(&id, &req.plan)
+        .await
+        .map_err(|err| match err {
+            UserError::NotFound => (StatusCode::NOT_FOUND, err.to_string()),
+            other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+        })?;
     logger.log(
         LogLevel::Info,
         "admin",
@@ -1626,6 +2190,13 @@ pub async fn admin_set_user_plan(
     Ok(Json(record.into()))
 }
 
+fn internal_user_error(_: UserError) -> (StatusCode, String) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "user service unavailable".to_string(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1633,7 +2204,9 @@ mod tests {
     #[test]
     fn signup_login_roundtrip_and_duplicate_rejected() {
         let store = UserStore::in_memory();
-        let user = store.signup("Streamer@Example.com", "hunter2-strong", "free").unwrap();
+        let user = store
+            .signup("Streamer@Example.com", "hunter2-strong", "free")
+            .unwrap();
         assert_eq!(user.plan, "free");
         assert!(!user.email_verified);
 
@@ -1644,17 +2217,29 @@ mod tests {
         ));
 
         // Doğru şifre + case-insensitive e-posta girer, yanlış şifre girmez.
-        assert!(store.verify_login("streamer@example.com", "hunter2-strong").is_some());
-        assert!(store.verify_login("STREAMER@EXAMPLE.COM", "hunter2-strong").is_some());
-        assert!(store.verify_login("streamer@example.com", "wrong").is_none());
-        assert!(store.verify_login("nobody@example.com", "hunter2-strong").is_none());
+        assert!(store
+            .verify_login("streamer@example.com", "hunter2-strong")
+            .is_some());
+        assert!(store
+            .verify_login("STREAMER@EXAMPLE.COM", "hunter2-strong")
+            .is_some());
+        assert!(store
+            .verify_login("streamer@example.com", "wrong")
+            .is_none());
+        assert!(store
+            .verify_login("nobody@example.com", "hunter2-strong")
+            .is_none());
     }
 
     #[test]
     fn list_and_get_by_id_expose_seeded_users() {
         let store = UserStore::in_memory();
-        let a = store.signup("a@example.com", "a-pass-1234", "free").unwrap();
-        let b = store.signup("b@example.com", "b-pass-1234", "starter").unwrap();
+        let a = store
+            .signup("a@example.com", "a-pass-1234", "free")
+            .unwrap();
+        let b = store
+            .signup("b@example.com", "b-pass-1234", "starter")
+            .unwrap();
 
         let listed = store.list();
         assert_eq!(listed.len(), 2);
@@ -1670,13 +2255,18 @@ mod tests {
     #[test]
     fn set_plan_by_id_updates_the_record_and_rejects_unknown_ids() {
         let store = UserStore::in_memory();
-        let user = store.signup("plan-change@example.com", "strong-pass-1", "free").unwrap();
+        let user = store
+            .signup("plan-change@example.com", "strong-pass-1", "free")
+            .unwrap();
 
         let updated = store.set_plan_by_id(&user.id, "pro").unwrap();
         assert_eq!(updated.plan, "pro");
         assert_eq!(store.get("plan-change@example.com").unwrap().plan, "pro");
 
-        assert!(matches!(store.set_plan_by_id("ghost-id", "pro"), Err(UserError::NotFound)));
+        assert!(matches!(
+            store.set_plan_by_id("ghost-id", "pro"),
+            Err(UserError::NotFound)
+        ));
     }
 
     #[test]
@@ -1692,7 +2282,9 @@ mod tests {
 
         // No password to check against — any password attempt fails, same
         // as an unknown account (verified by the timing-equalizer test below).
-        assert!(store.verify_login("streamer@example.com", "anything").is_none());
+        assert!(store
+            .verify_login("streamer@example.com", "anything")
+            .is_none());
     }
 
     #[test]
@@ -1711,7 +2303,9 @@ mod tests {
     #[test]
     fn create_oauth_user_rejects_email_already_taken_by_a_password_account() {
         let store = UserStore::in_memory();
-        store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         assert!(matches!(
             store.create_oauth_user("google", "g-123", "streamer@example.com", "free"),
             Err(UserError::EmailTaken)
@@ -1721,11 +2315,15 @@ mod tests {
     #[test]
     fn link_identity_lets_a_password_account_add_a_second_provider() {
         let store = UserStore::in_memory();
-        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
 
         store.link_identity(&user.id, "twitch", "t-1").unwrap();
 
-        let found = store.find_by_oauth("twitch", "t-1").expect("linked identity resolves");
+        let found = store
+            .find_by_oauth("twitch", "t-1")
+            .expect("linked identity resolves");
         assert_eq!(found.id, user.id);
         let identities = store.oauth_identities(&user.id);
         assert_eq!(identities.len(), 1);
@@ -1736,7 +2334,9 @@ mod tests {
     #[test]
     fn link_identity_is_idempotent_for_the_same_account() {
         let store = UserStore::in_memory();
-        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         store.link_identity(&user.id, "twitch", "t-1").unwrap();
         // Re-linking the exact same identity to the same account is a no-op.
         store.link_identity(&user.id, "twitch", "t-1").unwrap();
@@ -1746,8 +2346,12 @@ mod tests {
     #[test]
     fn link_identity_rejects_a_provider_identity_taken_by_another_account() {
         let store = UserStore::in_memory();
-        let a = store.signup("a@example.com", "hunter2-strong", "free").unwrap();
-        let b = store.signup("b@example.com", "hunter2-strong", "free").unwrap();
+        let a = store
+            .signup("a@example.com", "hunter2-strong", "free")
+            .unwrap();
+        let b = store
+            .signup("b@example.com", "hunter2-strong", "free")
+            .unwrap();
         store.link_identity(&a.id, "twitch", "t-1").unwrap();
 
         assert!(matches!(
@@ -1759,7 +2363,9 @@ mod tests {
     #[test]
     fn link_identity_rejects_a_provider_already_linked_to_a_different_identity_on_this_account() {
         let store = UserStore::in_memory();
-        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         store.link_identity(&user.id, "twitch", "t-1").unwrap();
 
         assert!(matches!(
@@ -1771,8 +2377,12 @@ mod tests {
     #[test]
     fn link_identity_also_rejects_against_an_existing_primary_oauth_account() {
         let store = UserStore::in_memory();
-        let primary = store.create_oauth_user("google", "g-1", "a@example.com", "free").unwrap();
-        let other = store.signup("b@example.com", "hunter2-strong", "free").unwrap();
+        let primary = store
+            .create_oauth_user("google", "g-1", "a@example.com", "free")
+            .unwrap();
+        let other = store
+            .signup("b@example.com", "hunter2-strong", "free")
+            .unwrap();
 
         assert!(matches!(
             store.link_identity(&other.id, "google", "g-1"),
@@ -1785,7 +2395,9 @@ mod tests {
     #[test]
     fn unlink_identity_removes_a_linked_provider_when_another_method_remains() {
         let store = UserStore::in_memory();
-        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
+        let user = store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
         store.link_identity(&user.id, "twitch", "t-1").unwrap();
 
         store.unlink_identity(&user.id, "twitch").unwrap();
@@ -1796,7 +2408,9 @@ mod tests {
     #[test]
     fn unlink_identity_rejects_removing_the_only_login_method() {
         let store = UserStore::in_memory();
-        let user = store.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
+        let user = store
+            .create_oauth_user("google", "g-1", "oauth-only@example.com", "free")
+            .unwrap();
 
         // Only sign-in method — password is None and there's nothing else linked.
         assert!(matches!(
@@ -1809,19 +2423,30 @@ mod tests {
     #[test]
     fn unlink_identity_can_remove_the_primary_provider_once_a_password_exists() {
         let store = UserStore::in_memory();
-        let user = store.create_oauth_user("google", "g-1", "oauth-only@example.com", "free").unwrap();
-        store.set_password("oauth-only@example.com", "new-password-1").unwrap();
+        let user = store
+            .create_oauth_user("google", "g-1", "oauth-only@example.com", "free")
+            .unwrap();
+        store
+            .set_password("oauth-only@example.com", "new-password-1")
+            .unwrap();
 
         store.unlink_identity(&user.id, "google").unwrap();
         assert!(store.find_by_oauth("google", "g-1").is_none());
-        assert!(store.verify_login("oauth-only@example.com", "new-password-1").is_some());
+        assert!(store
+            .verify_login("oauth-only@example.com", "new-password-1")
+            .is_some());
     }
 
     #[test]
     fn unlink_identity_rejects_unknown_provider_for_this_account() {
         let store = UserStore::in_memory();
-        let user = store.signup("streamer@example.com", "hunter2-strong", "free").unwrap();
-        assert!(matches!(store.unlink_identity(&user.id, "twitch"), Err(UserError::NotFound)));
+        let user = store
+            .signup("streamer@example.com", "hunter2-strong", "free")
+            .unwrap();
+        assert!(matches!(
+            store.unlink_identity(&user.id, "twitch"),
+            Err(UserError::NotFound)
+        ));
     }
 
     #[test]
@@ -1857,7 +2482,9 @@ mod tests {
     fn password_hash_is_argon2_not_plaintext() {
         let store = UserStore::in_memory();
         let user = store.signup("a@b.co", "super-secret-pass", "free").unwrap();
-        let hash = user.password_hash.expect("password-based signup has a hash");
+        let hash = user
+            .password_hash
+            .expect("password-based signup has a hash");
         assert!(hash.starts_with("$argon2"));
         assert!(!hash.contains("super-secret-pass"));
     }
@@ -1870,7 +2497,9 @@ mod tests {
 
         {
             let store = UserStore::with_file(&path, &key).unwrap();
-            store.signup("persist@example.com", "persist-pass-1", "free").unwrap();
+            store
+                .signup("persist@example.com", "persist-pass-1", "free")
+                .unwrap();
             store.mark_verified("persist@example.com").unwrap();
         }
 
@@ -1880,7 +2509,9 @@ mod tests {
         assert!(!raw.contains("$argon2"));
 
         let reloaded = UserStore::with_file(&path, &key).unwrap();
-        let user = reloaded.verify_login("persist@example.com", "persist-pass-1").unwrap();
+        let user = reloaded
+            .verify_login("persist@example.com", "persist-pass-1")
+            .unwrap();
         assert!(user.email_verified);
 
         let wrong = crate::crypto::derive_key(b"other", "streamdubber.users.v1");
@@ -1912,12 +2543,7 @@ mod tests {
         let user_id = {
             let store = UserStore::with_file(&path, &key).unwrap();
             store
-                .signup_with_consents(
-                    "consent@example.com",
-                    "consent-pass-1",
-                    "free",
-                    consents,
-                )
+                .signup_with_consents("consent@example.com", "consent-pass-1", "free", consents)
                 .unwrap()
                 .id
         };
@@ -1927,17 +2553,27 @@ mod tests {
         let reloaded = UserStore::with_file(&path, &key).unwrap();
         let records = reloaded.consents_by_user_id(&user_id);
         assert_eq!(records.len(), 6);
-        assert!(records.iter().all(|record| record.source == "password_signup"));
+        assert!(records
+            .iter()
+            .all(|record| record.source == "password_signup"));
         let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn set_password_rotates_and_old_password_stops_working() {
         let store = UserStore::in_memory();
-        store.signup("rot@example.com", "old-password-1", "free").unwrap();
-        store.set_password("rot@example.com", "new-password-2").unwrap();
-        assert!(store.verify_login("rot@example.com", "old-password-1").is_none());
-        assert!(store.verify_login("rot@example.com", "new-password-2").is_some());
+        store
+            .signup("rot@example.com", "old-password-1", "free")
+            .unwrap();
+        store
+            .set_password("rot@example.com", "new-password-2")
+            .unwrap();
+        assert!(store
+            .verify_login("rot@example.com", "old-password-1")
+            .is_none());
+        assert!(store
+            .verify_login("rot@example.com", "new-password-2")
+            .is_some());
         assert!(matches!(
             store.set_password("rot@example.com", "short"),
             Err(UserError::WeakPassword)
@@ -1952,13 +2588,17 @@ mod tests {
 
         // Yanlış kod denemeleri sayılır.
         assert_eq!(
-            store.verify("a@b.co", CodePurpose::Login, "000000").unwrap_err(),
+            store
+                .verify("a@b.co", CodePurpose::Login, "000000")
+                .unwrap_err(),
             TwoFactorError::Invalid
         );
         // Doğru kod girer ve tüketilir.
         assert!(store.verify("a@b.co", CodePurpose::Login, &code).is_ok());
         assert_eq!(
-            store.verify("a@b.co", CodePurpose::Login, &code).unwrap_err(),
+            store
+                .verify("a@b.co", CodePurpose::Login, &code)
+                .unwrap_err(),
             TwoFactorError::Invalid
         );
     }
@@ -1971,12 +2611,16 @@ mod tests {
             let _ = store.verify("a@b.co", CodePurpose::Login, "999999");
         }
         assert_eq!(
-            store.verify("a@b.co", CodePurpose::Login, "999999").unwrap_err(),
+            store
+                .verify("a@b.co", CodePurpose::Login, "999999")
+                .unwrap_err(),
             TwoFactorError::TooManyAttempts
         );
         // Kod artık doğru girilse de geçersiz.
         assert_eq!(
-            store.verify("a@b.co", CodePurpose::Login, &code).unwrap_err(),
+            store
+                .verify("a@b.co", CodePurpose::Login, &code)
+                .unwrap_err(),
             TwoFactorError::Invalid
         );
     }
@@ -1987,7 +2631,9 @@ mod tests {
         let code = store.issue("a@b.co", CodePurpose::Login).unwrap();
         // TTL sıfır — kod anında süresi geçmiş.
         assert_eq!(
-            store.verify("a@b.co", CodePurpose::Login, &code).unwrap_err(),
+            store
+                .verify("a@b.co", CodePurpose::Login, &code)
+                .unwrap_err(),
             TwoFactorError::Invalid
         );
         // Yeni kod istemek reissue guard'a takılır (60 sn).
@@ -2007,8 +2653,12 @@ mod tests {
         let login_code = store.issue("a@b.co", CodePurpose::Login).unwrap();
         let reset_code = store.issue("a@b.co", CodePurpose::Reset).unwrap();
         // Login kodu reset'e geçmez.
-        assert!(store.verify("a@b.co", CodePurpose::Reset, &login_code).is_err());
-        assert!(store.verify("a@b.co", CodePurpose::Reset, &reset_code).is_ok());
+        assert!(store
+            .verify("a@b.co", CodePurpose::Reset, &login_code)
+            .is_err());
+        assert!(store
+            .verify("a@b.co", CodePurpose::Reset, &reset_code)
+            .is_ok());
     }
 
     #[test]

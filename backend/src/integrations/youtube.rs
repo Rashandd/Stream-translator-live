@@ -41,8 +41,17 @@ impl Default for YouTubeCaptions {
 
 #[async_trait]
 pub trait CaptionsSink: Send + Sync {
-    async fn fetch_ingestion_url(&self, access_token: &str, broadcast_id: &str) -> Result<String, YouTubeError>;
-    async fn push_caption(&self, ingestion_url: &str, text: &str, sequence: u64) -> Result<(), YouTubeError>;
+    async fn fetch_ingestion_url(
+        &self,
+        access_token: &str,
+        broadcast_id: &str,
+    ) -> Result<String, YouTubeError>;
+    async fn push_caption(
+        &self,
+        ingestion_url: &str,
+        text: &str,
+        sequence: u64,
+    ) -> Result<(), YouTubeError>;
 }
 
 impl YouTubeCaptions {
@@ -69,7 +78,11 @@ impl CaptionsSink for YouTubeCaptions {
     /// `liveBroadcasts.list` ile `broadcast_id`'nin closed-caption ingestion
     /// URL'sini çözer. `access_token`, `integrations::oauth` ile bağlanan
     /// yayıncının (şifresi çözülmüş) YouTube OAuth token'ıdır.
-    async fn fetch_ingestion_url(&self, access_token: &str, broadcast_id: &str) -> Result<String, YouTubeError> {
+    async fn fetch_ingestion_url(
+        &self,
+        access_token: &str,
+        broadcast_id: &str,
+    ) -> Result<String, YouTubeError> {
         let resp = self
             .client
             .get(format!("{}/liveBroadcasts", self.api_base))
@@ -99,7 +112,12 @@ impl CaptionsSink for YouTubeCaptions {
 
     /// Bir altyazı parçasını ingestion URL'ine gönderir. `sequence` artan bir
     /// sayaçtır — YouTube parçaları sıraya koymak için kullanır.
-    async fn push_caption(&self, ingestion_url: &str, text: &str, sequence: u64) -> Result<(), YouTubeError> {
+    async fn push_caption(
+        &self,
+        ingestion_url: &str,
+        text: &str,
+        sequence: u64,
+    ) -> Result<(), YouTubeError> {
         let resp = self
             .client
             .post(ingestion_url)
@@ -130,9 +148,15 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    async fn live_broadcasts(headers: HeaderMap, Query(params): Query<HashMap<String, String>>) -> (StatusCode, Json<serde_json::Value>) {
+    async fn live_broadcasts(
+        headers: HeaderMap,
+        Query(params): Query<HashMap<String, String>>,
+    ) -> (StatusCode, Json<serde_json::Value>) {
         if headers.get("authorization").and_then(|v| v.to_str().ok()) != Some("Bearer test-token") {
-            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "unauthorized" })));
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "unauthorized" })),
+            );
         }
         match params.get("id").map(String::as_str) {
             Some("bc-live") => (
@@ -185,7 +209,10 @@ mod tests {
     async fn resolves_ingestion_url_for_live_broadcast() {
         let base = spawn_api_mock().await;
         let yt = YouTubeCaptions::with_api_base(base);
-        let url = yt.fetch_ingestion_url("test-token", "bc-live").await.unwrap();
+        let url = yt
+            .fetch_ingestion_url("test-token", "bc-live")
+            .await
+            .unwrap();
         assert_eq!(url, "http://ingest.example/cc?cid=abc");
     }
 
@@ -193,7 +220,10 @@ mod tests {
     async fn missing_broadcast_has_no_ingestion_url() {
         let base = spawn_api_mock().await;
         let yt = YouTubeCaptions::with_api_base(base);
-        let err = yt.fetch_ingestion_url("test-token", "bc-unknown").await.unwrap_err();
+        let err = yt
+            .fetch_ingestion_url("test-token", "bc-unknown")
+            .await
+            .unwrap_err();
         assert!(matches!(err, YouTubeError::NoIngestionUrl(_)));
     }
 
@@ -201,7 +231,10 @@ mod tests {
     async fn bad_token_is_request_error() {
         let base = spawn_api_mock().await;
         let yt = YouTubeCaptions::with_api_base(base);
-        let err = yt.fetch_ingestion_url("wrong-token", "bc-live").await.unwrap_err();
+        let err = yt
+            .fetch_ingestion_url("wrong-token", "bc-live")
+            .await
+            .unwrap_err();
         assert!(matches!(err, YouTubeError::Request(_)));
     }
 

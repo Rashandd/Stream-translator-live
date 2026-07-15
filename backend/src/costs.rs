@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
 use serde::Serialize;
 
@@ -43,20 +44,25 @@ pub async fn get_summary(
     State(users): State<Arc<UserStore>>,
     State(plans): State<Arc<PlanRegistry>>,
     State(cfg): State<Arc<ServiceConfig>>,
-) -> Json<AdminCostSummary> {
+) -> Result<Json<AdminCostSummary>, (StatusCode, String)> {
     let stt_rate = cfg_f64(&cfg, "cost.stt.usd_per_hour", 0.05);
     let translate_rate = cfg_f64(&cfg, "cost.translate.usd_per_hour", 0.04);
 
     let total_hours = usage.total_seconds_this_period() as f64 / 3600.0;
     let estimated_cost_cents = (total_hours * (stt_rate + translate_rate) * 100.0).round() as i64;
 
-    let records = users.list();
+    let records = users.persistent_list().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "user service unavailable".to_string(),
+        )
+    })?;
     let revenue_cents: i64 = records
         .iter()
         .filter_map(|u| plans.get(&u.plan).map(|p| p.price_cents))
         .sum();
 
-    Json(AdminCostSummary {
+    Ok(Json(AdminCostSummary {
         period: UsageTracker::current_period(),
         user_count: records.len(),
         total_usage_hours: total_hours,
@@ -64,7 +70,7 @@ pub async fn get_summary(
         translate_usd_per_hour: translate_rate,
         estimated_cost_cents,
         estimated_monthly_revenue_cents: revenue_cents,
-    })
+    }))
 }
 
 #[cfg(test)]

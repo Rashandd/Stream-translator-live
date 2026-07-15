@@ -258,14 +258,23 @@ mod tests {
         let store = StateStore::new(Duration::from_secs(60));
         let st = store.issue("user-1", "streamlabs", "https://app/cb");
         let got = store.consume(&st).expect("valid state");
-        assert_eq!(got, ("user-1".into(), "streamlabs".into(), "https://app/cb".into()));
+        assert_eq!(
+            got,
+            (
+                "user-1".into(),
+                "streamlabs".into(),
+                "https://app/cb".into()
+            )
+        );
         // İkinci kullanım reddedilir (tek kullanımlık).
         assert!(store.consume(&st).is_none());
     }
 
     #[test]
     fn state_unknown_and_expired_rejected() {
-        assert!(StateStore::new(Duration::from_secs(60)).consume("nope").is_none());
+        assert!(StateStore::new(Duration::from_secs(60))
+            .consume("nope")
+            .is_none());
         let store = StateStore::new(Duration::from_millis(0));
         let st = store.issue("u", "streamlabs", "cb");
         std::thread::sleep(Duration::from_millis(5));
@@ -274,11 +283,16 @@ mod tests {
 
     /// Token uç noktasını taklit eder: doğru client_secret ister, token döner.
     async fn spawn_token_mock() -> String {
-        async fn token(Form(form): Form<Map<String, String>>) -> (StatusCode, Json<serde_json::Value>) {
+        async fn token(
+            Form(form): Form<Map<String, String>>,
+        ) -> (StatusCode, Json<serde_json::Value>) {
             if form.get("client_secret").map(String::as_str) != Some("sec-1")
                 || form.get("grant_type").map(String::as_str) != Some("authorization_code")
             {
-                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid_client" })));
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": "invalid_client" })),
+                );
             }
             (
                 StatusCode::OK,
@@ -326,11 +340,16 @@ mod tests {
     /// Refresh uç noktasını taklit eder: `grant_type=refresh_token` bekler,
     /// Google'ın tipik davranışını taklit ederek yeni `refresh_token` DÖNMEZ.
     async fn spawn_refresh_mock() -> String {
-        async fn token(Form(form): Form<Map<String, String>>) -> (StatusCode, Json<serde_json::Value>) {
+        async fn token(
+            Form(form): Form<Map<String, String>>,
+        ) -> (StatusCode, Json<serde_json::Value>) {
             if form.get("grant_type").map(String::as_str) != Some("refresh_token")
                 || form.get("refresh_token").map(String::as_str) != Some("rt-old")
             {
-                return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "invalid_grant" })));
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({ "error": "invalid_grant" })),
+                );
             }
             (
                 StatusCode::OK,

@@ -14,10 +14,11 @@ use streamdubber_backend::{
     auth::session::SessionStore,
     billing::Billing,
     bindings::{self, ChannelBindingStore},
+    cache,
+    config::{Config, Environment, ServiceConfig},
+    crypto, db,
     ext_twitch::ExtTwitch,
     founding::FoundingStore,
-    config::{Config, Environment, ServiceConfig},
-    cache, crypto, db,
     gateway::{
         assemblyai::AssemblyAiStt,
         deepgram::DeepgramStt,
@@ -45,9 +46,9 @@ use streamdubber_backend::{
     stream_settings,
     stt_servers::provision::{FakeProvisioner, ProvisionError, Provisioner, SshProvisioner},
     stt_servers::SttServerStore,
+    tls::{self, TlsSettings},
     usage::UsageTracker,
     users::{TwoFactorStore, UserStore},
-    tls::{self, TlsSettings},
     voice_models,
     waitlist::WaitlistLimiter,
 };
@@ -197,7 +198,10 @@ async fn resolve_enc_key(
     store: &dyn SecretStore,
     context: &str,
 ) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::error::Error>> {
-    match std::env::var("SECRETS_ENC_KEY").ok().filter(|k| !k.is_empty()) {
+    match std::env::var("SECRETS_ENC_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+    {
         Some(encoded) => parse_enc_key(&encoded),
         None => {
             tracing::info!(%context, "SECRETS_ENC_KEY not set — deriving key from JWT_SECRET");
@@ -218,9 +222,13 @@ fn parse_enc_key(encoded: &str) -> Result<[u8; crypto::KEY_LEN], Box<dyn std::er
             .map_err(|e| format!("SECRETS_ENC_KEY invalid base64: {e}"))?
     };
     let len = bytes.len();
-    bytes
-        .try_into()
-        .map_err(|_| format!("SECRETS_ENC_KEY must be {} bytes, got {len}", crypto::KEY_LEN).into())
+    bytes.try_into().map_err(|_| {
+        format!(
+            "SECRETS_ENC_KEY must be {} bytes, got {len}",
+            crypto::KEY_LEN
+        )
+        .into()
+    })
 }
 
 /// Paylaşılan state'i kurar ve sağlayıcıları kaydeder.
@@ -373,7 +381,9 @@ async fn build_state(
     // SDK_SESSIONS_FILE verilirse AES-256 şifreli kalıcı; yoksa restart'ta
     // cihazlar yeniden pairing yapmadan da çalışmaya devam eder (device JWT
     // hâlâ geçerli) ama panel listesi/heartbeat state'i sıfırlanır.
-    let sdk_sessions_file = std::env::var("SDK_SESSIONS_FILE").ok().filter(|p| !p.is_empty());
+    let sdk_sessions_file = std::env::var("SDK_SESSIONS_FILE")
+        .ok()
+        .filter(|p| !p.is_empty());
     let sdk_sessions = match sdk_sessions_file {
         Some(path) => {
             let key = resolve_enc_key(secrets.as_ref(), "streamdubber.sdk_sessions.v1").await?;
@@ -386,8 +396,8 @@ async fn build_state(
         }
     };
 
-    // Yayıncı hesapları (1.4): USERS_FILE verilirse AES-256 şifreli kalıcı;
-    // DB pool'u varsa users tablosuna best-effort yansıtılır.
+    // Yayıncı hesapları (1.4): PostgreSQL production kaynağıdır. USERS_FILE
+    // yalnız DB'siz development/test adapter'ı olarak okunur.
     let users_file = std::env::var("USERS_FILE").ok().filter(|p| !p.is_empty());
     let users = match users_file {
         Some(path) => {
@@ -396,7 +406,9 @@ async fn build_state(
             UserStore::with_file(path, &key)?
         }
         None => {
-            tracing::warn!("USERS_FILE not set — user accounts are lost on restart");
+            tracing::warn!(
+                "USERS_FILE not set — DB'siz development'ta user accounts are lost on restart"
+            );
             UserStore::in_memory()
         }
     }
@@ -585,28 +597,31 @@ async fn build_state(
         .unwrap_or_else(|| "stt-server".to_string());
     let main_py_path = format!("{app_dir}/main.py");
     let requirements_path = format!("{app_dir}/requirements.txt");
-    let stt_provisioner: Arc<dyn Provisioner> =
-        match SshProvisioner::from_paths(&bootstrap_script_path, &main_py_path, &requirements_path) {
-            Ok(provisioner) => {
-                tracing::info!(
-                    bootstrap = %bootstrap_script_path,
-                    app_dir = %app_dir,
-                    "stt provisioner: real SshProvisioner"
-                );
-                Arc::new(provisioner)
-            }
-            Err(err) => {
-                tracing::warn!(
-                    bootstrap = %bootstrap_script_path,
-                    app_dir = %app_dir,
-                    %err,
-                    "STT provisioner files not readable — self-hosted STT provisioning will fail until fixed"
-                );
-                Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(format!(
+    let stt_provisioner: Arc<dyn Provisioner> = match SshProvisioner::from_paths(
+        &bootstrap_script_path,
+        &main_py_path,
+        &requirements_path,
+    ) {
+        Ok(provisioner) => {
+            tracing::info!(
+                bootstrap = %bootstrap_script_path,
+                app_dir = %app_dir,
+                "stt provisioner: real SshProvisioner"
+            );
+            Arc::new(provisioner)
+        }
+        Err(err) => {
+            tracing::warn!(
+                bootstrap = %bootstrap_script_path,
+                app_dir = %app_dir,
+                %err,
+                "STT provisioner files not readable — self-hosted STT provisioning will fail until fixed"
+            );
+            Arc::new(FakeProvisioner::always(Err(ProvisionError::Bootstrap(format!(
                     "provisioner files not readable (bootstrap={bootstrap_script_path}, app_dir={app_dir}): {err}"
                 )))))
-            }
-        };
+        }
+    };
 
     let browser_sessions = Arc::new(match &db_pool {
         Some(pool) => SessionStore::with_db(pool.clone()),
