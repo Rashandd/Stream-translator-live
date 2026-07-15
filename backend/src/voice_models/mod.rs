@@ -155,6 +155,8 @@ pub enum VoiceModelError {
     Io(#[from] std::io::Error),
     #[error("store file parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("voice model database error")]
+    Database,
 }
 
 /// `set_active_for_language` hataları.
@@ -190,6 +192,7 @@ pub struct VoiceModelStore {
     inner: Mutex<HashMap<String, VoiceModel>>,
     active: Mutex<HashMap<String, String>>,
     path: Option<PathBuf>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl VoiceModelStore {
@@ -198,6 +201,7 @@ impl VoiceModelStore {
             inner: Mutex::new(HashMap::new()),
             active: Mutex::new(HashMap::new()),
             path: None,
+            db: None,
         }
     }
 
@@ -213,7 +217,13 @@ impl VoiceModelStore {
             inner: Mutex::new(state.models),
             active: Mutex::new(state.active),
             path: Some(path),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     pub fn insert(&self, model: VoiceModel) {
@@ -353,6 +363,75 @@ impl VoiceModelStore {
             Err(err) => tracing::warn!(error = %err, "voice model store serialize failed"),
         }
     }
+
+    pub async fn persistent_insert(&self, model: &VoiceModel) -> Result<(), VoiceModelError> {
+        let Some(pool) = &self.db else { self.insert(model.clone()); return Ok(()); };
+        let user_id = uuid::Uuid::parse_str(&model.user_id).map_err(|_| VoiceModelError::Database)?;
+        sqlx::query("INSERT INTO voice_models (id, user_id, name, provider_voice_id, status, language_mode, source_languages, target_languages, mode, source, has_stored_sample, consent, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,to_timestamp($13))")
+            .bind(&model.id).bind(user_id).bind(&model.name).bind(&model.provider_voice_id)
+            .bind(enum_value(model.status)?).bind(enum_value(model.language_mode)?)
+            .bind(&model.source_languages).bind(&model.target_languages).bind(enum_value(model.mode)?)
+            .bind(enum_value(model.source)?).bind(model.has_stored_sample)
+            .bind(serde_json::to_value(&model.consent)?).bind(model.created_at)
+            .execute(pool).await.map_err(|_| VoiceModelError::Database)?;
+        Ok(())
+    }
+
+    pub async fn persistent_list_for_user(&self, user_id: &str) -> Result<Vec<VoiceModel>, VoiceModelError> {
+        let Some(pool) = &self.db else { return Ok(self.list_for_user(user_id)); };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| VoiceModelError::Database)?;
+        let rows = sqlx::query_as::<_, VoiceModelRow>("SELECT id, user_id::text, name, provider_voice_id, status, language_mode, source_languages, target_languages, mode, source, has_stored_sample, consent, EXTRACT(EPOCH FROM created_at)::BIGINT FROM voice_models WHERE user_id=$1 ORDER BY created_at")
+            .bind(user_id).fetch_all(pool).await.map_err(|_| VoiceModelError::Database)?;
+        rows.into_iter().map(VoiceModel::try_from).collect()
+    }
+
+    pub async fn persistent_list_all(&self) -> Result<Vec<VoiceModel>, VoiceModelError> {
+        let Some(pool) = &self.db else { return Ok(self.list_all()); };
+        let rows = sqlx::query_as::<_, VoiceModelRow>("SELECT id, user_id::text, name, provider_voice_id, status, language_mode, source_languages, target_languages, mode, source, has_stored_sample, consent, EXTRACT(EPOCH FROM created_at)::BIGINT FROM voice_models ORDER BY created_at")
+            .fetch_all(pool).await.map_err(|_| VoiceModelError::Database)?;
+        rows.into_iter().map(VoiceModel::try_from).collect()
+    }
+
+    pub async fn persistent_set_status(&self, id: &str, status: VoiceModelStatus) -> Result<Option<VoiceModel>, VoiceModelError> {
+        let Some(pool) = &self.db else { return Ok(self.set_status(id, status)); };
+        let changed = sqlx::query("UPDATE voice_models SET status=$2 WHERE id=$1").bind(id).bind(enum_value(status)?).execute(pool).await.map_err(|_| VoiceModelError::Database)?;
+        if changed.rows_affected() == 0 { return Ok(None); }
+        self.persistent_get(id).await
+    }
+
+    pub async fn persistent_get(&self, id: &str) -> Result<Option<VoiceModel>, VoiceModelError> {
+        let Some(pool) = &self.db else { return Ok(self.get(id)); };
+        let row = sqlx::query_as::<_, VoiceModelRow>("SELECT id, user_id::text, name, provider_voice_id, status, language_mode, source_languages, target_languages, mode, source, has_stored_sample, consent, EXTRACT(EPOCH FROM created_at)::BIGINT FROM voice_models WHERE id=$1")
+            .bind(id).fetch_optional(pool).await.map_err(|_| VoiceModelError::Database)?;
+        row.map(VoiceModel::try_from).transpose()
+    }
+
+    pub async fn persistent_set_has_stored_sample(&self, id: &str, has_sample: bool) -> Result<(), VoiceModelError> {
+        let Some(pool) = &self.db else {
+            self.persist_with(|models| { if let Some(model) = models.get_mut(id) { model.has_stored_sample = has_sample; } });
+            return Ok(());
+        };
+        sqlx::query("UPDATE voice_models SET has_stored_sample=$2 WHERE id=$1").bind(id).bind(has_sample).execute(pool).await.map_err(|_| VoiceModelError::Database)?;
+        Ok(())
+    }
+}
+
+type VoiceModelRow = (String, String, String, String, String, String, Vec<String>, Vec<String>, String, String, bool, serde_json::Value, i64);
+
+impl TryFrom<VoiceModelRow> for VoiceModel {
+    type Error = VoiceModelError;
+    fn try_from(row: VoiceModelRow) -> Result<Self, Self::Error> {
+        let (id, user_id, name, provider_voice_id, status, language_mode, source_languages, target_languages, mode, source, has_stored_sample, consent, created_at) = row;
+        Ok(Self { id, user_id, name, provider_voice_id,
+            status: serde_json::from_value(serde_json::Value::String(status))?,
+            language_mode: serde_json::from_value(serde_json::Value::String(language_mode))?, source_languages, target_languages,
+            mode: serde_json::from_value(serde_json::Value::String(mode))?, source: serde_json::from_value(serde_json::Value::String(source))?, has_stored_sample,
+            consent: serde_json::from_value(consent)?, created_at })
+    }
+}
+
+fn enum_value<T: Serialize>(value: T) -> Result<String, VoiceModelError> {
+    serde_json::to_value(value)?.as_str().map(str::to_owned).ok_or(VoiceModelError::Database)
 }
 
 // ── HTTP handler'ları ────────────────────────────────────────────────────
@@ -504,7 +583,12 @@ pub async fn clone_voice(
             accepted_at: now,
         },
     };
-    store.insert(model.clone());
+    store.persistent_insert(&model).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "voice model service unavailable".to_string()))?;
+    if has_stored_sample {
+        if samples.persistent_put(&model.id, &model.user_id, &sample).await.is_err() {
+            store.persistent_set_has_stored_sample(&model.id, false).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "voice model service unavailable".to_string()))?;
+        }
+    }
     Ok(Json(model))
 }
 
@@ -512,8 +596,8 @@ pub async fn clone_voice(
 pub async fn list_my_voice_models(
     user: AuthUser,
     State(store): State<Arc<VoiceModelStore>>,
-) -> Json<Vec<VoiceModel>> {
-    Json(store.list_for_user(&user.claims.sub))
+) -> Result<Json<Vec<VoiceModel>>, StatusCode> {
+    store.persistent_list_for_user(&user.claims.sub).await.map(Json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// `GET /admin/voice/models` — onay kuyruğu (tüm kullanıcılar, tüm durumlar;
@@ -521,8 +605,8 @@ pub async fn list_my_voice_models(
 pub async fn list_all_voice_models(
     _admin: AdminUser,
     State(store): State<Arc<VoiceModelStore>>,
-) -> Json<Vec<VoiceModel>> {
-    Json(store.list_all())
+) -> Result<Json<Vec<VoiceModel>>, StatusCode> {
+    store.persistent_list_all().await.map(Json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// `POST /admin/voice/models/{id}/approve`.
@@ -532,7 +616,7 @@ pub async fn approve_voice_model(
     Path(id): Path<String>,
 ) -> Result<Json<VoiceModel>, StatusCode> {
     store
-        .set_status(&id, VoiceModelStatus::Approved)
+        .persistent_set_status(&id, VoiceModelStatus::Approved).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -544,7 +628,7 @@ pub async fn reject_voice_model(
     Path(id): Path<String>,
 ) -> Result<Json<VoiceModel>, StatusCode> {
     store
-        .set_status(&id, VoiceModelStatus::Rejected)
+        .persistent_set_status(&id, VoiceModelStatus::Rejected).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
