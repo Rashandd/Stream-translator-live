@@ -53,12 +53,15 @@ pub enum StreamSettingsError {
     Io(#[from] std::io::Error),
     #[error("settings file parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("stream settings database error")]
+    Database,
 }
 
 /// Kullanıcı → dil ayarları deposu (opsiyonel düz-JSON kalıcılık).
 pub struct StreamSettingsStore {
     inner: Mutex<HashMap<String, StreamLanguageSettings>>,
     path: Option<PathBuf>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl StreamSettingsStore {
@@ -67,6 +70,7 @@ impl StreamSettingsStore {
         StreamSettingsStore {
             inner: Mutex::new(HashMap::new()),
             path: None,
+            db: None,
         }
     }
 
@@ -82,7 +86,13 @@ impl StreamSettingsStore {
         Ok(StreamSettingsStore {
             inner: Mutex::new(inner),
             path: Some(path),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     /// Kullanıcının ayarları (kayıt yoksa varsayılan: auto kaynak, boş hedef).
@@ -110,6 +120,44 @@ impl StreamSettingsStore {
                 tracing::warn!(error = %err, "stream language settings persist failed");
             }
         }
+    }
+
+    pub async fn persistent_get(
+        &self,
+        user_id: &str,
+    ) -> Result<StreamLanguageSettings, StreamSettingsError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.get(user_id));
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| StreamSettingsError::Database)?;
+        let row: Option<(String, Vec<String>)> = sqlx::query_as(
+            "SELECT source_lang, target_langs FROM user_stream_settings WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| StreamSettingsError::Database)?;
+        Ok(row
+            .map(|(source_lang, target_langs)| StreamLanguageSettings {
+                source_lang,
+                target_langs,
+            })
+            .unwrap_or_default())
+    }
+
+    pub async fn persistent_set(
+        &self,
+        user_id: &str,
+        settings: StreamLanguageSettings,
+    ) -> Result<(), StreamSettingsError> {
+        let Some(pool) = &self.db else {
+            self.set(user_id, settings);
+            return Ok(());
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| StreamSettingsError::Database)?;
+        sqlx::query("INSERT INTO user_stream_settings (user_id, source_lang, target_langs) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET source_lang = EXCLUDED.source_lang, target_langs = EXCLUDED.target_langs, updated_at = NOW()")
+            .bind(user_id).bind(&settings.source_lang).bind(&settings.target_langs).execute(pool).await.map_err(|_| StreamSettingsError::Database)?;
+        Ok(())
     }
 }
 
@@ -192,7 +240,12 @@ pub async fn get_languages(
         })?
         .map(|p| p.max_languages)
         .unwrap_or(1);
-    let settings = store.get(&user.claims.sub);
+    let settings = store.persistent_get(&user.claims.sub).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "stream settings unavailable".to_string(),
+        )
+    })?;
     Ok(Json(LanguagesResponse {
         languages,
         max_languages,
@@ -261,7 +314,15 @@ pub async fn put_languages(
         source_lang: req.source_lang,
         target_langs: req.target_langs,
     };
-    store.set(&user.claims.sub, settings.clone());
+    store
+        .persistent_set(&user.claims.sub, settings.clone())
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stream settings unavailable".to_string(),
+            )
+        })?;
     Ok(Json(settings))
 }
 
