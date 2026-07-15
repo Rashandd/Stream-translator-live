@@ -656,6 +656,8 @@ async fn build_state(
             Arc::new(SttServerStore::in_memory())
         }
     };
+    let stt_servers = match &db_pool { Some(pool) => Arc::new(Arc::try_unwrap(stt_servers).map_err(|_| "stt server store unexpectedly shared during startup")?.with_db(pool.clone())), None => stt_servers };
+    stt_servers.load_db().await?;
     // Sabit bir API key'i yok (host'u SttServerStore çözer) — MockFallbackStt
     // sarmalayıcısına ihtiyaç duymaz, `stt.provider=selfhosted` seçilince
     // doğrudan devreye girer.
