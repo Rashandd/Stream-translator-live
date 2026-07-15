@@ -69,6 +69,8 @@ pub enum FoundingError {
     Io(#[from] std::io::Error),
     #[error("store file parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("founding applications database error")]
+    Database,
 }
 
 /// user_id → başvuru deposu (opsiyonel düz-JSON kalıcılık — kanal linki
@@ -76,6 +78,7 @@ pub enum FoundingError {
 pub struct FoundingStore {
     inner: Mutex<HashMap<String, FoundingApplication>>,
     path: Option<PathBuf>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl FoundingStore {
@@ -83,6 +86,7 @@ impl FoundingStore {
         FoundingStore {
             inner: Mutex::new(HashMap::new()),
             path: None,
+            db: None,
         }
     }
 
@@ -97,7 +101,13 @@ impl FoundingStore {
         Ok(FoundingStore {
             inner: Mutex::new(entries),
             path: Some(path),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     pub fn get(&self, user_id: &str) -> Option<FoundingApplication> {
@@ -243,6 +253,138 @@ impl FoundingStore {
             Err(err) => tracing::warn!(error = %err, "founding store serialize failed"),
         }
     }
+
+    pub async fn persistent_get(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<FoundingApplication>, FoundingError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.get(user_id));
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| FoundingError::Database)?;
+        let row: Option<(String, String, String, String, String, String, i64, i64, bool)> = sqlx::query_as("SELECT user_id::text, email, platform, channel_url, message, status, EXTRACT(EPOCH FROM created_at)*1000::BIGINT, EXTRACT(EPOCH FROM updated_at)*1000::BIGINT, auto_created_via_oauth FROM founding_applications WHERE user_id = $1")
+            .bind(user_id).fetch_optional(pool).await.map_err(|_| FoundingError::Database)?;
+        row.map(application_from_row).transpose()
+    }
+
+    pub async fn persistent_upsert(
+        &self,
+        app: &FoundingApplication,
+    ) -> Result<FoundingApplication, FoundingError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.upsert_application(
+                &app.user_id,
+                &app.email,
+                app.platform,
+                &app.channel_url,
+                &app.message,
+            ));
+        };
+        let user_id = uuid::Uuid::parse_str(&app.user_id).map_err(|_| FoundingError::Database)?;
+        let platform = enum_value(app.platform)?;
+        sqlx::query("INSERT INTO founding_applications (user_id, email, platform, channel_url, message, status, auto_created_via_oauth) VALUES ($1, $2, $3, $4, $5, 'pending', FALSE) ON CONFLICT (user_id) DO UPDATE SET email = EXCLUDED.email, platform = EXCLUDED.platform, channel_url = EXCLUDED.channel_url, message = EXCLUDED.message, auto_created_via_oauth = FALSE, updated_at = NOW()")
+            .bind(user_id).bind(&app.email).bind(platform).bind(&app.channel_url).bind(&app.message).execute(pool).await.map_err(|_| FoundingError::Database)?;
+        self.persistent_get(&app.user_id)
+            .await?
+            .ok_or(FoundingError::Database)
+    }
+
+    pub async fn persistent_list_all(&self) -> Result<Vec<FoundingApplication>, FoundingError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.list_all());
+        };
+        let rows: Vec<(String, String, String, String, String, String, i64, i64, bool)> = sqlx::query_as("SELECT user_id::text, email, platform, channel_url, message, status, EXTRACT(EPOCH FROM created_at)*1000::BIGINT, EXTRACT(EPOCH FROM updated_at)*1000::BIGINT, auto_created_via_oauth FROM founding_applications ORDER BY created_at DESC").fetch_all(pool).await.map_err(|_| FoundingError::Database)?;
+        rows.into_iter().map(application_from_row).collect()
+    }
+
+    pub async fn persistent_set_status(
+        &self,
+        user_id: &str,
+        status: FoundingStatus,
+    ) -> Result<Option<FoundingApplication>, FoundingError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.set_status(user_id, status));
+        };
+        let id = uuid::Uuid::parse_str(user_id).map_err(|_| FoundingError::Database)?;
+        let changed = sqlx::query(
+            "UPDATE founding_applications SET status = $2, updated_at = NOW() WHERE user_id = $1",
+        )
+        .bind(id)
+        .bind(enum_value(status)?)
+        .execute(pool)
+        .await
+        .map_err(|_| FoundingError::Database)?;
+        if changed.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.persistent_get(user_id).await
+    }
+
+    pub async fn persistent_auto_apply_if_absent(
+        &self,
+        user_id: &str,
+        email: &str,
+        platform: FoundingPlatform,
+        channel_url: &str,
+    ) -> Result<Option<FoundingApplication>, FoundingError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.auto_apply_if_absent(user_id, email, platform, channel_url));
+        };
+        let id = uuid::Uuid::parse_str(user_id).map_err(|_| FoundingError::Database)?;
+        let result = sqlx::query("INSERT INTO founding_applications (user_id, email, platform, channel_url, message, status, auto_created_via_oauth) VALUES ($1, $2, $3, $4, '', 'pending', TRUE) ON CONFLICT (user_id) DO NOTHING")
+            .bind(id).bind(email).bind(enum_value(platform)?).bind(channel_url).execute(pool).await.map_err(|_| FoundingError::Database)?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.persistent_get(user_id).await
+    }
+}
+
+fn enum_value<T: Serialize>(value: T) -> Result<String, FoundingError> {
+    serde_json::to_value(value)
+        .map_err(FoundingError::Parse)?
+        .as_str()
+        .map(str::to_string)
+        .ok_or(FoundingError::Database)
+}
+
+fn application_from_row(
+    row: (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        i64,
+        bool,
+    ),
+) -> Result<FoundingApplication, FoundingError> {
+    let (
+        user_id,
+        email,
+        platform,
+        channel_url,
+        message,
+        status,
+        created_at_ms,
+        updated_at_ms,
+        auto_created_via_oauth,
+    ) = row;
+    Ok(FoundingApplication {
+        user_id,
+        email,
+        platform: serde_json::from_value(serde_json::Value::String(platform))
+            .map_err(FoundingError::Parse)?,
+        channel_url,
+        message,
+        status: serde_json::from_value(serde_json::Value::String(status))
+            .map_err(FoundingError::Parse)?,
+        created_at_ms,
+        updated_at_ms,
+        auto_created_via_oauth,
+    })
 }
 
 // ── HTTP handler'ları ────────────────────────────────────────────────────
@@ -285,17 +427,36 @@ pub async fn submit_application(
     }
 
     let email = users
-        .get_by_id(&user.claims.sub)
+        .persistent_get_by_id(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "user service unavailable".to_string(),
+            )
+        })?
         .map(|record| record.email)
         .unwrap_or_default();
 
-    let application = store.upsert_application(
-        &user.claims.sub,
-        &email,
-        req.platform,
-        channel_url,
-        &req.message,
-    );
+    let application = store
+        .persistent_upsert(&FoundingApplication {
+            user_id: user.claims.sub.clone(),
+            email,
+            platform: req.platform,
+            channel_url: channel_url.to_string(),
+            message: req.message,
+            status: FoundingStatus::Pending,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+            auto_created_via_oauth: false,
+        })
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "founding service unavailable".to_string(),
+            )
+        })?;
     Ok((StatusCode::CREATED, Json(application)))
 }
 
@@ -322,7 +483,9 @@ pub async fn get_my_application(
     State(store): State<Arc<FoundingStore>>,
 ) -> Result<Json<FoundingApplication>, StatusCode> {
     store
-        .get(&user.claims.sub)
+        .persistent_get(&user.claims.sub)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -331,8 +494,12 @@ pub async fn get_my_application(
 pub async fn list_applications(
     _admin: AdminUser,
     State(store): State<Arc<FoundingStore>>,
-) -> Json<Vec<FoundingApplication>> {
-    Json(store.list_all())
+) -> Result<Json<Vec<FoundingApplication>>, StatusCode> {
+    store
+        .persistent_list_all()
+        .await
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// `POST /admin/founding/{user_id}/approve`.
@@ -342,7 +509,9 @@ pub async fn approve_application(
     Path(user_id): Path<String>,
 ) -> Result<Json<FoundingApplication>, StatusCode> {
     store
-        .set_status(&user_id, FoundingStatus::Approved)
+        .persistent_set_status(&user_id, FoundingStatus::Approved)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -354,7 +523,9 @@ pub async fn revoke_application(
     Path(user_id): Path<String>,
 ) -> Result<Json<FoundingApplication>, StatusCode> {
     store
-        .set_status(&user_id, FoundingStatus::Revoked)
+        .persistent_set_status(&user_id, FoundingStatus::Revoked)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -460,7 +631,10 @@ mod tests {
             .expect("no prior application, should create one");
         assert_eq!(app.status, FoundingStatus::Pending);
         assert!(app.auto_created_via_oauth);
-        assert_eq!(store.get("u1").unwrap().channel_url, "https://youtube.com/channel/u1");
+        assert_eq!(
+            store.get("u1").unwrap().channel_url,
+            "https://youtube.com/channel/u1"
+        );
     }
 
     #[test]
@@ -491,7 +665,12 @@ mod tests {
     fn auto_apply_if_absent_noop_when_already_auto_created() {
         let store = FoundingStore::in_memory();
         store
-            .auto_apply_if_absent("u1", "u1@example.com", FoundingPlatform::Youtube, "https://youtube.com/a")
+            .auto_apply_if_absent(
+                "u1",
+                "u1@example.com",
+                FoundingPlatform::Youtube,
+                "https://youtube.com/a",
+            )
             .unwrap();
 
         let result = store.auto_apply_if_absent(

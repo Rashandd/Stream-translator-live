@@ -567,6 +567,14 @@ async fn build_state(
             Arc::new(FoundingStore::in_memory())
         }
     };
+    let founding = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(founding)
+                .map_err(|_| "founding store unexpectedly shared during startup")?
+                .with_db(pool.clone()),
+        ),
+        None => founding,
+    };
 
     // Yerel TTS modu + benchmark sonucu (Faz 2.2b): TTS_SETTINGS_FILE
     // verilirse düz JSON kalıcı (secret içermez); yoksa bellek içi.
