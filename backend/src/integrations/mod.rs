@@ -740,7 +740,13 @@ async fn auto_apply_founding(
     // auto_apply_if_absent zaten "var olan başvuruya dokunma" davranışını
     // garanti ediyor; burada erken çıkmak sadece gereksiz token/identity
     // fetch'ini önler.
-    if founding.get(&conn.user_id).is_some() {
+    if founding
+        .persistent_get(&conn.user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
         return;
     }
     let Some(email) = users
@@ -781,7 +787,12 @@ async fn auto_apply_founding(
         tracing::warn!(provider = %conn.provider, "auto founding: channel identity fetch failed, skipping");
         return;
     };
-    founding.auto_apply_if_absent(&conn.user_id, &email, platform, &channel_url);
+    if let Err(err) = founding
+        .persistent_auto_apply_if_absent(&conn.user_id, &email, platform, &channel_url)
+        .await
+    {
+        tracing::warn!(%err, user_id = %conn.user_id, "auto founding: persistence failed");
+    }
 }
 
 /// Sağlayıcının kendi identity API'sinden yayıncının kanal URL'ini çözer.
