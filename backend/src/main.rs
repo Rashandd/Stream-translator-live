@@ -401,6 +401,17 @@ async fn build_state(
             Arc::new(SdkSessionStore::in_memory())
         }
     };
+    let sdk_sessions = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(sdk_sessions)
+                .map_err(|_| "sdk session store unexpectedly shared during startup")?
+                .with_db(
+                    pool.clone(),
+                    &resolve_enc_key(secrets.as_ref(), "streamdubber.sdk_sessions.v1").await?,
+                )?,
+        ),
+        None => sdk_sessions,
+    };
 
     // Yayıncı hesapları (1.4): PostgreSQL production kaynağıdır. USERS_FILE
     // yalnız DB'siz development/test adapter'ı olarak okunur.

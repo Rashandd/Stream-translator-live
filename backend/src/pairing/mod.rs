@@ -257,7 +257,6 @@ pub struct ClaimResponse {
 pub async fn claim(
     State(pairing): State<Arc<PairingStore>>,
     State(jwt): State<Arc<Jwt>>,
-    State(db): State<Option<sqlx::PgPool>>,
     State(logger): State<Arc<Logger>>,
     State(limiter): State<Arc<ClaimLimiter>>,
     State(sessions): State<Arc<crate::sdk_session::SdkSessionStore>>,
@@ -311,15 +310,9 @@ pub async fn claim(
         None,
     );
 
-    // Best-effort DB kaydı (sdk_sessions tablosu — kalıcı denetim izi;
-    // `sdk_session::SdkSessionStore`'dan FARKLI: o canlı presence/heartbeat
-    // kaynağı, DB'siz kurulumlarda da çalışır).
-    if let Some(pool) = &db {
-        persist_session(pool, &user_id, &req, &logger).await;
-    }
-
     let (sdk_session_id, heartbeat_secret) = sessions
-        .create(&user_id, &req.device_name, &req.sdk_version)
+        .persistent_create(&user_id, &req.device_name, &req.sdk_version)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(ClaimResponse {
@@ -329,31 +322,6 @@ pub async fn claim(
         sdk_session_id,
         heartbeat_secret,
     }))
-}
-
-/// `sdk_sessions` satırını yazar; her hata warn (pipeline'ı etkilemez).
-async fn persist_session(pool: &sqlx::PgPool, user_id: &str, req: &ClaimRequest, logger: &Logger) {
-    let Ok(uuid) = uuid::Uuid::parse_str(user_id) else {
-        return;
-    };
-    let result = sqlx::query(
-        "INSERT INTO sdk_sessions (user_id, device_name, sdk_version, paired_at, last_seen_at) \
-         VALUES ($1, $2, $3, NOW(), NOW())",
-    )
-    .bind(uuid)
-    .bind(&req.device_name)
-    .bind(&req.sdk_version)
-    .execute(pool)
-    .await;
-    if let Err(err) = result {
-        logger.log(
-            LogLevel::Warn,
-            "pairing",
-            &format!("sdk_sessions persist failed: {err}"),
-            Some(user_id),
-            None,
-        );
-    }
 }
 
 #[cfg(test)]
