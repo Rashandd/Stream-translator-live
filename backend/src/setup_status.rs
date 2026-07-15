@@ -10,6 +10,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
 use serde::Serialize;
 
@@ -100,7 +101,7 @@ pub async fn get_setup_status(
     State(test_store): State<Arc<ProviderTestStore>>,
     State(bootstrap_admin): State<Arc<Option<BootstrapAdmin>>>,
     State(logger): State<Arc<Logger>>,
-) -> Json<SetupStatus> {
+) -> Result<Json<SetupStatus>, (StatusCode, String)> {
     let mut checks = Vec::new();
 
     checks.push(if bootstrap_admin.is_some() {
@@ -147,7 +148,8 @@ pub async fn get_setup_status(
         },
     });
 
-    let tls_configured = persist_env_configured("TLS_CERT_PATH") && persist_env_configured("TLS_KEY_PATH");
+    let tls_configured =
+        persist_env_configured("TLS_CERT_PATH") && persist_env_configured("TLS_KEY_PATH");
     let mtls_configured = persist_env_configured("TLS_CLIENT_CA_PATH");
     checks.push(if !tls_configured {
         SetupCheck {
@@ -176,11 +178,21 @@ pub async fn get_setup_status(
     checks.push(SetupCheck {
         id: "redirect_base",
         label: "OAuth redirect base".to_string(),
-        tone: if redirect_base.contains("localhost") { Tone::Warn } else { Tone::Ok },
+        tone: if redirect_base.contains("localhost") {
+            Tone::Warn
+        } else {
+            Tone::Ok
+        },
         detail: format!("integration.redirect_base = {redirect_base}"),
     });
 
-    let plan_defs = plans.snapshot();
+    let plan_defs = plans.persistent_snapshot().await.map_err(|err| {
+        tracing::warn!(%err, "plans: setup status read failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "plan service unavailable".to_string(),
+        )
+    })?;
     let missing_price: Vec<String> = plan_defs
         .iter()
         .filter(|p| p.price_cents > 0)
@@ -194,7 +206,11 @@ pub async fn get_setup_status(
     checks.push(SetupCheck {
         id: "stripe_prices",
         label: "Stripe plan price ID".to_string(),
-        tone: if missing_price.is_empty() { Tone::Ok } else { Tone::Warn },
+        tone: if missing_price.is_empty() {
+            Tone::Ok
+        } else {
+            Tone::Warn
+        },
         detail: if missing_price.is_empty() {
             "Tüm ücretli planlarda stripe_price_id ayarlı.".to_string()
         } else {
@@ -206,12 +222,25 @@ pub async fn get_setup_status(
     checks.push(SetupCheck {
         id: "logs",
         label: "Son log hataları".to_string(),
-        tone: if recent_errors == 0 { Tone::Ok } else { Tone::Warn },
+        tone: if recent_errors == 0 {
+            Tone::Ok
+        } else {
+            Tone::Warn
+        },
         detail: format!("Son 50 kayıtta {recent_errors} hata seviyeli log."),
     });
 
-    let persist_vars = ["SECRETS_FILE", "TOKENS_FILE", "RELAY_FILE", "USAGE_FILE", "LOG_FILE"];
-    let persisted_count = persist_vars.iter().filter(|v| persist_env_configured(v)).count();
+    let persist_vars = [
+        "SECRETS_FILE",
+        "TOKENS_FILE",
+        "RELAY_FILE",
+        "USAGE_FILE",
+        "LOG_FILE",
+    ];
+    let persisted_count = persist_vars
+        .iter()
+        .filter(|v| persist_env_configured(v))
+        .count();
     checks.push(SetupCheck {
         id: "persistence",
         label: "Kalıcılık (restart-safe)".to_string(),
@@ -260,5 +289,5 @@ pub async fn get_setup_status(
     }
     providers.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Json(SetupStatus { checks, providers })
+    Ok(Json(SetupStatus { checks, providers }))
 }

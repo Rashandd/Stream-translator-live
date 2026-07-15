@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -146,7 +147,13 @@ impl UsageTracker {
     }
 
     /// Test edilebilir çekirdek: `period` enjekte edilir.
-    fn record_for_period(&self, user_id: &str, seconds: f64, monthly_hours: i64, period: &str) -> UsageStatus {
+    fn record_for_period(
+        &self,
+        user_id: &str,
+        seconds: f64,
+        monthly_hours: i64,
+        period: &str,
+    ) -> UsageStatus {
         let (status, snapshot, db_flush) = {
             let mut map = self.users.lock().expect("usage tracker lock poisoned");
             let entry = map.entry(user_id.to_string()).or_default();
@@ -290,12 +297,21 @@ pub async fn get_summary(
     user: AuthUser,
     State(usage): State<Arc<UsageTracker>>,
     State(plans): State<Arc<PlanRegistry>>,
-) -> Json<UsageSummaryResponse> {
-    let plan_def = plans.get(&user.claims.plan);
+) -> Result<Json<UsageSummaryResponse>, (StatusCode, String)> {
+    let plan_def = plans
+        .persistent_get(&user.claims.plan)
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: usage summary read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?;
     let monthly_hours = plan_def.as_ref().map(|p| p.monthly_hours).unwrap_or(0);
     let price_cents = plan_def.as_ref().map(|p| p.price_cents).unwrap_or(0);
     let status = usage.status(&user.claims.sub, monthly_hours);
-    Json(UsageSummaryResponse {
+    Ok(Json(UsageSummaryResponse {
         plan: user.claims.plan.clone(),
         price_cents,
         period: UsageTracker::current_period(),
@@ -303,7 +319,7 @@ pub async fn get_summary(
         monthly_hours,
         remaining_seconds: status.remaining_seconds,
         limit_reached: status.limit_reached,
-    })
+    }))
 }
 
 #[cfg(test)]

@@ -393,7 +393,15 @@ pub async fn clone_voice(
     Json(req): Json<CloneVoiceRequest>,
 ) -> Result<Json<VoiceModel>, (StatusCode, String)> {
     let allowed = plans
-        .get(&user.claims.plan)
+        .persistent_get(&user.claims.plan)
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: voice clone authorization read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?
         .map(|p| p.has_voice_clone)
         .unwrap_or(false);
     if !allowed {

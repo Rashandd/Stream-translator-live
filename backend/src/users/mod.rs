@@ -2167,7 +2167,18 @@ pub async fn admin_set_user_plan(
     RoutePath(id): RoutePath<String>,
     Json(req): Json<AdminSetPlanRequest>,
 ) -> Result<Json<AdminUserSummary>, (StatusCode, String)> {
-    if plans.get(&req.plan).is_none() {
+    if plans
+        .persistent_get(&req.plan)
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: admin user plan validation read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?
+        .is_none()
+    {
         return Err((
             StatusCode::NOT_FOUND,
             format!("unknown plan '{}'", req.plan),
