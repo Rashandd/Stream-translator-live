@@ -518,6 +518,14 @@ async fn build_state(
             Arc::new(stream_settings::StreamSettingsStore::in_memory())
         }
     };
+    let stream_settings = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(stream_settings)
+                .map_err(|_| "stream settings unexpectedly shared during startup")?
+                .with_db(pool.clone()),
+        ),
+        None => stream_settings,
+    };
 
     // Ses klonlama model kayıtları (Faz 2.1): VOICE_MODELS_FILE verilirse
     // düz JSON kalıcı (metadata secret değil — ham ses örneği hiç
