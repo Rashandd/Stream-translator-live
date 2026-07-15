@@ -382,6 +382,17 @@ async fn build_state(
             Arc::new(RelayTargetStore::in_memory())
         }
     };
+    let relay = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(relay)
+                .map_err(|_| "relay store unexpectedly shared during startup")?
+                .with_db(
+                    pool.clone(),
+                    &resolve_enc_key(secrets.as_ref(), "streamdubber.relay.v1").await?,
+                )?,
+        ),
+        None => relay,
+    };
 
     // Eşleşmiş cihazların canlı presence'ı (heartbeat secret + cihaz adı):
     // SDK_SESSIONS_FILE verilirse AES-256 şifreli kalıcı; yoksa restart'ta

@@ -57,6 +57,7 @@ pub enum RelayError {
 pub struct RelayTargetStore {
     entries: RwLock<HashMap<String, Vec<RelayTarget>>>,
     persist: Option<(PathBuf, Cipher)>,
+    db: Option<(sqlx::PgPool, Cipher)>,
 }
 
 impl RelayTargetStore {
@@ -65,6 +66,7 @@ impl RelayTargetStore {
         RelayTargetStore {
             entries: RwLock::new(HashMap::new()),
             persist: None,
+            db: None,
         }
     }
 
@@ -76,7 +78,16 @@ impl RelayTargetStore {
         Ok(RelayTargetStore {
             entries: RwLock::new(entries),
             persist: Some((path, cipher)),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool, key: &[u8]) -> Result<Self, RelayError> {
+        self.db = Some((
+            pool,
+            Cipher::new(key).map_err(|e| RelayError::Crypto(e.to_string()))?,
+        ));
+        Ok(self)
     }
 
     /// Hedef listesini doğrulayıp kullanıcı için (tamamen) değiştirir.
@@ -87,7 +98,8 @@ impl RelayTargetStore {
             )));
         }
         for target in &targets {
-            if !(target.rtmp_url.starts_with("rtmp://") || target.rtmp_url.starts_with("rtmps://")) {
+            if !(target.rtmp_url.starts_with("rtmp://") || target.rtmp_url.starts_with("rtmps://"))
+            {
                 return Err(RelayError::Invalid(format!(
                     "rtmp_url must start with rtmp:// or rtmps:// ({})",
                     target.platform
@@ -128,6 +140,73 @@ impl RelayTargetStore {
             .ok()
             .and_then(|m| m.get(user_id).cloned())
             .unwrap_or_default()
+    }
+
+    pub async fn persistent_set(
+        &self,
+        user_id: &str,
+        targets: Vec<RelayTarget>,
+    ) -> Result<(), RelayError> {
+        let Some((pool, cipher)) = &self.db else {
+            return self.set(user_id, targets);
+        };
+        if targets.len() > MAX_TARGETS {
+            return Err(RelayError::Invalid(format!(
+                "at most {MAX_TARGETS} relay targets allowed"
+            )));
+        }
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|_| RelayError::Invalid("invalid user id".into()))?;
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|_| RelayError::Crypto("relay database write failed".into()))?;
+        sqlx::query("DELETE FROM relay_targets WHERE user_id = $1")
+            .bind(user_uuid)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| RelayError::Crypto("relay database write failed".into()))?;
+        for (position, target) in targets.iter().enumerate() {
+            if target.platform.trim().is_empty()
+                || target.platform.eq_ignore_ascii_case("youtube")
+                || !(target.rtmp_url.starts_with("rtmp://")
+                    || target.rtmp_url.starts_with("rtmps://"))
+                || target.stream_key.trim().is_empty()
+            {
+                return Err(RelayError::Invalid("invalid relay target".into()));
+            }
+            let sealed = cipher
+                .encrypt_str(&target.stream_key)
+                .map_err(|e| RelayError::Crypto(e.to_string()))?;
+            sqlx::query("INSERT INTO relay_targets (user_id, platform, rtmp_url, stream_key_encrypted, dub_language, position) VALUES ($1, $2, $3, $4, $5, $6)")
+                .bind(user_uuid).bind(&target.platform).bind(&target.rtmp_url).bind(sealed).bind(&target.dub_language).bind(i16::try_from(position).map_err(|_| RelayError::Invalid("too many relay targets".into()))?).execute(&mut *tx).await.map_err(|_| RelayError::Crypto("relay database write failed".into()))?;
+        }
+        tx.commit()
+            .await
+            .map_err(|_| RelayError::Crypto("relay database write failed".into()))?;
+        Ok(())
+    }
+
+    pub async fn persistent_get(&self, user_id: &str) -> Result<Vec<RelayTarget>, RelayError> {
+        let Some((pool, cipher)) = &self.db else {
+            return Ok(self.get(user_id));
+        };
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|_| RelayError::Invalid("invalid user id".into()))?;
+        let rows = sqlx::query_as::<_, (String, String, String, Option<String>)>("SELECT platform, rtmp_url, stream_key_encrypted, dub_language FROM relay_targets WHERE user_id = $1 ORDER BY position")
+            .bind(user_uuid).fetch_all(pool).await.map_err(|_| RelayError::Crypto("relay database read failed".into()))?;
+        rows.into_iter()
+            .map(|(platform, rtmp_url, sealed, dub_language)| {
+                Ok(RelayTarget {
+                    platform,
+                    rtmp_url,
+                    stream_key: cipher
+                        .decrypt_str(&sealed)
+                        .map_err(|e| RelayError::Crypto(e.to_string()))?,
+                    dub_language,
+                })
+            })
+            .collect()
     }
 
     fn save(&self) -> Result<(), RelayError> {
@@ -179,10 +258,13 @@ pub async fn put_targets(
     Json(req): Json<PutTargetsRequest>,
 ) -> Result<Json<Vec<RelayTarget>>, (StatusCode, String)> {
     let count = req.targets.len();
-    store.set(&user.claims.sub, req.targets).map_err(|err| match err {
-        RelayError::Invalid(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
-        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
-    })?;
+    store
+        .persistent_set(&user.claims.sub, req.targets)
+        .await
+        .map_err(|err| match err {
+            RelayError::Invalid(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
+            other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+        })?;
     // Değer loglanmaz — sadece adet (stream key asla log'a düşmez).
     logger.log(
         LogLevel::Info,
@@ -191,7 +273,9 @@ pub async fn put_targets(
         Some(&user.claims.sub),
         None,
     );
-    Ok(Json(store.get(&user.claims.sub)))
+    Ok(Json(store.persistent_get(&user.claims.sub).await.map_err(
+        |e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    )?))
 }
 
 /// `GET /api/relay/targets` — eşleşmiş SDK (pairing token'ı) veya panel
@@ -200,8 +284,12 @@ pub async fn put_targets(
 pub async fn get_targets(
     user: AuthUser,
     State(store): State<Arc<RelayTargetStore>>,
-) -> Json<Vec<RelayTarget>> {
-    Json(store.get(&user.claims.sub))
+) -> Result<Json<Vec<RelayTarget>>, (StatusCode, String)> {
+    store
+        .persistent_get(&user.claims.sub)
+        .await
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
 #[cfg(test)]
@@ -220,7 +308,12 @@ mod tests {
     #[test]
     fn set_and_get_roundtrip_per_user() {
         let store = RelayTargetStore::in_memory();
-        store.set("u1", vec![target("twitch", "tw-key"), target("kick", "kick-key")]).unwrap();
+        store
+            .set(
+                "u1",
+                vec![target("twitch", "tw-key"), target("kick", "kick-key")],
+            )
+            .unwrap();
         store.set("u2", vec![target("kick", "kick-key")]).unwrap();
 
         let u1 = store.get("u1");
@@ -241,7 +334,9 @@ mod tests {
         let store = RelayTargetStore::in_memory();
         let mut dub_target = target("kick", "kick-key");
         dub_target.dub_language = Some("en".into());
-        store.set("u1", vec![target("twitch", "tw-key"), dub_target]).unwrap();
+        store
+            .set("u1", vec![target("twitch", "tw-key"), dub_target])
+            .unwrap();
 
         let targets = store.get("u1");
         assert_eq!(targets[0].dub_language, None);
@@ -262,11 +357,17 @@ mod tests {
         // http URL reddedilir.
         let mut bad = target("twitch", "k");
         bad.rtmp_url = "http://not-rtmp.example".into();
-        assert!(matches!(store.set("u1", vec![bad]), Err(RelayError::Invalid(_))));
+        assert!(matches!(
+            store.set("u1", vec![bad]),
+            Err(RelayError::Invalid(_))
+        ));
         // Boş stream key reddedilir.
         let mut empty = target("twitch", "");
         empty.stream_key = "  ".into();
-        assert!(matches!(store.set("u1", vec![empty]), Err(RelayError::Invalid(_))));
+        assert!(matches!(
+            store.set("u1", vec![empty]),
+            Err(RelayError::Invalid(_))
+        ));
         // Hedef sınırı.
         let many = (0..9).map(|i| target("t", &format!("k{i}"))).collect();
         assert!(matches!(store.set("u1", many), Err(RelayError::Invalid(_))));
@@ -295,7 +396,9 @@ mod tests {
 
         {
             let store = RelayTargetStore::with_file(&path, &key).unwrap();
-            store.set("u1", vec![target("twitch", "super-secret-stream-key")]).unwrap();
+            store
+                .set("u1", vec![target("twitch", "super-secret-stream-key")])
+                .unwrap();
         }
 
         // Diskte düz metin stream key / URL yok.
