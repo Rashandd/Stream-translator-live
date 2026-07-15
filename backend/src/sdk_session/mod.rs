@@ -28,11 +28,9 @@
 //! olarak canlı durumu/listeyi temizler — fiziksel cihazın kendisini
 //! susturmak için SDK'nın kendi `unpair` komutu (yerel token silme) gerekir.
 //!
-//! Kalıcılık `relay::RelayTargetStore` ile aynı desen: `SDK_SESSIONS_FILE`
-//! verilirse AES-256-GCM şifreli tek dosya, yoksa bellek içi. `last_seen_at`
-//! her heartbeat'te DİSKE YAZILMAZ (sık heartbeat'te gereksiz I/O) — sadece
-//! `create`/`remove` diske yazar; restart sonrası cihazlar bir sonraki
-//! heartbeat'e kadar geçici olarak "bağlı değil" görünür, bu zararsızdır.
+//! PostgreSQL yapılandırıldığında cihazlar ve heartbeat anahtarları DB'de
+//! authoritative olarak saklanır. `SDK_SESSIONS_FILE` yalnız DB'siz
+//! development/test adapter'ıdır.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -111,6 +109,7 @@ fn status_for(err: &SdkSessionError) -> StatusCode {
 pub struct SdkSessionStore {
     entries: RwLock<HashMap<String, SdkSessionRecord>>,
     persist: Option<(PathBuf, Cipher)>,
+    db: Option<(sqlx::PgPool, Cipher)>,
 }
 
 impl SdkSessionStore {
@@ -119,6 +118,7 @@ impl SdkSessionStore {
         SdkSessionStore {
             entries: RwLock::new(HashMap::new()),
             persist: None,
+            db: None,
         }
     }
 
@@ -130,7 +130,16 @@ impl SdkSessionStore {
         Ok(SdkSessionStore {
             entries: RwLock::new(entries),
             persist: Some((path, cipher)),
+            db: None,
         })
+    }
+
+    /// PostgreSQL repository'sini bağlar. Key, DB'deki heartbeat secret için
+    /// AES-256-GCM anahtarıdır.
+    pub fn with_db(mut self, pool: sqlx::PgPool, key: &[u8]) -> Result<Self, SdkSessionError> {
+        let cipher = Cipher::new(key).map_err(|e| SdkSessionError::Crypto(e.to_string()))?;
+        self.db = Some((pool, cipher));
+        Ok(self)
     }
 
     /// Yeni bir cihaz kaydı oluşturur (pairing claim sırasında çağrılır).
@@ -231,6 +240,158 @@ impl SdkSessionStore {
         Ok(removed)
     }
 
+    /// DB-authoritative create. The secret is encrypted before it crosses the
+    /// SQL boundary and is only returned to the pairing response once.
+    pub async fn persistent_create(
+        &self,
+        user_id: &str,
+        device_name: &str,
+        sdk_version: &str,
+    ) -> Result<(String, String), SdkSessionError> {
+        let Some((pool, cipher)) = &self.db else {
+            return self.create(user_id, device_name, sdk_version);
+        };
+        let user_uuid = uuid::Uuid::parse_str(user_id).map_err(|_| SdkSessionError::NotFound)?;
+        let mut secret_bytes = [0u8; 32];
+        getrandom::getrandom(&mut secret_bytes)?;
+        let secret_hex = hex::encode(secret_bytes);
+        let id = uuid::Uuid::new_v4().to_string();
+        let sealed = cipher
+            .encrypt_str(&secret_hex)
+            .map_err(|e| SdkSessionError::Crypto(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO sdk_sessions (id, user_id, device_name, sdk_version, paired_at, last_seen_at, heartbeat_secret_encrypted, is_active) \
+             VALUES ($1::uuid, $2, $3, $4, NOW(), NOW(), $5, TRUE)",
+        )
+        .bind(&id)
+        .bind(user_uuid)
+        .bind(device_name)
+        .bind(sdk_version)
+        .bind(sealed)
+        .execute(pool)
+        .await
+        .map_err(|_| SdkSessionError::Crypto("sdk session database write failed".into()))?;
+        Ok((id, secret_hex))
+    }
+
+    pub async fn persistent_list(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<SdkSessionRecord>, SdkSessionError> {
+        let Some((pool, cipher)) = &self.db else {
+            return Ok(self.list(user_id));
+        };
+        let user_uuid = uuid::Uuid::parse_str(user_id).map_err(|_| SdkSessionError::NotFound)?;
+        let rows = sqlx::query(
+            "SELECT id::text, user_id::text, COALESCE(device_name, '') AS device_name, COALESCE(sdk_version, '') AS sdk_version, \
+                    EXTRACT(EPOCH FROM paired_at)::BIGINT AS paired_at, \
+                    EXTRACT(EPOCH FROM last_seen_at)::BIGINT AS last_seen_at, heartbeat_secret_encrypted \
+             FROM sdk_sessions WHERE user_id = $1 AND is_active ORDER BY paired_at DESC",
+        )
+        .bind(user_uuid)
+        .fetch_all(pool)
+        .await
+        .map_err(|_| SdkSessionError::Crypto("sdk session database read failed".into()))?;
+        rows.into_iter()
+            .map(|row| {
+                use sqlx::Row;
+                let sealed: Option<String> = row
+                    .try_get("heartbeat_secret_encrypted")
+                    .map_err(|_| SdkSessionError::NotFound)?;
+                let secret = sealed.ok_or(SdkSessionError::NotFound).and_then(|value| {
+                    cipher
+                        .decrypt_str(&value)
+                        .map_err(|e| SdkSessionError::Crypto(e.to_string()))
+                })?;
+                Ok(SdkSessionRecord {
+                    id: row.try_get("id").map_err(|_| SdkSessionError::NotFound)?,
+                    user_id: row
+                        .try_get("user_id")
+                        .map_err(|_| SdkSessionError::NotFound)?,
+                    device_name: row
+                        .try_get("device_name")
+                        .map_err(|_| SdkSessionError::NotFound)?,
+                    sdk_version: row
+                        .try_get("sdk_version")
+                        .map_err(|_| SdkSessionError::NotFound)?,
+                    paired_at: row
+                        .try_get::<Option<i64>, _>("paired_at")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0),
+                    last_seen_at: row
+                        .try_get::<Option<i64>, _>("last_seen_at")
+                        .ok()
+                        .flatten()
+                        .unwrap_or(0),
+                    heartbeat_secret_hex: secret,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn persistent_heartbeat(
+        &self,
+        user_id: &str,
+        session_id: &str,
+        ts: i64,
+        sig_hex: &str,
+    ) -> Result<(), SdkSessionError> {
+        if self.db.is_none() {
+            return self.heartbeat(user_id, session_id, ts, sig_hex);
+        }
+        if (now_ts() - ts).abs() > HEARTBEAT_TOLERANCE_SECS {
+            return Err(SdkSessionError::StaleTimestamp);
+        }
+        let Some((pool, cipher)) = &self.db else {
+            return Err(SdkSessionError::NotFound);
+        };
+        let user_uuid = uuid::Uuid::parse_str(user_id).map_err(|_| SdkSessionError::NotFound)?;
+        let secret: Option<String> = sqlx::query_scalar(
+            "SELECT heartbeat_secret_encrypted FROM sdk_sessions WHERE id = $1::uuid AND user_id = $2 AND is_active",
+        )
+        .bind(session_id)
+        .bind(user_uuid)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| SdkSessionError::Crypto("sdk session database read failed".into()))?;
+        let secret = secret.ok_or(SdkSessionError::NotFound).and_then(|value| {
+            cipher
+                .decrypt_str(&value)
+                .map_err(|e| SdkSessionError::Crypto(e.to_string()))
+        })?;
+        if !verify_heartbeat_sig(&secret, session_id, ts, sig_hex) {
+            return Err(SdkSessionError::BadSignature);
+        }
+        sqlx::query(
+            "UPDATE sdk_sessions SET last_seen_at = NOW() WHERE id = $1::uuid AND user_id = $2",
+        )
+        .bind(session_id)
+        .bind(user_uuid)
+        .execute(pool)
+        .await
+        .map_err(|_| SdkSessionError::Crypto("sdk session database write failed".into()))?;
+        Ok(())
+    }
+
+    pub async fn persistent_remove(
+        &self,
+        user_id: &str,
+        session_id: &str,
+    ) -> Result<bool, SdkSessionError> {
+        let Some((pool, _)) = &self.db else {
+            return self.remove(user_id, session_id);
+        };
+        let user_uuid = uuid::Uuid::parse_str(user_id).map_err(|_| SdkSessionError::NotFound)?;
+        let result = sqlx::query("UPDATE sdk_sessions SET is_active = FALSE WHERE id = $1::uuid AND user_id = $2 AND is_active")
+            .bind(session_id)
+            .bind(user_uuid)
+            .execute(pool)
+            .await
+            .map_err(|_| SdkSessionError::Crypto("sdk session database write failed".into()))?;
+        Ok(result.rows_affected() == 1)
+    }
+
     fn save(&self) -> Result<(), SdkSessionError> {
         let Some((path, cipher)) = &self.persist else {
             return Ok(());
@@ -321,14 +482,19 @@ impl From<SdkSessionRecord> for DeviceDto {
 
 /// `GET /api/sdk/devices` (panel, auth) — kullanıcının eşleşmiş TÜM
 /// cihazları, canlı bağlantı durumuyla.
-pub async fn list_devices(user: AuthUser, State(store): State<Arc<SdkSessionStore>>) -> Json<Vec<DeviceDto>> {
+pub async fn list_devices(
+    user: AuthUser,
+    State(store): State<Arc<SdkSessionStore>>,
+) -> Result<Json<Vec<DeviceDto>>, (StatusCode, String)> {
     let mut devices: Vec<DeviceDto> = store
-        .list(&user.claims.sub)
+        .persistent_list(&user.claims.sub)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .into_iter()
         .map(DeviceDto::from)
         .collect();
     devices.sort_by_key(|d| std::cmp::Reverse(d.paired_at));
-    Json(devices)
+    Ok(Json(devices))
 }
 
 /// `DELETE /api/sdk/devices/{id}` (panel, auth) — cihazı listeden kaldırır.
@@ -339,7 +505,8 @@ pub async fn remove_device(
     AxumPath(id): AxumPath<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let removed = store
-        .remove(&user.claims.sub, &id)
+        .persistent_remove(&user.claims.sub, &id)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if !removed {
         return Err((StatusCode::NOT_FOUND, "device not found".to_string()));
@@ -369,7 +536,8 @@ pub async fn heartbeat(
     Json(req): Json<HeartbeatRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     store
-        .heartbeat(&user.claims.sub, &req.session_id, req.ts, &req.sig)
+        .persistent_heartbeat(&user.claims.sub, &req.session_id, req.ts, &req.sig)
+        .await
         .map_err(|e| (status_for(&e), e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)
 }
