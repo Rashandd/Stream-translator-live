@@ -98,6 +98,8 @@ pub enum SttServerError {
     Invalid(String),
     #[error("stt server not found: {0}")]
     NotFound(String),
+    #[error("stt server database error")]
+    Database,
 }
 
 /// Keypair üretim hatası ayrı tutulur — `add()` bunu `SttServerError::Invalid`'e sarar.
@@ -176,6 +178,7 @@ fn now_ts() -> i64 {
 pub struct SttServerStore {
     entries: RwLock<HashMap<String, SttServer>>,
     persist: Option<(PathBuf, Cipher)>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl SttServerStore {
@@ -184,6 +187,7 @@ impl SttServerStore {
         SttServerStore {
             entries: RwLock::new(HashMap::new()),
             persist: None,
+            db: None,
         }
     }
 
@@ -195,8 +199,33 @@ impl SttServerStore {
         Ok(SttServerStore {
             entries: RwLock::new(entries),
             persist: Some((path, cipher)),
+            db: None,
         })
     }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self { self.db = Some(pool); self }
+
+    pub async fn load_db(&self) -> Result<(), SttServerError> {
+        let Some(pool) = &self.db else { return Ok(()); };
+        let rows = sqlx::query_as::<_, SttRow>("SELECT id,name,hostname,ssh_port,ssh_user,ssh_public_key,ssh_private_key_encrypted,host_fingerprint,public_endpoint_override,status,status_detail,endpoint_url,api_token_encrypted,gpu_name,vram_mb,last_health_check_at,EXTRACT(EPOCH FROM created_at)::BIGINT AS created_at FROM stt_servers")
+            .fetch_all(pool).await.map_err(|_| SttServerError::Database)?;
+        let mut map = self.entries.write().map_err(|_| SttServerError::Crypto("stt server lock poisoned".into()))?;
+        map.clear();
+        for row in rows { let server = SttServer::try_from(row)?; map.insert(server.id.clone(), server); }
+        Ok(())
+    }
+
+    async fn persistent_save_server(&self, server: &SttServer) -> Result<(), SttServerError> {
+        let Some(pool) = &self.db else { return Ok(()); };
+        sqlx::query("INSERT INTO stt_servers (id,name,hostname,ssh_port,ssh_user,ssh_public_key,ssh_private_key_encrypted,host_fingerprint,public_endpoint_override,status,status_detail,endpoint_url,api_token_encrypted,gpu_name,vram_mb,last_health_check_at,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,to_timestamp($17)) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,hostname=EXCLUDED.hostname,ssh_port=EXCLUDED.ssh_port,ssh_user=EXCLUDED.ssh_user,ssh_public_key=EXCLUDED.ssh_public_key,ssh_private_key_encrypted=EXCLUDED.ssh_private_key_encrypted,host_fingerprint=EXCLUDED.host_fingerprint,public_endpoint_override=EXCLUDED.public_endpoint_override,status=EXCLUDED.status,status_detail=EXCLUDED.status_detail,endpoint_url=EXCLUDED.endpoint_url,api_token_encrypted=EXCLUDED.api_token_encrypted,gpu_name=EXCLUDED.gpu_name,vram_mb=EXCLUDED.vram_mb,last_health_check_at=EXCLUDED.last_health_check_at")
+            .bind(&server.id).bind(&server.name).bind(&server.hostname).bind(server.ssh_port as i32).bind(&server.ssh_user).bind(&server.ssh_public_key).bind(&server.ssh_private_key_encrypted).bind(&server.host_fingerprint).bind(&server.public_endpoint_override).bind(status_value(server.status)).bind(&server.status_detail).bind(&server.endpoint_url).bind(&server.api_token_encrypted).bind(&server.gpu_name).bind(server.vram_mb.map(|v| v as i64)).bind(server.last_health_check_at.and_then(|v| chrono::DateTime::from_timestamp(v, 0))).bind(server.created_at)
+            .execute(pool).await.map_err(|_| SttServerError::Database)?;
+        Ok(())
+    }
+
+    pub async fn persistent_add(&self, server: &SttServer) -> Result<(), SttServerError> { self.persistent_save_server(server).await }
+    pub async fn persistent_remove(&self, id: &str) -> Result<(), SttServerError> { if let Some(pool)=&self.db { sqlx::query("DELETE FROM stt_servers WHERE id=$1").bind(id).execute(pool).await.map_err(|_| SttServerError::Database)?; } Ok(()) }
+    pub async fn persistent_sync(&self, id: &str) -> Result<(), SttServerError> { let server=self.get(id).ok_or_else(||SttServerError::NotFound(id.into()))?; self.persistent_save_server(&server).await }
 
     /// Yeni bir sunucu kaydı ekler: SSH keypair üretir, private key'i
     /// şifreleyip saklar, public key'i (admin'in sunucusuna ekleyeceği)
@@ -422,6 +451,11 @@ impl SttServerStore {
     }
 }
 
+#[derive(sqlx::FromRow)]
+struct SttRow { id:String,name:String,hostname:String,ssh_port:i32,ssh_user:String,ssh_public_key:String,ssh_private_key_encrypted:String,host_fingerprint:Option<String>,public_endpoint_override:Option<String>,status:String,status_detail:Option<String>,endpoint_url:Option<String>,api_token_encrypted:Option<String>,gpu_name:Option<String>,vram_mb:Option<i64>,last_health_check_at:Option<chrono::DateTime<chrono::Utc>>,created_at:i64 }
+impl TryFrom<SttRow> for SttServer { type Error=SttServerError; fn try_from(r:SttRow)->Result<Self,Self::Error>{ Ok(Self{id:r.id,name:r.name,hostname:r.hostname,ssh_port:r.ssh_port as u16,ssh_user:r.ssh_user,ssh_public_key:r.ssh_public_key,ssh_private_key_encrypted:r.ssh_private_key_encrypted,host_fingerprint:r.host_fingerprint,public_endpoint_override:r.public_endpoint_override,status:serde_json::from_value(serde_json::Value::String(r.status)).map_err(SttServerError::Serde)?,status_detail:r.status_detail,endpoint_url:r.endpoint_url,api_token_encrypted:r.api_token_encrypted,gpu_name:r.gpu_name,vram_mb:r.vram_mb.map(|v|v as u64),last_health_check_at:r.last_health_check_at.map(|v|v.timestamp()),created_at:r.created_at})}}
+fn status_value(status:SttServerStatus)->String{serde_json::to_value(status).ok().and_then(|v|v.as_str().map(str::to_owned)).unwrap_or_else(||"error".into())}
+
 /// `save()`/`load_entries()` düz alanları (private key/token dahil) taşıyan
 /// dahili tam-veri gösterimi — `SttServer`'ın `Serialize`'ı panel yanıtları
 /// için şifreli alanları atlar, ama diskteki tek blob zaten AES-256-GCM ile
@@ -530,7 +564,7 @@ fn stt_server_status_code(err: &SttServerError) -> StatusCode {
     match err {
         SttServerError::NotFound(_) => StatusCode::NOT_FOUND,
         SttServerError::Invalid(_) => StatusCode::UNPROCESSABLE_ENTITY,
-        SttServerError::Io(_) | SttServerError::Crypto(_) | SttServerError::Serde(_) => {
+        SttServerError::Io(_) | SttServerError::Crypto(_) | SttServerError::Serde(_) | SttServerError::Database => {
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
@@ -577,6 +611,7 @@ pub async fn create_server(
             req.public_endpoint_override,
         )
         .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    store.persistent_add(&server).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "stt server database unavailable".to_string()))?;
     logger.log(
         LogLevel::Info,
         "stt_servers",
@@ -617,6 +652,7 @@ pub async fn delete_server(
     store
         .remove(&id)
         .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    store.persistent_remove(&id).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "stt server database unavailable".to_string()))?;
     logger.log(
         LogLevel::Info,
         "stt_servers",
@@ -647,6 +683,7 @@ pub async fn provision_server(
     store
         .set_status(&id, SttServerStatus::Provisioning, None)
         .map_err(|err| (stt_server_status_code(&err), err.to_string()))?;
+    store.persistent_sync(&id).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "stt server database unavailable".to_string()))?;
     logger.log(
         LogLevel::Info,
         "stt_servers",
@@ -672,9 +709,11 @@ pub async fn provision_server(
                 ) {
                     tracing::warn!(server_id = %server.id, %err, "failed to persist provisioning success");
                 }
+                if let Err(err) = store.persistent_sync(&server.id).await { tracing::warn!(server_id=%server.id,%err,"failed to persist provisioning success"); }
             }
             Err(err) => {
                 let _ = store.set_status(&server.id, SttServerStatus::Error, Some(err.to_string()));
+                let _ = store.persistent_sync(&server.id).await;
             }
         }
     });
