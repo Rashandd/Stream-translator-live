@@ -2,8 +2,9 @@
 //!
 //! `docs/schema.md`'deki `plans` tablosuyla aynı alanlar. Admin panelden
 //! değiştirilebilir olması gerektiği için (CLAUDE.md: "hiçbir şey hard-coded
-//! olmaz") bellek içi bir registry olarak tutulur — Faz 1 iskeleti
-//! `ServiceConfig` ile aynı desende; ileride `plans` tablosundan okunur/yazılır.
+//! olmaz") bir registry olarak tutulur. PostgreSQL yapılandırıldığında
+//! request-time kalıcı okumalar DB'den yapılır; bellek yalnız DB'siz
+//! development/test adapter'ı ve WebSocket'in sıcak önbelleğidir.
 
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -25,6 +26,7 @@ pub struct PlanDefinition {
 /// Plan adı → tanım eşlemesini tutan registry.
 pub struct PlanRegistry {
     plans: RwLock<HashMap<String, PlanDefinition>>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl PlanRegistry {
@@ -86,7 +88,16 @@ impl PlanRegistry {
         let map = defaults.into_iter().map(|p| (p.name.clone(), p)).collect();
         PlanRegistry {
             plans: RwLock::new(map),
+            db: None,
         }
+    }
+
+    /// Registry'yi PostgreSQL plan repository'sine bağlar. Varsayılanlar
+    /// WebSocket gibi eşzamanlı sıcak yollar için önbellekte tutulur; HTTP
+    /// mutation/read yolları `persistent_*` ile DB'nin kendisini kullanır.
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     /// Bir planın tanımını okur. Bilinmeyen plan adı `None`.
@@ -128,6 +139,35 @@ impl PlanRegistry {
         plans.sort_by(|a, b| a.name.cmp(&b.name));
         plans
     }
+
+    /// Production'da DB-authoritative plan kataloğunu getirir. DB yokken
+    /// mevcut bellek adapter'ını kullanır.
+    pub async fn persistent_snapshot(&self) -> Result<Vec<PlanDefinition>, sqlx::Error> {
+        match &self.db {
+            Some(pool) => load_from_db(pool).await,
+            None => Ok(self.snapshot()),
+        }
+    }
+
+    /// Production'da tek bir planı DB'den okur. `None`, hem DB hem adapter
+    /// için bilinmeyen/inaktif plan anlamına gelir.
+    pub async fn persistent_get(&self, name: &str) -> Result<Option<PlanDefinition>, sqlx::Error> {
+        Ok(self
+            .persistent_snapshot()
+            .await?
+            .into_iter()
+            .find(|plan| plan.name == name))
+    }
+
+    /// DB-first mutation. Commit'ten sonra yerel sıcak önbelleği günceller;
+    /// DB hatasında hiçbir instance-local değer değiştirilmez.
+    pub async fn persistent_set(&self, plan: PlanDefinition) -> Result<(), sqlx::Error> {
+        if let Some(pool) = &self.db {
+            persist_to_db(pool, &plan).await?;
+        }
+        self.set(plan);
+        Ok(())
+    }
 }
 
 impl Default for PlanRegistry {
@@ -139,8 +179,11 @@ impl Default for PlanRegistry {
 /// `plans` tablosu INTEGER (i32) kolonlar kullanır; aralık dışı bir admin
 /// girdisi sessizce kırpılmak yerine açık hata döner.
 fn to_db_int(value: i64, field: &str) -> Result<i32, sqlx::Error> {
-    i32::try_from(value)
-        .map_err(|_| sqlx::Error::Protocol(format!("plan alanı INTEGER aralığı dışında: {field}={value}")))
+    i32::try_from(value).map_err(|_| {
+        sqlx::Error::Protocol(format!(
+            "plan alanı INTEGER aralığı dışında: {field}={value}"
+        ))
+    })
 }
 
 /// Aktif planları `plans` tablosundan okur (başlangıçta, admin'in önceki

@@ -201,8 +201,16 @@ async fn delete_secret(
 
 /// Plan listesini okur (public) — fiyatlandırma sayfası ve yayıncı paneli
 /// buradan okur, koda gömülü fiyat/limit olmaz.
-async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefinition>> {
-    Json(plans.snapshot())
+async fn get_plans(
+    State(plans): State<Arc<PlanRegistry>>,
+) -> Result<Json<Vec<PlanDefinition>>, (StatusCode, String)> {
+    plans.persistent_snapshot().await.map(Json).map_err(|err| {
+        tracing::warn!(%err, "plans: DB read failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load plans".to_string(),
+        )
+    })
 }
 
 /// Bir planı ekler/günceller (sadece admin). Restart gerekmez.
@@ -216,23 +224,24 @@ async fn get_plans(State(plans): State<Arc<PlanRegistry>>) -> Json<Vec<PlanDefin
 async fn put_plan(
     _admin: AdminUser,
     State(plans): State<Arc<PlanRegistry>>,
-    State(db): State<Option<sqlx::PgPool>>,
     Json(plan): Json<PlanDefinition>,
 ) -> Result<Json<Vec<PlanDefinition>>, (StatusCode, String)> {
     validate_plan(&plan).map_err(|err| (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()))?;
 
-    if let Some(pool) = db {
-        crate::plans::persist_to_db(&pool, &plan).await.map_err(|err| {
-            tracing::warn!(%err, plan = %plan.name, "plans: DB yazımı başarısız, bellek değiştirilmedi");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "failed to persist plan".to_string(),
-            )
-        })?;
-    }
-
-    plans.set(plan);
-    Ok(Json(plans.snapshot()))
+    plans.persistent_set(plan).await.map_err(|err| {
+        tracing::warn!(%err, "plans: DB write failed; local cache unchanged");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to persist plan".to_string(),
+        )
+    })?;
+    plans.persistent_snapshot().await.map(Json).map_err(|err| {
+        tracing::warn!(%err, "plans: DB read after write failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to load plans".to_string(),
+        )
+    })
 }
 
 /// Twitch Extension EBS route'ları (Faz 2.4) — extension frontend'i Twitch

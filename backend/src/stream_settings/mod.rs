@@ -167,7 +167,7 @@ pub async fn get_languages(
     State(config): State<Arc<ServiceConfig>>,
     State(plans): State<Arc<PlanRegistry>>,
     State(store): State<Arc<StreamSettingsStore>>,
-) -> Json<LanguagesResponse> {
+) -> Result<Json<LanguagesResponse>, (StatusCode, String)> {
     let enabled_csv = config
         .get("translate.deepl.enabled_targets")
         .unwrap_or_default();
@@ -180,14 +180,25 @@ pub async fn get_languages(
             enabled: plan_allowed(&enabled_csv, entry.code),
         })
         .collect();
-    let max_languages = plans.get(&user.claims.plan).map(|p| p.max_languages).unwrap_or(1);
+    let max_languages = plans
+        .persistent_get(&user.claims.plan)
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: language settings read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?
+        .map(|p| p.max_languages)
+        .unwrap_or(1);
     let settings = store.get(&user.claims.sub);
-    Json(LanguagesResponse {
+    Ok(Json(LanguagesResponse {
         languages,
         max_languages,
         source_lang: settings.source_lang,
         target_langs: settings.target_langs,
-    })
+    }))
 }
 
 /// `PUT /api/translate/languages` gövdesi.
@@ -227,7 +238,18 @@ pub async fn put_languages(
         }
     }
 
-    let max_languages = plans.get(&user.claims.plan).map(|p| p.max_languages).unwrap_or(1);
+    let max_languages = plans
+        .persistent_get(&user.claims.plan)
+        .await
+        .map_err(|err| {
+            tracing::warn!(%err, "plans: language settings write validation read failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plan service unavailable".to_string(),
+            )
+        })?
+        .map(|p| p.max_languages)
+        .unwrap_or(1);
     if max_languages >= 0 && req.target_langs.len() as i64 > max_languages {
         return Err((
             StatusCode::FORBIDDEN,
@@ -258,7 +280,9 @@ mod tests {
     async fn catalog_endpoint_needs_no_auth_and_matches_the_static_list() {
         let Json(catalog) = get_catalog().await;
         assert_eq!(catalog.len(), DEEPL_TARGET_LANGUAGES.len());
-        assert!(catalog.iter().any(|c| c.code == "tr" && c.supports_formality));
+        assert!(catalog
+            .iter()
+            .any(|c| c.code == "tr" && c.supports_formality));
     }
 
     #[test]

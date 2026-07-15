@@ -57,9 +57,20 @@ pub async fn get_summary(
             "user service unavailable".to_string(),
         )
     })?;
+    let plan_defs = plans.persistent_snapshot().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "plan service unavailable".to_string(),
+        )
+    })?;
     let revenue_cents: i64 = records
         .iter()
-        .filter_map(|u| plans.get(&u.plan).map(|p| p.price_cents))
+        .filter_map(|u| {
+            plan_defs
+                .iter()
+                .find(|plan| plan.name == u.plan)
+                .map(|plan| plan.price_cents)
+        })
         .sum();
 
     Ok(Json(AdminCostSummary {

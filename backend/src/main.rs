@@ -271,7 +271,10 @@ async fn build_state(
 
     // Plan kataloğu da aynı desende: kod-içi varsayılanlarla başlar, DB
     // varsa önceki admin düzenlemeleri üzerine yazılır (restart-safe).
-    let plans = Arc::new(PlanRegistry::with_defaults());
+    let plans = Arc::new(match &db_pool {
+        Some(pool) => PlanRegistry::with_defaults().with_db(pool.clone()),
+        None => PlanRegistry::with_defaults(),
+    });
     if let Some(pool) = &db_pool {
         match streamdubber_backend::plans::load_from_db(pool).await {
             Ok(rows) => plans.apply_db_rows(rows),
