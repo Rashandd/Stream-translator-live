@@ -245,7 +245,10 @@ async fn build_state(
 ) -> Result<AppState, Box<dyn std::error::Error>> {
     let jwt_secret = secrets.get(names::JWT_SECRET).await?;
 
-    let service_config = Arc::new(ServiceConfig::with_defaults());
+    let service_config = Arc::new(match &db_pool {
+        Some(pool) => ServiceConfig::with_defaults().with_db(pool.clone()),
+        None => ServiceConfig::with_defaults(),
+    });
 
     // CORS origin'leri env'den tohumla (panel de CORS'a tabi — ilk kurulum
     // için env şart; sonrası admin panelden restart'sız değiştirilir).

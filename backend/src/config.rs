@@ -3,8 +3,8 @@
 //! İki katman:
 //! - [`Config`] — başlangıç/dağıtım değerleri (adres, secret), env var'dan.
 //! - [`ServiceConfig`] — sağlayıcı toggle'ları (`stt.provider` vb.). Runtime'da
-//!   değişir, restart gerektirmez. Faz 1 iskeletinde bellek içi; ileride
-//!   `service_config` tablosundan beslenir.
+//!   değişir, restart gerektirmez. PostgreSQL yapılandırıldığında HTTP
+//!   yönetim/okuma yolları `service_config` tablosundan beslenir.
 
 use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
@@ -134,6 +134,7 @@ pub const PUBLIC_CONFIG_KEYS: &[&str] = &[
 /// seed'iyle birebirdir.
 pub struct ServiceConfig {
     values: RwLock<HashMap<String, String>>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl ServiceConfig {
@@ -358,7 +359,15 @@ impl ServiceConfig {
         );
         ServiceConfig {
             values: RwLock::new(map),
+            db: None,
         }
+    }
+
+    /// PostgreSQL repository'sini bağlar. Eşzamanlı provider hot-path'leri
+    /// cache'ten okumaya devam eder; HTTP config yüzeyi DB-authoritative'dir.
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     /// Bir anahtarın değerini okur.
@@ -441,6 +450,52 @@ impl ServiceConfig {
         for (key, value) in rows {
             self.set_existing(&key, value);
         }
+    }
+
+    /// Kalıcı konfigürasyon görünümü. DB yokken development/test adapter'ının
+    /// mevcut snapshot'ını döner.
+    pub async fn persistent_snapshot(&self) -> Result<BTreeMap<String, String>, sqlx::Error> {
+        match &self.db {
+            Some(pool) => {
+                let mut values = self.snapshot();
+                for (key, value) in load_from_db(pool).await? {
+                    if values.contains_key(&key) {
+                        values.insert(
+                            key.clone(),
+                            crate::legal::sanitize_config_value(&key, &value),
+                        );
+                    }
+                }
+                Ok(values)
+            }
+            None => Ok(self.snapshot()),
+        }
+    }
+
+    /// Public allowlist uygulanmış kalıcı konfigürasyon görünümü.
+    pub async fn persistent_public_snapshot(
+        &self,
+    ) -> Result<BTreeMap<String, String>, sqlx::Error> {
+        Ok(self
+            .persistent_snapshot()
+            .await?
+            .into_iter()
+            .filter(|(key, _)| PUBLIC_CONFIG_KEYS.contains(&key.as_str()))
+            .collect())
+    }
+
+    /// DB-first mutation. Commit'ten sonra yerel runtime cache güncellenir;
+    /// DB hatasında cache değişmez.
+    pub async fn persistent_set_existing(
+        &self,
+        key: &str,
+        value: String,
+    ) -> Result<(), sqlx::Error> {
+        if let Some(pool) = &self.db {
+            persist_to_db(pool, key, &value).await?;
+        }
+        self.set_existing(key, value);
+        Ok(())
     }
 }
 
