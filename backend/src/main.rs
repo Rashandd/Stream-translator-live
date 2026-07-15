@@ -583,6 +583,14 @@ async fn build_state(
             Arc::new(sdk_link::TtsSettingsStore::in_memory())
         }
     };
+    let tts_settings = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(tts_settings)
+                .map_err(|_| "tts settings unexpectedly shared during startup")?
+                .with_db(pool.clone()),
+        ),
+        None => tts_settings,
+    };
 
     // Ham ses örneği (2026-07-06 kararı — "Öz Kaynaklı Ses Klonlama"):
     // VOICE_SAMPLES_FILE verilirse AES-256 şifreli kalıcı; yoksa bellek içi

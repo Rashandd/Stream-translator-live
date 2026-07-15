@@ -269,6 +269,8 @@ pub enum TtsSettingsError {
     Io(#[from] std::io::Error),
     #[error("settings file parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("tts settings database error")]
+    Database,
 }
 
 /// Kullanıcı → TTS ayarları deposu — `SttSettingsStore` ile birebir aynı
@@ -276,6 +278,7 @@ pub enum TtsSettingsError {
 pub struct TtsSettingsStore {
     inner: Mutex<HashMap<String, UserTtsSettings>>,
     path: Option<PathBuf>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl TtsSettingsStore {
@@ -284,6 +287,7 @@ impl TtsSettingsStore {
         TtsSettingsStore {
             inner: Mutex::new(HashMap::new()),
             path: None,
+            db: None,
         }
     }
 
@@ -299,7 +303,13 @@ impl TtsSettingsStore {
         Ok(TtsSettingsStore {
             inner: Mutex::new(inner),
             path: Some(path),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     /// Kullanıcının ayarları (kayıt yoksa varsayılan: cloud, benchmark yok).
@@ -335,6 +345,53 @@ impl TtsSettingsStore {
                 tracing::warn!(error = %err, "tts settings persist failed");
             }
         }
+    }
+
+    pub async fn persistent_get(&self, user_id: &str) -> Result<UserTtsSettings, TtsSettingsError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.get(user_id));
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| TtsSettingsError::Database)?;
+        let row: Option<(String, serde_json::Value)> = sqlx::query_as(
+            "SELECT settings->>'mode', settings FROM user_tts_settings WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| TtsSettingsError::Database)?;
+        row.map(|(mode, settings)| {
+            Ok(UserTtsSettings {
+                mode: serde_json::from_value(serde_json::Value::String(mode))
+                    .map_err(TtsSettingsError::Parse)?,
+                benchmark: settings
+                    .get("benchmark")
+                    .cloned()
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .map_err(TtsSettingsError::Parse)?,
+            })
+        })
+        .transpose()
+        .map(|value| value.unwrap_or_default())
+    }
+
+    pub async fn persistent_set(
+        &self,
+        user_id: &str,
+        settings: &UserTtsSettings,
+    ) -> Result<(), TtsSettingsError> {
+        let Some(pool) = &self.db else {
+            self.set_mode(user_id, settings.mode);
+            if let Some(report) = settings.benchmark.clone() {
+                self.set_benchmark(user_id, report);
+            }
+            return Ok(());
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| TtsSettingsError::Database)?;
+        let value = serde_json::to_value(settings).map_err(TtsSettingsError::Parse)?;
+        sqlx::query("INSERT INTO user_tts_settings (user_id, settings) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET settings = EXCLUDED.settings, updated_at = NOW()")
+            .bind(user_id).bind(value).execute(pool).await.map_err(|_| TtsSettingsError::Database)?;
+        Ok(())
     }
 }
 
@@ -527,7 +584,7 @@ pub async fn report_tts_benchmark(
     State(settings): State<Arc<TtsSettingsStore>>,
     State(logger): State<Arc<Logger>>,
     Json(req): Json<BenchmarkRequest>,
-) -> Json<BenchmarkReport> {
+) -> Result<Json<BenchmarkReport>, (StatusCode, String)> {
     let report = BenchmarkReport {
         passed: req.passed,
         rtf: req.rtf,
@@ -536,7 +593,25 @@ pub async fn report_tts_benchmark(
         vram_mb: req.vram_mb,
         reported_at: chrono::Utc::now().timestamp(),
     };
-    settings.set_benchmark(&user.claims.sub, report.clone());
+    let mut current = settings
+        .persistent_get(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "tts settings unavailable".to_string(),
+            )
+        })?;
+    current.benchmark = Some(report.clone());
+    settings
+        .persistent_set(&user.claims.sub, &current)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "tts settings unavailable".to_string(),
+            )
+        })?;
     logger.log(
         LogLevel::Info,
         "sdk_link",
@@ -547,7 +622,7 @@ pub async fn report_tts_benchmark(
         Some(&user.claims.sub),
         None,
     );
-    Json(report)
+    Ok(Json(report))
 }
 
 /// `PUT /api/tts/mode` gövdesi.
@@ -580,7 +655,14 @@ pub async fn set_tts_mode(
             ));
         }
         let passed = settings
-            .get(&user.claims.sub)
+            .persistent_get(&user.claims.sub)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "tts settings unavailable".to_string(),
+                )
+            })?
             .benchmark
             .map(|b| b.passed)
             .unwrap_or(false);
@@ -588,7 +670,25 @@ pub async fn set_tts_mode(
             return Err((StatusCode::CONFLICT, "benchmark_required".to_string()));
         }
     }
-    settings.set_mode(&user.claims.sub, req.mode);
+    let mut current = settings
+        .persistent_get(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "tts settings unavailable".to_string(),
+            )
+        })?;
+    current.mode = req.mode;
+    settings
+        .persistent_set(&user.claims.sub, &current)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "tts settings unavailable".to_string(),
+            )
+        })?;
     logger.log(
         LogLevel::Info,
         "sdk_link",
