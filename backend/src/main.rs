@@ -500,6 +500,14 @@ async fn build_state(
             Arc::new(sdk_link::SttSettingsStore::in_memory())
         }
     };
+    let stt_settings = match &db_pool {
+        Some(pool) => Arc::new(
+            Arc::try_unwrap(stt_settings)
+                .map_err(|_| "stt settings unexpectedly shared during startup")?
+                .with_db(pool.clone()),
+        ),
+        None => stt_settings,
+    };
 
     // Yayıncının hedef dil seçimi (Faz 2.0): STREAM_SETTINGS_FILE verilirse
     // düz JSON kalıcı (dil kodları secret değil); yoksa bellek içi.

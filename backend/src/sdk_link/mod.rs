@@ -114,12 +114,15 @@ pub enum SttSettingsError {
     Io(#[from] std::io::Error),
     #[error("settings file parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("stt settings database error")]
+    Database,
 }
 
 /// Kullanıcı → STT ayarları deposu (opsiyonel düz-JSON kalıcılık).
 pub struct SttSettingsStore {
     inner: Mutex<HashMap<String, UserSttSettings>>,
     path: Option<PathBuf>,
+    db: Option<sqlx::PgPool>,
 }
 
 impl SttSettingsStore {
@@ -128,6 +131,7 @@ impl SttSettingsStore {
         SttSettingsStore {
             inner: Mutex::new(HashMap::new()),
             path: None,
+            db: None,
         }
     }
 
@@ -143,7 +147,13 @@ impl SttSettingsStore {
         Ok(SttSettingsStore {
             inner: Mutex::new(inner),
             path: Some(path),
+            db: None,
         })
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 
     /// Kullanıcının ayarları (kayıt yoksa varsayılan: cloud, benchmark yok).
@@ -180,6 +190,55 @@ impl SttSettingsStore {
                 tracing::warn!(error = %err, "stt settings persist failed");
             }
         }
+    }
+
+    pub async fn persistent_get(&self, user_id: &str) -> Result<UserSttSettings, SttSettingsError> {
+        let Some(pool) = &self.db else {
+            return Ok(self.get(user_id));
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| SttSettingsError::Database)?;
+        let row: Option<(String, Option<serde_json::Value>)> =
+            sqlx::query_as("SELECT mode, benchmark FROM user_stt_settings WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|_| SttSettingsError::Database)?;
+        row.map(|(mode, benchmark)| {
+            Ok(UserSttSettings {
+                mode: serde_json::from_value(serde_json::Value::String(mode))
+                    .map_err(SttSettingsError::Parse)?,
+                benchmark: benchmark
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .map_err(SttSettingsError::Parse)?,
+            })
+        })
+        .transpose()
+        .map(|value| value.unwrap_or_default())
+    }
+
+    pub async fn persistent_set(
+        &self,
+        user_id: &str,
+        settings: &UserSttSettings,
+    ) -> Result<(), SttSettingsError> {
+        let Some(pool) = &self.db else {
+            self.set_mode(user_id, settings.mode);
+            if let Some(report) = settings.benchmark.clone() {
+                self.set_benchmark(user_id, report);
+            }
+            return Ok(());
+        };
+        let user_id = uuid::Uuid::parse_str(user_id).map_err(|_| SttSettingsError::Database)?;
+        let benchmark = settings
+            .benchmark
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(SttSettingsError::Parse)?;
+        sqlx::query("INSERT INTO user_stt_settings (user_id, mode, benchmark) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET mode = EXCLUDED.mode, benchmark = EXCLUDED.benchmark, updated_at = NOW()")
+            .bind(user_id).bind(serde_json::to_value(settings.mode).map_err(SttSettingsError::Parse)?.as_str().unwrap_or("cloud")).bind(benchmark).execute(pool).await.map_err(|_| SttSettingsError::Database)?;
+        Ok(())
     }
 }
 
@@ -345,7 +404,7 @@ pub async fn report_benchmark(
     State(settings): State<Arc<SttSettingsStore>>,
     State(logger): State<Arc<Logger>>,
     Json(req): Json<BenchmarkRequest>,
-) -> Json<BenchmarkReport> {
+) -> Result<Json<BenchmarkReport>, (StatusCode, String)> {
     let report = BenchmarkReport {
         passed: req.passed,
         rtf: req.rtf,
@@ -354,7 +413,25 @@ pub async fn report_benchmark(
         vram_mb: req.vram_mb,
         reported_at: chrono::Utc::now().timestamp(),
     };
-    settings.set_benchmark(&user.claims.sub, report.clone());
+    let mut current = settings
+        .persistent_get(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stt settings unavailable".to_string(),
+            )
+        })?;
+    current.benchmark = Some(report.clone());
+    settings
+        .persistent_set(&user.claims.sub, &current)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stt settings unavailable".to_string(),
+            )
+        })?;
     logger.log(
         LogLevel::Info,
         "sdk_link",
@@ -365,7 +442,7 @@ pub async fn report_benchmark(
         Some(&user.claims.sub),
         None,
     );
-    Json(report)
+    Ok(Json(report))
 }
 
 /// `PUT /api/stt/mode` gövdesi.
@@ -399,7 +476,14 @@ pub async fn set_mode(
             ));
         }
         let passed = settings
-            .get(&user.claims.sub)
+            .persistent_get(&user.claims.sub)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "stt settings unavailable".to_string(),
+                )
+            })?
             .benchmark
             .map(|b| b.passed)
             .unwrap_or(false);
@@ -407,7 +491,25 @@ pub async fn set_mode(
             return Err((StatusCode::CONFLICT, "benchmark_required".to_string()));
         }
     }
-    settings.set_mode(&user.claims.sub, req.mode);
+    let mut current = settings
+        .persistent_get(&user.claims.sub)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stt settings unavailable".to_string(),
+            )
+        })?;
+    current.mode = req.mode;
+    settings
+        .persistent_set(&user.claims.sub, &current)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stt settings unavailable".to_string(),
+            )
+        })?;
     logger.log(
         LogLevel::Info,
         "sdk_link",
@@ -527,7 +629,8 @@ mod tests {
 
     #[test]
     fn settings_persist_and_reload() {
-        let path = std::env::temp_dir().join(format!("sd-stt-settings-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("sd-stt-settings-{}.json", std::process::id()));
         let _ = std::fs::remove_file(&path);
 
         {
@@ -581,7 +684,8 @@ mod tests {
 
     #[test]
     fn tts_settings_persist_and_reload() {
-        let path = std::env::temp_dir().join(format!("sd-tts-settings-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("sd-tts-settings-{}.json", std::process::id()));
         let _ = std::fs::remove_file(&path);
 
         {
