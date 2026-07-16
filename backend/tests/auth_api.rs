@@ -85,6 +85,12 @@ fn get_with_cookie(path: &str, cookie: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nHost: t\r\nCookie: {cookie}\r\nConnection: close\r\n\r\n")
 }
 
+fn get_with_cookie_and_origin(path: &str, cookie: &str, origin: &str) -> String {
+    format!(
+        "GET {path} HTTP/1.1\r\nHost: t\r\nOrigin: {origin}\r\nCookie: {cookie}\r\nConnection: close\r\n\r\n"
+    )
+}
+
 fn put_with_cookie(path: &str, cookie: &str, csrf: Option<&str>, json: &str) -> String {
     let csrf_header = csrf
         .map(|value| format!("x-csrf-token: {value}\r\n"))
@@ -261,6 +267,72 @@ async fn session_endpoint_without_cookie_is_401() {
     )
     .await;
     assert_eq!(status, 401);
+}
+
+/// `dev.strovak.com` cannot read a host-only cookie owned by
+/// `dev.api.strovak.com`. The browser therefore needs a credentialed safe
+/// request that reflects the non-secret double-submit value without first
+/// validating the short-lived access token. The configured dashboard CORS
+/// layer must protect that response and intermediaries must never cache it.
+#[tokio::test]
+async fn csrf_bootstrap_returns_cookie_without_a_live_access_token_and_is_not_cacheable() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+    let (_, login_headers, _) = http_raw(
+        addr,
+        &post_login_browser(r#"{"email":"ops@sd.io","password":"dev-pass"}"#),
+    )
+    .await;
+    let cookies = set_cookies(&login_headers);
+    let csrf = cookies.get("sd_csrf").expect("csrf cookie");
+
+    // Deliberately omit sd_access: bootstrap must still work after its
+    // 15-minute JWT expires, otherwise the client cannot authorize refresh.
+    let (status, response_headers, body) = http_raw(
+        addr,
+        &get_with_cookie_and_origin(
+            "/api/auth/csrf",
+            &format!("sd_csrf={csrf}"),
+            TEST_ORIGIN,
+        ),
+    )
+    .await;
+
+    assert_eq!(status, 200, "body: {body}");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&body).expect("json")["csrf_token"],
+        csrf.as_str()
+    );
+    let response_headers = response_headers.to_ascii_lowercase();
+    assert!(
+        response_headers.contains("cache-control: no-store"),
+        "headers: {response_headers}"
+    );
+    assert!(
+        response_headers.contains(&format!("access-control-allow-origin: {TEST_ORIGIN}")),
+        "headers: {response_headers}"
+    );
+    assert!(
+        response_headers.contains("access-control-allow-credentials: true"),
+        "headers: {response_headers}"
+    );
+}
+
+#[tokio::test]
+async fn csrf_bootstrap_without_the_double_submit_cookie_is_401_and_not_cacheable() {
+    let addr = spawn_server(Some(BootstrapAdmin::with_plain("ops@sd.io", "dev-pass"))).await;
+    let (status, response_headers, _) = http_raw(
+        addr,
+        &get_with_cookie_and_origin("/api/auth/csrf", "unrelated=value", TEST_ORIGIN),
+    )
+    .await;
+
+    assert_eq!(status, 401);
+    assert!(
+        response_headers
+            .to_ascii_lowercase()
+            .contains("cache-control: no-store"),
+        "headers: {response_headers}"
+    );
 }
 
 /// Cookie-authenticated mutations must carry a matching double-submit CSRF

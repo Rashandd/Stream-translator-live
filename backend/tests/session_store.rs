@@ -64,6 +64,10 @@ async fn browser_response_uses_secure_httponly_cookies_and_exposes_no_token() {
         .map(|value| value.to_str().expect("cookie header").to_string())
         .collect();
     assert_eq!(cookies.len(), 3);
+    assert!(
+        cookies.iter().all(|cookie| !cookie.contains("Domain=")),
+        "browser cookies must stay host-only: {cookies:?}"
+    );
     assert!(cookies.iter().any(|cookie| {
         cookie.starts_with("sd_access=")
             && cookie.contains("HttpOnly")

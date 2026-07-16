@@ -353,6 +353,12 @@ pub struct BrowserSession {
     pub csrf_token: String,
 }
 
+/// Non-secret double-submit value reflected from the API host's cookie.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CsrfBootstrap {
+    pub csrf_token: String,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RequestSecurityError {
     #[error("request origin is not allowed")]
@@ -385,6 +391,23 @@ pub async fn current_session(user: AuthUser, headers: HeaderMap) -> Json<Browser
         expires_at: user.claims.exp,
         csrf_token: cookie_value(&headers, CSRF_COOKIE).unwrap_or_default(),
     })
+}
+
+/// `GET /api/auth/csrf` — reflect the API host's current double-submit cookie
+/// for a credentialed cross-origin frontend. This deliberately does not use
+/// `AuthUser`: an expired access JWT is exactly when the browser needs the
+/// token to authorize refresh. The dashboard CORS layer limits which origins
+/// can read the response, and `no-store` prevents browser/proxy reuse after a
+/// login, OAuth redirect, refresh rotation, or another-tab rotation.
+pub async fn current_csrf(headers: HeaderMap) -> Response {
+    let mut response = match cookie_value(&headers, CSRF_COOKIE).filter(|token| !token.is_empty()) {
+        Some(csrf_token) => Json(CsrfBootstrap { csrf_token }).into_response(),
+        None => StatusCode::UNAUTHORIZED.into_response(),
+    };
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 /// `POST /api/auth/refresh` — one-time rotation. Reuse of the old token

@@ -291,10 +291,10 @@ fn dashboard_cors(cfg: Arc<ServiceConfig>) -> CorsLayer {
                 })
                 .unwrap_or(false)
         }))
-        // HttpOnly `sd_access`/`sd_refresh`/`sd_csrf` cookies (auth::session) only
-        // ride cross-origin fetches when the browser is told it may send/receive
-        // them; without this, admin/dashboard pages can never complete a cookie
-        // login against api.strovak.com from strovak.com.
+        // HttpOnly `sd_access`/`sd_refresh` plus the readable host-only
+        // `sd_csrf` cookie (auth::session) only ride cross-origin fetches when
+        // the browser is told it may send/receive them; without this,
+        // admin/dashboard pages cannot use api.strovak.com from strovak.com.
         .allow_credentials(true)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([
@@ -326,9 +326,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/reset/request", post(crate::users::reset_request))
         .route("/api/auth/reset/confirm", post(crate::users::reset_confirm))
         // Cookie session lifecycle (auth::session) — issued by login/2fa when the
-        // request carries an Origin header; AuthGuard polls `session`, adminFetch/
-        // userFetch retry once through `refresh` on 401, sign-out calls `logout`.
+        // request carries an Origin header; AuthGuard polls `session`, cross-host
+        // frontends read the API's host-only double-submit cookie through `csrf`,
+        // adminFetch/userFetch retry once through `refresh`, and logout clears it.
         .route("/api/auth/session", get(session::current_session))
+        .route("/api/auth/csrf", get(session::current_csrf))
         .route("/api/auth/refresh", post(session::refresh))
         .route("/api/auth/logout", post(session::logout))
         // Google/Twitch ile login (auth yok — kapasite kod/state'te).
