@@ -1,0 +1,86 @@
+(staging_tls) {
+	tls {
+		protocols tls1.3
+	}
+}
+
+(staging_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+}
+
+dev.strovak.com {
+	import staging_tls
+	import staging_headers
+	encode zstd gzip
+	reverse_proxy frontend:3000
+}
+
+dev.api.strovak.com {
+	import staging_tls
+	import staging_headers
+	encode zstd gzip
+	reverse_proxy backend:8080
+}
+
+ext-staging.strovak.com {
+	import staging_tls
+	import staging_headers
+
+	handle /health {
+		reverse_proxy backend:8080
+	}
+	handle /ext/twitch/* {
+		reverse_proxy backend:8080
+	}
+	handle {
+		respond "Not Found" 404
+	}
+}
+
+# These existing sites were on the host Nginx listener before the staging
+# cutover. Their data remains read-only and their application processes remain
+# host-owned. The API bridge is a narrow systemd-socket-proxyd listener on the
+# Docker bridge; OpenClaw's loopback-only listener is never exposed here.
+rashand-tech.com, www.rashand-tech.com {
+	encode zstd gzip
+
+	handle /api* {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy host.docker.internal:18000
+	}
+	handle {
+		root * /srv/rashand-studio
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+shopping.rashand-tech.com {
+	encode zstd gzip
+
+	handle_path /uploads/* {
+		root * /srv/rashtech-uploads
+		header Cache-Control "public, max-age=2592000, immutable"
+		header Access-Control-Allow-Origin "*"
+		file_server
+	}
+	handle {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy host.docker.internal:3000
+	}
+}
+
+www.shopping.rashand-tech.com {
+	redir https://shopping.rashand-tech.com{uri} permanent
+}

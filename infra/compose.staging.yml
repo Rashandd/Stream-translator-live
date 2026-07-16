@@ -1,0 +1,205 @@
+name: streamdubber-staging
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16.13-alpine3.22@sha256:caf536ebd910e85473a9f5e2fd1aea360c965c4a911c8555ac1f61b2102006cb
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - staging_postgres:/var/lib/postgresql/data
+    networks: [staging_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    stop_grace_period: 60s
+    pids_limit: 256
+    cpus: 0.75
+    mem_limit: 512m
+
+  redis:
+    <<: *service-defaults
+    image: redis:7.2.14-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    command:
+      - /bin/sh
+      - -ec
+      - exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - staging_redis:/data
+    networks: [staging_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q '^PONG$$'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+    pids_limit: 128
+    cpus: 0.50
+    mem_limit: 256m
+
+  backend:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: production
+      BIND_ADDR: 0.0.0.0:8080
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CORS_ALLOWED_ORIGINS: https://dev.strovak.com
+      AUTH_COOKIE_SECURE: "true"
+      RUST_LOG: info
+      JWT_SECRET: ${JWT_SECRET}
+      SECRETS_ENC_KEY: ${SECRETS_ENC_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      SECRETS_FILE: /data/secrets.enc
+      LOG_FILE: /data/logs.jsonl
+      USAGE_FILE: /data/usage.jsonl
+      TOKENS_FILE: /data/tokens.enc
+      RELAY_FILE: /data/relay.enc
+      SDK_SESSIONS_FILE: /data/sdk-sessions.enc
+      STT_SETTINGS_FILE: /data/stt-settings.json
+      TTS_SETTINGS_FILE: /data/tts-settings.json
+      STREAM_SETTINGS_FILE: /data/stream-settings.json
+      VOICE_MODELS_FILE: /data/voice-models.json
+      VOICE_SAMPLES_FILE: /data/voice-samples.enc
+      STT_SERVERS_FILE: /data/stt-servers.enc
+      USERS_FILE: /data/users.enc
+      FOUNDING_APPS_FILE: /data/founding-apps.json
+    volumes:
+      - staging_backend_data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    read_only: true
+    cap_drop: [ALL]
+    networks: [staging_edge, staging_internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/streamdubber-backend", "--health-check"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    stop_grace_period: 30s
+    pids_limit: 256
+    cpus: 1.25
+    mem_limit: 768m
+
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://dev.api.strovak.com
+        NEXT_PUBLIC_OVERLAY_WS_URL: wss://dev.api.strovak.com
+    environment:
+      NODE_ENV: production
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+      - /app/.next/cache:rw,noexec,nosuid,size=64m
+    read_only: true
+    cap_drop: [ALL]
+    networks: [staging_edge]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status < 500?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    stop_grace_period: 30s
+    pids_limit: 256
+    cpus: 0.75
+    mem_limit: 512m
+
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infra/Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - /var/www/RashandAutomationStudio/website/frontend/dist:/srv/rashand-studio:ro
+      - /var/www/Rashtech-webapp/public/uploads:/srv/rashtech-uploads:ro
+      - staging_caddy_data:/data
+      - staging_caddy_config:/config
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    networks:
+      staging_edge:
+        ipv4_address: 172.30.10.2
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    stop_grace_period: 30s
+    pids_limit: 128
+    cpus: 0.50
+    mem_limit: 256m
+
+networks:
+  staging_edge:
+    name: streamdubber_staging_edge
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+  staging_internal:
+    name: streamdubber_staging_internal
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.11.0/24
+
+volumes:
+  staging_postgres:
+    name: staging_postgres
+  staging_backend_data:
+    name: staging_backend_data
+  staging_redis:
+    name: staging_redis
+  staging_caddy_data:
+    name: staging_caddy_data
+  staging_caddy_config:
+    name: staging_caddy_config

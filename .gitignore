@@ -59,6 +59,9 @@ coverage/
 # --- Docker / local infra ---
 docker-compose.override.yml
 .docker/
+infra/staging.env
+infra/staging.env.*
+!infra/staging.env.example
 
 # --- Tool caches ---
 .cache/
