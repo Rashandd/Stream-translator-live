@@ -15,12 +15,16 @@ COPY sdk/src-tauri/Cargo.toml sdk/src-tauri/Cargo.toml
 COPY backend/ backend/
 
 RUN cargo build --release --locked --bin streamdubber-backend
+RUN mkdir /runtime-data
 
 # --- Runtime ---
 FROM gcr.io/distroless/cc-debian12@sha256:7ee09f36862efbdbf70422db263e411c2618409ca46faa555bd5b636155307df AS runtime
 WORKDIR /app
 
 COPY --from=builder /build/target/release/streamdubber-backend /usr/local/bin/streamdubber-backend
+# Docker initializes a new named volume from the image path, including this
+# ownership, so the application can persist encrypted stores without root.
+COPY --from=builder --chown=65532:65532 /runtime-data /data
 # Migration'lar binary'ye gömülü (sqlx::migrate!), ayrıca kopyalamaya gerek yok.
 
 # Self-hosted GPU STT provisioning (roadmap 2.6): SshProvisioner bootstrap.sh'i
@@ -34,6 +38,8 @@ ENV STT_BOOTSTRAP_SCRIPT=/app/infra/stt-server/bootstrap.sh
 ENV STT_APP_DIR=/app/stt-server
 
 EXPOSE 8080
+
+USER 65532:65532
 
 # Healthcheck binary'nin kendi --health-check moduyla (distroless'ta curl yok).
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \

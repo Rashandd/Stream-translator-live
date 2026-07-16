@@ -70,6 +70,11 @@ grep -Eq '^COPY[[:space:]].*sdk/src-tauri/Cargo\.toml' "$repo_root/backend/Docke
   || fail 'backend/Dockerfile must copy the SDK workspace manifest'
 grep -Eq '^RUN[[:space:]]+cargo build .*--locked' "$repo_root/backend/Dockerfile" \
   || fail 'backend/Dockerfile must build with Cargo.lock enforcement'
+grep -Eq '^COPY[[:space:]]+--from=builder[[:space:]]+--chown=65532:65532[[:space:]]+/runtime-data[[:space:]]+/data$' \
+  "$repo_root/backend/Dockerfile" \
+  || fail 'backend/Dockerfile must initialize /data for the non-root runtime user'
+grep -Eq '^USER[[:space:]]+65532:65532$' "$repo_root/backend/Dockerfile" \
+  || fail 'backend/Dockerfile must run as the distroless nonroot user'
 grep -Eq '^FROM[[:space:]]+rust:1\.88-bookworm@sha256:[0-9a-f]{64}[[:space:]]+AS[[:space:]]+builder$' \
   "$repo_root/backend/Dockerfile" \
   || fail 'backend/Dockerfile must use a pinned Rust 1.88 builder for the locked dependencies'
