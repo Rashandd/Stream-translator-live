@@ -37,7 +37,7 @@ const STATUS_LABELS = {
 };
 
 const state = {
-  ebsBase: resolveEbsBase(window.location.hostname, window.location.search),
+  ebsBase: resolveEbsBase(),
   channelId: null,
   token: null,
   configured: false,

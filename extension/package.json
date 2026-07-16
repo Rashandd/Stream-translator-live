@@ -5,6 +5,8 @@
   "type": "module",
   "description": "StreamDubber Live Captions - Twitch video overlay extension (subtitles-only)",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "package:staging": "node scripts/package.mjs staging",
+    "package:production": "node scripts/package.mjs production"
   }
 }

@@ -31,18 +31,47 @@ Policy ve review kuralları: `docs/twitch-extension-policy.md` · Uygulama plan�
 ## Komutlar
 
 ```bash
-npm test          # birim testleri (node --test, bağımlılık yok)
+npm test          # birim + archive-level package testleri (bağımlılık yok)
 
-# Review zip'i — SADECE çalışan dosyalar girer (extraneous dosya yasak):
-zip -r streamdubber-twitch-extension.zip viewer.html config.html css js
+# Twitch Hosted Test / staging review ZIP'i:
+npm run package:staging
+
+# Production submission ZIP'i:
+npm run package:production
 ```
+
+Komutlar sırasıyla şu artifact'leri üretir (gitignore'ludur):
+
+- `dist/staging/streamdubber-twitch-extension-staging.zip`
+- `dist/production/streamdubber-twitch-extension-production.zip`
+
+Sistem `zip` binary'sine bağlı değildir. Paketleyici yalnız Twitch'te çalışan altı
+asset'i alır (`viewer.html`, `config.html`, `css/extension.css`, üç `js/` modülü),
+sabit ZIP metadata'sı kullanır ve profile özgü URL allowlist'ini archive yazılmadan
+önce doğrular. Testler hem ZIP içeriğini hem iki aynı staging build'in byte-for-byte
+eşitliğini kontrol eder.
 
 ## Ortamlar
 
-`js/shared.js` içindeki `EBS_BASE_PRODUCTION` (`https://ext.strovak.com`) her
-release'te Twitch URL allowlist'iyle birebir aynı olmalıdır. Local geliştirme /
-Developer Rig için sayfa `localhost`'tan açıldığında `?ebs=http://localhost:8080`
-override'ı çalışır; hosted ortamda override yok sayılır.
+Paketleme sırasında seçilebilen profil kümesi kapalıdır; environment variable, URL
+flag'i veya query-string override yoktur. Her submitted ZIP kendi ağ hedefini içerir:
+
+| Profil | URL Fetching / WSS EBS origin | Broadcaster dashboard linki |
+| --- | --- | --- |
+| `staging` | `https://ext-staging.strovak.com` / `wss://ext-staging.strovak.com` | `https://dev.strovak.com/dashboard` |
+| `production` | `https://ext.strovak.com` / `wss://ext.strovak.com` | `https://strovak.com/dashboard` |
+
+Staging Hosted Test'e **yalnız** `npm run package:staging` ile üretilen ZIP'i
+yükle. Twitch console URL allowlist'inde staging EBS için aynı `https` ve Hosted
+Test CSP tarafından doğrulandıktan sonra `wss` originlerini kullan; broadcaster
+config'in off-site dashboard URL'i de `https://dev.strovak.com` olmalıdır. Archive
+içindeki tek diğer uzak URL Twitch Extension Helper'dır.
+
+`js/shared.js` kaynak dosyası production değerleriyle tutulur; bu değerler sadece
+paketleyicinin şablon doğrulaması içindir. Yüklenebilir artifact her zaman yukarıdaki
+sabit profillerden biriyle üretilir. `resolveEbsBase()` browser hostname, query
+string veya başka bir runtime input okumaz; bu nedenle `?ebs=…` benzeri bir değer
+submitted extension'ı başka bir backend'e yönlendiremez.
 
 Backend tarafı: `backend/src/ext_twitch/` (EBS), `ext.twitch.*` config
 anahtarları (varsayılan **kapalı**), `TWITCH_EXT_SECRET` yönetilen secret.

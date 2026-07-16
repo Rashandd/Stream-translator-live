@@ -14,28 +14,23 @@
 // domain decision in docs/twitch-extension-plan.md, A4).
 // ---------------------------------------------------------------------------
 
-/** Extension Backend Service origin (must be in the URL Fetching allowlist). */
-export const EBS_BASE_PRODUCTION = "https://ext.strovak.com";
+/**
+ * Extension Backend Service origin (must be in the URL Fetching allowlist).
+ * The review packaging command replaces this exact value for the selected
+ * fixed profile before the archive is uploaded to Twitch.
+ */
+export const EBS_BASE = "https://ext.strovak.com";
 
 /** Off-site management link shown ONLY on the broadcaster config page. */
 export const DASHBOARD_URL = "https://strovak.com/dashboard";
 
 /**
- * Resolve the EBS base URL. On localhost (local development / Twitch
- * Developer Rig) an `?ebs=` query override is honored so the packaged files
- * can talk to a local backend; on any other host the production constant is
- * always used — a hosted page can never be pointed at a foreign backend.
+ * Return the EBS origin compiled into this archive. The browser location and
+ * query string are intentionally not inputs: Twitch URL allowlists require a
+ * submitted build to have one fixed network destination.
  */
-export function resolveEbsBase(hostname, search) {
-  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
-  if (!isLocal) {
-    return EBS_BASE_PRODUCTION;
-  }
-  const override = new URLSearchParams(search || "").get("ebs");
-  if (override && /^https?:\/\//.test(override)) {
-    return override.replace(/\/+$/, "");
-  }
-  return EBS_BASE_PRODUCTION;
+export function resolveEbsBase() {
+  return EBS_BASE;
 }
 
 /** REST endpoint for the channel caption state (poll fallback). */

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  EBS_BASE_PRODUCTION,
+  EBS_BASE,
   DELAYED_AFTER_MS,
   captionTextFor,
   captionsWsUrl,
@@ -38,23 +38,12 @@ function subtitle(overrides = {}) {
   };
 }
 
-test("resolveEbsBase: production host ignores overrides", () => {
+test("resolveEbsBase returns the compiled origin with no runtime override", () => {
+  assert.equal(resolveEbsBase(), EBS_BASE);
   assert.equal(
-    resolveEbsBase("abc123.ext-twitch.tv", "?ebs=https://evil.example"),
-    EBS_BASE_PRODUCTION,
-  );
-});
-
-test("resolveEbsBase: localhost may override for the dev rig", () => {
-  assert.equal(
-    resolveEbsBase("localhost", "?ebs=http://localhost:8080/"),
-    "http://localhost:8080",
-  );
-  assert.equal(resolveEbsBase("localhost", ""), EBS_BASE_PRODUCTION);
-  // Non-http schemes are rejected.
-  assert.equal(
-    resolveEbsBase("localhost", "?ebs=javascript:alert(1)"),
-    EBS_BASE_PRODUCTION,
+    resolveEbsBase("localhost", "?ebs=https://evil.example"),
+    EBS_BASE,
+    "browser location/query arguments cannot redirect a submitted archive",
   );
 });
 

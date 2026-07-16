@@ -19,7 +19,7 @@ import {
 const DEFAULT_LANG_CHOICES = ["en", "tr", "de", "es", "fr", "pt", "ru", "ja"];
 
 const state = {
-  ebsBase: resolveEbsBase(window.location.hostname, window.location.search),
+  ebsBase: resolveEbsBase(),
   channelId: null,
   token: null,
   linked: false,
