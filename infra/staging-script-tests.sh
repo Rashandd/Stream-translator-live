@@ -121,4 +121,13 @@ staging_validate_caddy_config "$tmp_dir/source"
 assert_contains ' caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile' "$(<"$tmp_dir/caddy-command")"
 unset -f staging_caddy_image docker
 
+# A failed current backend must not be rebuilt by the pre-deploy snapshot's
+# cleanup path. The deploy passes this internal switch only after confirming
+# that the current backend is not healthy.
+backup_script=$(<"$root/infra/staging-backup.sh")
+deploy_script=$(<"$root/infra/staging-deploy.sh")
+assert_contains 'STAGING_BACKUP_SKIP_BACKEND_RESTART' "$backup_script"
+assert_contains 'STAGING_BACKUP_SKIP_BACKEND_RESTART=1' "$deploy_script"
+assert_contains "Active staging backend is unhealthy" "$deploy_script"
+
 echo "Staging script regression tests passed."

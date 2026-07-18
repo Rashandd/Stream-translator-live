@@ -75,7 +75,22 @@ if [ -n "$old_release" ] && [ -f "$old_release/$STAGING_COMPOSE_FILE" ]; then
   # Capture the old release's database and encrypted stores before a new
   # backend can run migrations. The new release's script is used deliberately:
   # it shares this deployment lock even when the current release predates it.
-  predeploy_backup=$("$release/infra/staging-backup.sh" --print-path)
+  old_backend_healthy=0
+  old_backend=$(staging_compose "$old_release" ps -q backend 2>/dev/null || true)
+  if [ -n "$old_backend" ]; then
+    old_backend_state=$(docker inspect --format '{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$old_backend" 2>/dev/null || true)
+    if [ "$old_backend_state" = 'running/healthy' ]; then
+      old_backend_healthy=1
+    fi
+  fi
+  if [ "$old_backend_healthy" -eq 1 ]; then
+    predeploy_backup=$("$release/infra/staging-backup.sh" --print-path)
+  else
+    # A broken current release must not be rebuilt by the backup cleanup path.
+    # The snapshot is still consistent because the backend is already stopped.
+    echo "Active staging backend is unhealthy; keeping it stopped after the pre-deploy backup." >&2
+    predeploy_backup=$(STAGING_BACKUP_SKIP_BACKEND_RESTART=1 "$release/infra/staging-backup.sh" --print-path)
+  fi
   case "$predeploy_backup" in
     "$STAGING_BASE"/backups/*) ;;
     *)

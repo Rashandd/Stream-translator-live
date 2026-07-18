@@ -158,6 +158,9 @@ assert "12 GiB" in docs
 assert "--print-path" in backup
 assert "mv -T \"$partial_dir\" \"$final_dir\"" in backup
 assert ".predeploy-backup" in deploy
+assert "STAGING_BACKUP_SKIP_BACKEND_RESTART" in backup
+assert "STAGING_BACKUP_SKIP_BACKEND_RESTART=1" in deploy
+assert "Active staging backend is unhealthy" in deploy
 assert "CONFIRM_ROLLBACK_DATA" in rollback
 assert "STAGING_RESTORE_SKIP_AUTOMATIC_BACKUP" in restore and "STAGING_RESTORE_START_RELEASE" in restore
 assert "CONFIRM_ROLLBACK_DATA" in docs

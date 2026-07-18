@@ -28,6 +28,14 @@ source "$script_dir/staging-common.sh"
 staging_require_env
 staging_acquire_operation_lock
 release=$(staging_current_release)
+case "${STAGING_BACKUP_SKIP_BACKEND_RESTART:-0}" in
+  0) skip_backend_restart=0 ;;
+  1) skip_backend_restart=1 ;;
+  *)
+    echo "STAGING_BACKUP_SKIP_BACKEND_RESTART must be 0 or 1." >&2
+    exit 2
+    ;;
+esac
 
 backup_root="$STAGING_BASE/backups"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -46,7 +54,7 @@ cleanup() {
   if [ "$redis_stopped" -eq 1 ]; then
     staging_wait_up "$release" redis >/dev/null 2>&1 || true
   fi
-  if [ "$backend_stopped" -eq 1 ]; then
+  if [ "$backend_stopped" -eq 1 ] && [ "$skip_backend_restart" -eq 0 ]; then
     staging_wait_up "$release" backend >/dev/null 2>&1 || true
   fi
   if [ "$status" -ne 0 ]; then
@@ -102,8 +110,10 @@ partial_dir=
 
 staging_wait_up "$release" redis >/dev/null
 redis_stopped=0
-staging_wait_up "$release" backend >/dev/null
-backend_stopped=0
+if [ "$skip_backend_restart" -eq 0 ]; then
+  staging_wait_up "$release" backend >/dev/null
+  backend_stopped=0
+fi
 
 # Retain only this deployment's dated backup directories for 14 days.
 find "$backup_root" -mindepth 1 -maxdepth 1 -type d \
