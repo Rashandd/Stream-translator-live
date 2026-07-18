@@ -11,7 +11,7 @@ ID'leri, relay hedefleri ve testler admin panelden yürütülür.
 Kod yazmaz, sunucuya SSH ile girmez, secret dosyası düzenlemez.
 
 - Admin paneline girer.
-- Provider hesaplarını açar: Google, Stripe, Deepgram, DeepL, Streamlabs.
+- Gerekli servis hesaplarını açar: Google, Stripe, DeepL, Streamlabs.
 - Admin > Secrets ekranına key/client bilgilerini girer.
 - Her sağlayıcı için Test butonuna basar.
 - Stripe price ID'lerini admin config'e girer.
@@ -39,7 +39,7 @@ Production'da üç ayrı profil düşünülür:
 | Profil | Nerede tutulur | Kim yönetir | Amaç |
 | --- | --- | --- | --- |
 | Deploy profile | VPS env (`infra/deploy.md`) | Operator ilk deploy'da girer | Uygulamanın açılması |
-| Provider profile | Admin > Secrets + Admin Config | Operator | Google, Stripe, Deepgram, DeepL, Streamlabs |
+| Provider profile | Admin > Secrets + Admin Config | Operator | Google, Stripe, DeepL, Streamlabs |
 | Broadcaster profile | Yayıncı paneli | Yayıncı/operator | RTMP hedefleri, stream key, overlay, dil seçimi |
 
 ### Deploy Profile
@@ -70,7 +70,7 @@ Her provider için tek düzen:
 
 | Alan | Örnek |
 | --- | --- |
-| Provider | `youtube`, `google_translate`, `stripe`, `deepl`, `deepgram` |
+| Provider | `youtube`, `google_translate`, `stripe`, `deepl` |
 | Environment | `production` |
 | Secret names | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` |
 | Callback URL | `https://api.strovak.com/api/integrations/youtube/callback` |
@@ -359,8 +359,6 @@ Admin > Secrets ekranında gir ve Test butonuyla doğrula:
 
 | Secret | Test sonucu |
 | --- | --- |
-| `DEEPGRAM_KEY` | Deepgram project/list endpoint OK |
-| `ASSEMBLYAI_KEY` | AssemblyAI endpoint OK |
 | `DEEPL_KEY` | DeepL usage/translate OK |
 | `GOOGLE_TRANSLATE_KEY` | Google languages endpoint OK |
 | `STRIPE_SECRET_KEY` | Stripe balance OK |

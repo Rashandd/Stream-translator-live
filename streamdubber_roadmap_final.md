@@ -133,9 +133,9 @@ Dağıtım yöntemini seç:
                             ▼          │
 ╔══════════ STREAMDUBBER BULUT (ağır AI) ═══════╗      │
 ║                                                ║      │
-║  ├── STT          [Deepgram → faster-whisper]  ║      │
+║  ├── STT          [faster-whisper-large-v3]    ║      │
 ║  ├── Çeviri       [DeepL → HY-MT1.5]            ║      │
-║  └── Ses Klonlama [ElevenLabs → XTTS-v2]        ║      │
+║  └── Ses Klonlama [XTTS-v2]                     ║      │
 ║         └── klonlanmış ses + altyazı → SDK'ya  ║      │
 ║                                                ║      │
 ║  Web Panel ←── tüm kontrol (dil, başlat, ayar) ║      │
@@ -173,9 +173,9 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **DB** | PostgreSQL + Redis (cache) | (aynı) | İlişkisel + hızlı önbellek |
 | **Şifreleme** | AES-256-GCM + TLS 1.3 | (aynı) | Ses akışı + key güvenliği |
 | **Key yönetimi** | HashiCorp Vault / AWS KMS | (aynı) | API key + ses modeli koruma |
-| **STT** | Deepgram API | faster-whisper (local) | API → local geçiş, maliyet %92 ↓ |
+| **STT** | faster-whisper-large-v3 | faster-whisper-large-v3 | Tek self-hosted STT motoru, 100 dil |
 | **Çeviri** | DeepL API | HY-MT1.5 (local) + DeepL fallback | Yaygın diller local, nadir diller API |
-| **TTS / Ses klonlama** | ElevenLabs API | XTTS-v2 (local) + ElevenLabs premium | Kalite → maliyet dengesi |
+| **TTS / Ses klonlama** | XTTS-v2 (local) | XTTS-v2 + StyleTTS2/Pocket-TTS | Self-hosted, API TTS yok |
 | **Multistream** | SDK gömülü RTMP relay (yayıncı interneti) | + bulut multistream (premium) | Video buluta çıkmaz, Gbit sunucu gerekmez |
 | **Altyapı** | BAsic Vps (MVP) | Hetzner GPU + Cloudflare edge | Geliştirme → üretim ölçeği |
 | **Ödeme** | Stripe | (aynı) | Standart |
@@ -183,7 +183,9 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 | **Kick izleyici** | — | Chrome Extension (Manifest V3) | İzleyici dil seçimi |
 | **Monitoring** | Sentry + Grafana | (aynı) | Hata + metrik izleme |
 
-**Hibrit prensibi:** Hiçbir katman tek sağlayıcıya kilitli değil. Admin panelinden her katman API ↔ local arasında anlık değiştirilebilir. Bir sağlayıcı çökerse veya fiyat artırırsa, fallback devreye girer.
+**Hibrit prensibi:** STT ve TTS kendi altyapımızda çalışır; çeviri gibi uygun
+katmanlar config ile değiştirilebilir. STT/TTS için üçüncü taraf API fallback'i
+kullanılmaz.
 
 ---
 
@@ -193,7 +195,7 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 
 | Seçenek | Tür | Kalite | Maliyet (1000 kullanıcı×4saat) | Latency | Faz |
 |---|---|---|---|---|---|
-| **faster-whisper large-v3** | Local GPU | ⭐⭐⭐⭐⭐ | ~$80/ay sabit | ~500ms | Faz 2 geçiş |
+| **faster-whisper large-v3** | Self-hosted GPU | ⭐⭐⭐⭐⭐ | GPU altyapısı | ~500ms hedef | Tek motor, 100 dil |
 | **Voxtral Realtime** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | <200ms | Faz 3 araştırma (13 dil) |
 
 
@@ -211,9 +213,6 @@ Aşağıdaki tablo "hangi katmanda ne kullanılacak" sorusunun net cevabı. Deta
 
 | Seçenek | Tür | Kalite | Maliyet (1000 kullanıcı/ay) | Latency | Faz |
 |---|---|---|---|---|---|
-| **ElevenLabs** | API | ⭐⭐⭐⭐⭐ | ~$600/ay | ~800ms | Faz 2 başlangıç |
-| **Cartesia** | API | ⭐⭐⭐⭐ | ~$240/ay | ~200ms | Hız alternatifi |
-| **PlayHT** | API | ⭐⭐⭐⭐ | ~$200/ay | ~500ms | Ucuz API |
 | **XTTS-v2 (Coqui)** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~600ms | Faz 3 geçiş |
 | **StyleTTS2** | Local GPU | ⭐⭐⭐⭐ | ~$80/ay sabit | ~400ms | Faz 3 araştırma |
 | **Pocket-TTS (Kyutai)** | Local **CPU** (GPU gerekmez) | ⭐⭐⭐⭐ | ~$0 (CPU'da çalışır) | ~200ms | Faz 3 — ucuz dublör + zero-shot klonlama, ama sadece 6 dil (en/fr/de/pt/it/es) |
@@ -314,7 +313,7 @@ Ses yakalama dışındaki her şey (VAD, ön-işleme, RTMP relay, şifreleme, we
 | **Veri aktarımı (transit)** | TLS 1.3 | SDK ↔ bulut, web panel ↔ bulut — ses akışı dahil |
 | **Saklanan veri (at rest)** | AES-256 | Ses modelleri, kullanıcı verisi, DB |
 | **Stream key'ler** | AES-256 + Vault | Platform stream key'leri, OAuth token'ları (lokal) |
-| **API key'ler** | Vault / KMS | Deepgram, DeepL, ElevenLabs key'leri |
+| **API key'ler** | Vault / KMS | DeepL ve ürün entegrasyon key'leri |
 
 > Ses akışı transit şifreleme için TLS 1.3 yeterli.
 
@@ -372,8 +371,7 @@ Admin panelden ayarlanabilir olmali büütn özellikler kesin degil fiyatlar ve 
 ### Fiyatlandırma — Kredi Sistemi (2026-07-09 kullanıcı kararı)
 
 Yukarıdaki "saat" birimi kredi'ye evriliyor: STT ve TTS/ses klonlama için
-3. parti API yok (Deepgram/AssemblyAI/ElevenLabs/Cartesia/PlayHT kapsam
-dışı) — hepsi ya **yayıncının kendi PC'sinde** (SDK, `local_stt.rs`/
+STT ve TTS için 3. parti API yok — hepsi ya **yayıncının kendi PC'sinde** (SDK, `local_stt.rs`/
 `local_tts.rs`) ya da **StreamDubber'ın kendi kiraladığı GPU'da** (Vast.ai/
 Hetzner, self-hosted açık kaynak modeller — bkz. STT/TTS tabloları yukarıda)
 çalışır. Çeviri (DeepL) bu kuralın dışında kalır — ucuz ($150/ay civarı),
@@ -522,10 +520,10 @@ Plan-model eşlemesi: **Pro** yalnızca ucuz-tier self-hosted TTS modellerine
 - [ ] Servis başlatma / durdurma
 
 #### Hibrit Servis Yönlendirme
-- [ ] STT toggle: Deepgram ↔ faster-whisper ↔ Hibrit
+- [ ] STT worker durumu ve faster-whisper-large-v3 model sürümü
 - [ ] Çeviri toggle: DeepL ↔ HY-MT1.5 ↔ Hibrit
-- [ ] TTS toggle: ElevenLabs ↔ Cartesia ↔ XTTS-v2
-- [ ] Otomatik fallback kuralları (örn: XTTS meşgulse Cartesia'ya geç)
+- [ ] TTS toggle: XTTS-v2 ↔ StyleTTS2 ↔ Pocket-TTS
+- [ ] Otomatik self-hosted motor fallback kuralları
 - [ ] Değişiklik geçmişi
 
 #### Multistream Dağıtım Yönetimi
@@ -579,7 +577,7 @@ Plan-model eşlemesi: **Pro** yalnızca ucuz-tier self-hosted TTS modellerine
 
 **Hedef:** Ücretsiz plan ile kitle çek, rakipten daha iyi altyazı sun  
 **Mesaj:** "StreamTranslate'ten daha iyi, üstelik ücretsiz başlayabilirsin"  
-**Stack:** Deepgram + DeepL + SDK gömülü RTMP relay (+ opsiyonel Streamlabs)
+**Stack:** self-hosted faster-whisper-large-v3 + DeepL + SDK gömülü RTMP relay (+ opsiyonel Streamlabs)
 
 ### Görevler
 
@@ -654,7 +652,9 @@ Plan-model eşlemesi: **Pro** yalnızca ucuz-tier self-hosted TTS modellerine
 > Faz 1.6 NOT (Claude/Codex): OAuth **akış çekirdeği** (authorize URL + CSRF state tek-kullanım + token değişimi) plan kapısı olmadan çalışır: provider client_id/secret yapılandırıldıysa yayıncı planından bağımsız bağlanabilir. Endpoint'ler: GET /api/integrations, /api/integrations/{provider}/authorize (yayıncı), /callback (state ile), POST /api/integrations/{provider}/test (yayıncı canlı bağlantı testi). client_id/secret SecretStore'dan (.env/Vault). Restream/Castr sağlayıcı kayıtları ve secret'ları kod ve `.env.example`'dan kaldırıldı. Token persist hazır; Streamlabs için kayıtlı token ile gerçek `/socket/token` API çağrısı kod ve mock test seviyesinde hazır. Gerçek Streamlabs hesabı ile canlı smoke user/ops adımı.
 > Faz 1.6 NOT 2 (Claude, bu oturum): SDK RTMP relay motoru (`sdk/src/core/rtmp/`) protokol+orkestrasyon seviyesinde tamamlandı ve test edildi (gerçek TCP loopback: sahte OBS → RelayEngine → 2 sahte hedef sunucu, her hedef kendi stream key'ini ve bağımsız bağlantısını doğruluyor). KALAN (desktop-shell wiring, ayrı iş): (1) gerçek bir TCP listener'ı OBS'in bağlanacağı yerel porta bağlamak (main.rs/Tauri tarafı — `RelayEngine::start` zaten herhangi bir `AsyncRead+AsyncWrite` bağlantıyı kabul ediyor, `TcpListener::accept()`'ten gelen soketle doğrudan çalışır), (2) hedef listesini (RTMP URL + stream key) web panelden şifreli senkronize etmek — `pairing.rs`'in backend ucu gibi ayrı bir görev, (3) gerçek OBS ve gerçek platform (YouTube/Twitch/Kick) ile canlı doğrulama — hiçbiri simüle/mock dışında test edilmedi. Ayrıca: cargo workspace tokio feature'larına `sync`+`time` eklendi (broadcast channel + reconnect backoff için); `sdk/tests/cloud_e2e.rs` içindeki eski `AppState` initializer'ı (docs/sessions/codex.md'de flagli, bu işten bağımsız önceden bozuktu) güncellendi çünkü tüm workspace test/clippy koşumunu engelliyordu.
 
-> **1.7 STT — Deepgram API** roadmap'ten kaldırıldı (kullanıcı kararı). STT olarak sadece Deepgram'ın mevcut prerecorded REST entegrasyonu (`gateway::deepgram::DeepgramStt`, DEEPGRAM_KEY varsa aktif) + fallback olarak AssemblyAI (`gateway::assemblyai::AssemblyAiStt`, 5 test) kullanılıyor. Gerçek zamanlı streaming WS ve ayrıca Türkçe kalite testi artık Faz 1 tamamlanma kriteri değil — bkz. STT kaynağı tartışması (yayıncı PC'si vs bulut) Faz 2.6b'ye taşındı.
+> **1.7 STT:** Ürün kararıyla tek STT motoru self-hosted
+> `faster-whisper-large-v3`dür. Kaynak dil kapsamı modelin 100 dilidir;
+> üçüncü taraf STT API'si ve API fallback'i kullanılmaz.
 
 #### 1.8 Çeviri — DeepL API
 - [x] DeepL API (TR → EN, ES, DE, FR başlangıç)  <!-- gateway::deepl::DeeplTranslate: REST /v2/translate, free/pro endpoint auto, dil kodları upper-case; mock-server test; main.rs DEEPL_KEY varsa aktif. Canlı doğrulama key ile (user) -->
@@ -671,7 +671,10 @@ Plan-model eşlemesi: **Pro** yalnızca ucuz-tier self-hosted TTS modellerine
 - [x] YouTube Live CC API  <!-- integrations::youtube::YouTubeCaptions: liveBroadcasts.list ile closedCaptionsIngestionUrl çözme + ingestion URL'ine seq'li caption POST'u. 5 test (mock Data API + ingestion sunucusu: url çözme, canlı olmayan broadcast, yanlış token, seq/body doğrulama) -->
 - [x] OAuth bağlantısı  <!-- integrations/mod.rs default_providers()'a "youtube" eklendi (Google authorize/token uç noktaları, youtube.force-ssl scope), YOUTUBE_CLIENT_ID/SECRET SecretStore'dan. Paylaşılan integrations::oauth çekirdeği kullanılıyor (Streamlabs'la aynı akış, aynı testler). KALAN: Google'ın offline refresh token için gereken access_type=offline&prompt=consent parametreleri generic OAuth çekirdeğinde yok; canlı Google Cloud Console app'iyle doğrulanmadı -->
 
-#### 1.9/1.10 NOT (Claude, bu oturum): Yukarıdaki maddeler backend'de gerçek REST client + mock-server test'li; hiçbiri canlı sağlayıcı hesabıyla (gerçek Deepgram/AssemblyAI/Google/YouTube key'leri, gerçek OBS/platform yayını) doğrulanmadı. SDK gömülü RTMP relay motoru (1.6) kullanıcı kararıyla bu oturuma dahil edilmedi — SDK'nın video/relay mimarisini değiştiren, kendi başına ayrı bir PR gerektiren büyük bir iş.
+#### 1.9/1.10 NOT
+STT canlı doğrulaması, gerçek GPU worker üzerinde faster-whisper-large-v3 ile
+yapılacaktır. SDK relay ve üçüncü taraf platform entegrasyonları ayrı canlı
+doğrulama adımlarıdır.
 
 #### 1.11 Ücretsiz Plan + Stripe
 - [x] Stripe altyapısı (checkout + webhook)  <!-- backend/src/billing: StripeClient (checkout session, form+Basic Auth) + webhook imza doğrulama (Stripe-Signature, zaman toleranslı HMAC-SHA256) + event parse; POST /api/billing/checkout (auth, plan→price_id config'ten) ve POST /webhooks/stripe endpoint'leri; secret'lar STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET SecretStore'dan. 14 test (mock Stripe server + imza roundtrip + tampered/expired/missing-sig red + checkout auth/plan doğrulama). GÜNCELLEME 2026-07-12 (audit): "webhook event'lerinin DB persist edilmesi" ve "plans_price_id admin panelden" kısımları o zamandan beri yapıldı — bkz. V6 (satır 735) ve Faz 1 V11 (Production Setup Stripe price ID editörü). KALAN: gerçek Stripe hesabıyla canlı test (bkz. "Faz 1 — MVP Öncesi Canlı Doğrulama Listesi"). -->
@@ -701,7 +704,7 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 ### Güvenlik / Altyapı (1.2)
 - [ ] Vault'a gerçek API key'lerin deploy sırasında populate edilmesi (ops adımı — aracı hazır: `scripts/vault-seed.sh`; MVP için zorunlu DEĞİL, key'ler admin panelden giriliyor ve şifreli kalıcı)
 - [x] AES-256 at-rest şifrelemesinin gerçek veriye uygulanması <!-- Claude 2026-07-03 (V8/V9): Cipher artık gerçek at-rest veriye bağlı — OAuth token'ları (TOKENS_FILE), SDK relay stream key'leri (RELAY_FILE) ve panel secret'ları (SECRETS_FILE) AES-256-GCM şifreli; smoke testi diskte düz metin olmadığını doğruluyor. DB _encrypted KOLONLARINA (users.totp_secret_encrypted, platform_accounts.*) uygulama, tabloları dolduran user sistemi (1.4) ile aynı Cipher üzerinden yapılacak. -->
-- [x] **Admin panelden secret yönetimi (restart'sız, maskeli okuma)** — `GET/PUT/DELETE /admin/secrets[/{AD}]` (sadece admin): sağlayıcı key'leri (Deepgram/AssemblyAI/DeepL/Google/ElevenLabs, Streamlabs/YouTube OAuth client'ları, Stripe secret+webhook) panelden girilir, **sadece baş+son maskeli okunur** (`sk_l…3456` — tam değer hiçbir API yanıtında yer almaz). Girilen key çağrı-anı çözümleme sayesinde restart GEREKMEDEN devreye girer: STT/çeviri/OAuth/Stripe client'ları key'i her istekte `SecretStore`'dan okur (`SecretRef`). Kalıcılık: `SECRETS_FILE` env'i verilirse AES-256-GCM şifreli dosya (anahtar `SECRETS_ENC_KEY`, yoksa JWT_SECRET'tan SHA-256 türetme). Key yokken davranış `providers.mock_fallback` config'ine bağlı: `true` (dev/CI) → mock cevap, `false` (üretim) → açık hata; admin panelden değiştirilebilir. Secret güncellemeleri audit log'a düşer (kim/hangi ad/ne zaman — değer asla loglanmaz). `JWT_SECRET` bilinçli olarak panel dışında (runtime'da değişmesi oturumları ve dosya anahtarını bozar; deploy-zamanı env/Vault işi). <!-- Claude 2026-07-03: backend/src/secrets/mod.rs (ManagedSecrets+SecretRef+mask+MemorySecretStore), crypto::derive_key, app.rs /admin/secrets rotaları, main.rs build_managed_secrets + tüm sağlayıcılar managed(store) kuruculu (deepgram/assemblyai/deepl/google/StripeClient/Integrations), gateway'e MockFallbackStt/MockFallbackTranslate. 21 yeni test: unit (maske/whitelist/şifreli persist+reload/yanlış anahtar reddi) + tests/secrets_api.rs e2e (RBAC 401/403, maskeli okuma, tam değer sızıntısı yok, audit izi) + runtime mock→real geçişi. Toplam workspace 238 test + clippy -D warnings temiz. -->
+- [x] **Admin panelden secret yönetimi (restart'sız, maskeli okuma)** — `GET/PUT/DELETE /admin/secrets[/{AD}]` (sadece admin): çeviri, OAuth ve ödeme sağlayıcısı key'leri panelden girilir; değerler yalnız maskeli okunur. Kalıcılık `SECRETS_FILE` ile AES-256-GCM şifreli dosyadadır; güncellemeler audit log'a düşer. Self-hosted STT/TTS motorları üçüncü taraf API key'i kullanmaz.
 
 ### SDK (1.3)
 - [ ] Gerçek WASAPI cihaz I/O — Windows'ta gerçek mikrofon ile capture testi <!-- Claude 2026-07-05: kod TAMAM (audio/wasapi.rs, cross-check+clippy temiz) — kalan yalnız Windows'ta canlı mikrofon smoke'u (user) -->
@@ -729,8 +732,7 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 
 ### STT / Çeviri (1.7, 1.8)
 > Araç hazır (V5): key admin panelden girilir, satırdaki **Test** butonu (`POST /admin/providers/{ad}/test`) gerçek sağlayıcı API'sine canlı doğrulama çağrısı yapar. Aşağıdakiler için tek eksik: gerçek hesap/key (user).
-- [ ] Deepgram gerçek key ile canlı STT testi (TR dil kalitesi dahil)
-- [ ] AssemblyAI fallback canlı testi
+- [ ] faster-whisper-large-v3 gerçek GPU worker canlı STT testi (TR kalite dahil)
 - [ ] DeepL gerçek key ile canlı çeviri testi
 - [ ] Google Translate fallback canlı testi
 
@@ -804,7 +806,7 @@ Aşağıdaki maddeler kod olarak `[x]` işaretli ve mock-server / birim testleri
 - [x] Doğrulama: `bash -n` script; `docker compose config` geçerli; `npm run build` standalone çıktı veriyor. (Compose'un tam `up` koşusu ilk gerçek deploy'da — imaj build'i uzun, davranış Dockerfile'larla sabitlendi.)
 
 #### V5 — Sağlayıcı canlı bağlantı testi endpoint'i + panel Test butonu — TAMAMLANDI
-- [x] `POST /admin/providers/{name}/test` (sadece admin): deepgram `GET /v1/projects`, assemblyai `GET /v2/transcript?limit=1`, deepl `GET /v2/usage` (`:fx` key'de free host'a otomatik geçiş), google `GET /v2/languages?key=`, stripe `GET /v1/balance`. Dönüş `{provider, ok, status, detail}`: key yoksa 503 (panele yönlendiren mesaj), sağlayıcı reddi/ağ hatası `ok:false` ile HTTP 200 (test koştu, sonuç negatif). Sonuçlar audit log'a düşer. <!-- backend/src/provider_check/mod.rs -->
+- [x] `POST /admin/providers/{name}/test` (sadece admin): çeviri, ödeme ve OAuth sağlayıcı bağlantılarını test eder. Dönüş `{provider, ok, status, detail}`; sonuçlar audit log'a düşer. Self-hosted STT worker sağlığı `/health` üzerinden izlenir.
 - [x] Test URL'leri `providers.<ad>.test_url` config'inden override edilebilir → mock-server testleri: doğru key ok / yanlış key ok:false(401) / unset 503 / bilinmeyen sağlayıcı 404 / ağ hatası ok:false (7 test).
 - [x] Frontend: /admin/secrets satırlarında yapılandırılmış+test-edilebilir secret'lar için "Test" butonu (Wifi ikonu) + success/danger sonuç rozeti (detay title'da); secret→sağlayıcı eşlemesi backend `provider_for_secret` ile senkron. Roadmap 560 "Her bağlantı için test aracı"nın backend yarısı kapandı; canlı key doğrulaması artık panelden tek tıkla.
 
@@ -857,7 +859,7 @@ canlı smoke — kod tarafında eksik yok.
 - [ ] Kullanıcı/Operator: Production deploy profile değerlerini gir  <!-- JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD_HASH, DATABASE_URL, REDIS_URL, SECRETS_FILE/TOKENS_FILE/RELAY_FILE/USERS_FILE/USAGE_FILE/LOG_FILE/SECRETS_ENC_KEY, CORS_ALLOWED_ORIGINS. VPS kurulum adımları: infra/deploy.md §2. -->
 - [ ] Kullanıcı/Operator: Google production profile'ı oluştur  <!-- Google Cloud project, OAuth branding, authorized domain, YouTube/Google APIs enable, Web OAuth client, redirect URI: https://api.<domain>/api/integrations/youtube/callback; YOUTUBE_CLIENT_ID/SECRET ve GOOGLE_TRANSLATE_KEY admin panelden girilir. -->
 - [ ] Kullanıcı/Operator: Stripe production profile'ı oluştur  <!-- Products/prices, webhook endpoint https://api.<domain>/webhooks/stripe, STRIPE_SECRET_KEY/WEBHOOK_SECRET, price_id'ler admin panelden girilir. -->
-- [ ] Kullanıcı/Operator: Deepgram/DeepL/AssemblyAI/Streamlabs key/client bilgilerini admin panelden gir ve Test/Connect smoke yap  <!-- Test geçmeden providers.mock_fallback=false yapılmaz; testler geçince mock fallback kapatılır. -->
+- [ ] Kullanıcı/Operator: DeepL/Streamlabs key/client bilgilerini admin panelden gir ve Test/Connect smoke yap  <!-- Test geçmeden providers.mock_fallback=false yapılmaz; testler geçince mock fallback kapatılır. -->
 - [ ] Kullanıcı/Operator: Gerçek OBS + SDK + YouTube/Twitch/Kick canlı smoke'u yap  <!-- Fan-out, overlay, latency, loglarda secret sızıntısı yok, Stripe checkout/webhook, YouTube CC doğrulaması. -->
 
 ---
@@ -871,7 +873,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 
 **Hedef:** Rakipte olmayan özellikleri devreye al, ücretli plana geçişi tetikle  
 **Mesaj:** "Artık izleyicin kendi dilini seçiyor ve senin sesinle duyuyor"  
-**Stack:** ElevenLabs + Twitch Extension + Chrome Extension + faster-whisper geçiş başlıyor
+**Stack:** self-hosted TTS + Twitch Extension + Chrome Extension + faster-whisper-large-v3
 
 ### Görevler
 
@@ -894,30 +896,30 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 > "SDK'da video + klonlanmış ses birleştirme" ve 2.3'ün kendi checkbox'ı. Buluttan mux hâlâ ayrı,
 > henüz kodlanmadı.
 
-#### 2.1 Ses Klonlama — ElevenLabs
-- [x] ElevenLabs API entegrasyonu <!-- Claude 2026-07-06: gateway::tts (TtsProvider trait + MockTts + MockFallbackTts — stt.rs deseni) + gateway::elevenlabs (POST /v1/voices/add multipart clone_voice, POST /v1/text-to-speech/{id} synthesize; managed/with_endpoint, mock-server testli). Gateway.clone_voice/.synthesize dispatch: tts.provider="disabled" (varsayılan, admin PUT /admin/config ile "elevenlabs" yapar) → NoProvider. ELEVENLABS_KEY zaten secrets::MANAGED'daydı; provider_check'e XiApiKey auth stili + CheckDef eklendi (admin/secrets "Test connection" artık ElevenLabs'i de destekliyor). -->
+#### 2.1 Ses Klonlama — Self-Hosted TTS
+- [ ] Self-hosted XTTS-v2 entegrasyonu
 - [x] Ses kaydı stüdyo arayüzü <!-- Claude 2026-07-06: /dashboard/voice — voice-clone-studio.tsx: MediaRecorder ile mikrofon kaydı VEYA dosya yükleme (audio/*), Blob→base64, model listesi + durum rozetleri. -->
 - [x] Model oluşturma pipeline'ı <!-- Claude 2026-07-06: backend/src/voice_models — POST /api/voice/clone (plan has_voice_clone şartı — PlanRegistry zaten vardı, free/starter 403; base64 decode + 10MB üst sınır; gateway.clone_voice çağırır) + GET /api/voice/models (yayıncının kendi modelleri). Model plain-JSON VoiceModelStore'da (VOICE_MODELS_FILE) — ham ses örneği hiç saklanmaz, sadece sağlayıcının provider_voice_id'si. 6 e2e test (tests/voice_models_api.rs). -->
-- [x] Admin ses model onay kuyruğu <!-- Claude 2026-07-06: GET /admin/voice/models (tüm kullanıcılar) + POST .../{id}/approve|reject. Yeni model her zaman pending_review ile başlar — ElevenLabs'in kendisinde onay kavramı yok, bu StreamDubber'ın rıza/kötüye kullanım riski için koyduğu bilinçli insan-onaylı kapı (Faz 2.2 canlı TTS sadece approved modelleri kullanacak). /admin/voice-models sayfası (admin-voice-models-panel.tsx) — tablo + onayla/reddet. -->
+- [x] Admin ses model onay kuyruğu <!-- Yeni model her zaman pending_review ile başlar; insan onayı rıza ve kötüye kullanım riskine karşı zorunludur. -->
 - [x] Ses modeline dil ataması şeması: `language_mode` (`single_to_single`/`multi_to_single`/`single_to_multi`) + `source_languages`/`target_languages` — düz `language: String` yerine (2026-07-06 kullanıcı kararı, bkz. dosya sonu "Öz Kaynaklı..." bölümü) <!-- Claude 2026-07-06: voice_models::LanguageMode enum + VoiceModel.source_languages/target_languages: Vec<String>. clone_voice request'i language_mode+source_languages alır (target_languages BOŞ başlar, admin sonradan assign ile doldurur — bkz. 2.2). Doğrulama: single_to_single/single_to_multi tam 1 source_language ister, multi_to_single en az 2. voice-clone-studio.tsx'e 3 modlu seçici + /api/translate/catalog'dan (2.0) beslenen kaynak-dil seçici eklendi (tekli select veya çoklu checkbox, moda göre). -->
 - [x] Ham ses örneği artık AES-256-GCM şifreli saklanır (2026-07-06 kullanıcı kararı — önceki "hiç saklama" kararının bilinçli tersi, gerekçe: yeniden eğitim/sağlayıcı değişimi/model iyileştirme) <!-- Claude 2026-07-06: voice_models::VoiceSampleStore (yeni dosya, sample_store.rs) — relay::RelayTargetStore ile BİREBİR AYNI desen: tüm JSON blob'u (model_id→base64 örnek) tek parça AES-256-GCM şifreli, ayrı dosyada (VOICE_SAMPLES_FILE, main.rs'te streamdubber.voice_samples.v1 context'iyle derive_key). Model metadata'sından (VoiceModelStore, gizli değil) kasıtlı AYRI tutuldu. clone_voice best-effort persist eder — şifreleme/disk hatası model oluşturmayı ENGELLEMEZ, sadece VoiceModel.has_stored_sample=false kalır. VoiceModel'e ayrıca mode (Dubbing|SpeechToSpeech, varsayılan Dubbing) + source (UserCloned|Preset, varsayılan UserCloned) alanları eklendi — şema hazır ama dashboard'da SpeechToSpeech/Preset SEÇİLEMEZ (gerçek self-hosted motor/S2S pipeline'ı dosya sonundaki ayrı işe bağlı). -->
 
 #### 2.2 Gerçek Zamanlı TTS
-- [x] Metin → klonlanmış ses (2 sn altı) <!-- Claude 2026-07-06: pipeline::StreamSession.synthesize_dubs — final (is_final=true) altyazı çevirisi sonrası, tts_source=cloud VE hedef dil için admin'in aktif kıldığı onaylı bir model varsa gateway.synthesize gerçekten çağrılır; sonuç ws::protocol::ServerMessage::Subtitle.dubbed_audio'ya (yeni alan, Vec<DubbedAudioTrack{lang,audio_base64}>, eski SDK'lar serde default ile yok sayar) eklenir. Model yoksa/sağlayıcı hata verirse o dil sessizce atlanır (gateway.translate_all'ın best-effort deseniyle aynı) — bir dilin dub başarısızlığı ne diğer dilleri ne altyazının kendisini etkiler. tts_source=local'de (SDK kendi motoruyla sentezleyecek, KALAN — bkz. 2.2b) backend hiç sentezlemez, sadece translations metnini taşır. "2 sn altı" gecikme hedefi CANLI ElevenLabs key'i olmadan ÖLÇÜLEMEDİ (ağ+model gecikmesi) — dispatch kodu gerçek ve 6 yeni pipeline testiyle (mock TTS + gerçek/başarısız senaryolar) doğrulandı, uçtan uca gecikme doğrulaması kullanıcı aksiyonu. -->
-- [x] SDK'da video + klonlanmış ses birleştirme (cihazda mux) <!-- Claude 2026-07-07: sdk/src/core/mux/ (mux.rs bir dizine dönüştü) — flv.rs: rtmp::RtmpMessage'ı FLV byte akışına serileştirir (video+script tag'leri, audio ATLANIR — ses input 1'den geliyor), rtmp media payload'ı zaten FLV tag body'siyle birebir aynı format olduğu için saf konteyner framing, re-encode yok. audio_scheduler.rs: DubAudioScheduler — kesikli dublaj sesini (push_dub_audio) sürekli PCM akışına çevirir (next_chunk(n) — kuyrukta yeterince örnek yoksa sessizlikle doldurur, meetily referans projesindeki reaktif silence-fill fikriyle aynı). ffmpeg_process.rs: ffmpeg child process lifecycle (gpu_probe.rs'nin best-effort external-binary deseni — ffmpeg_available() best-effort kontrol, spawn/stdin/wait, kill_on_drop). rtmp/relay.rs'e run_dub_target + run_dub_session eklendi: dub_language'i olan hedefler run_target yerine buraya yönlendirilir — yerel bir TcpListener açar, ffmpeg'i "-f flv -i pipe:0 -f s16le -ar 24000 -ac 1 -i tcp://127.0.0.1:<port> -map 0:v -map 1:a -c:v copy -c:a aac -f flv <hedef>" komutuyla spawn eder (RTMP çıkışı ffmpeg'in KENDİ muxer'ı üzerinden — bizim rtmp modülümüz yalnız publish-accept/publish-connect biliyor, "bir client'a stream servis et" rolü hiç yok, bu yüzden yerel TCP kaynağı; ekstra fd yerine stdin+TCP tercih edildi çünkü Windows'ta ekstra fd taşınabilir değil). KRİTİK bulgu (elle doğrulandı): ffmpeg girişleri sırayla açıyor/analiz ediyor — stdin (canlı, EOF vermeyen) girişi sınırsız analiz edilirse ikinci girişi (TCP) hiç açmıyor (elle test: EOF'suz 5sn tutulan stdin'de ffmpeg TCP'ye AS SONRA bağlandı) — `-probesize 32k -analyzeduration 500000` ile bu tıkanma giderildi (load-bearing, tuning değil). RelayEngine.dub_audio_sinks() (dil→mpsc::Sender<Vec<i16>> haritası) dışa açıldı; cloud_session.rs Subtitle.dubbed_audio'yu (base64→PCM i16, decode_dub_audio) dile göre ilgili sink'e yönlendirir (route_dub_audio, best-effort — sink yoksa/decode hatası sessizce düşer). run_desktop_shell iki alt-sistemi birbirine bağlar. Test: flv.rs/audio_scheduler.rs saf birim testleri + ffmpeg_process.rs gerçek ffmpeg smoke testi + rtmp/relay.rs'te GERÇEK ffmpeg'le uçtan uca test (sahte OBS → gerçek ffmpeg mux → sahte gerçek RTMP hedefi, pushlanan dublaj sesi gerçekten AAC'ye encode edilip hedefe ulaştığı doğrulandı — ffmpeg test fixture'ı da yine gerçek ffmpeg'le testsrc'ten üretildi). Ön-adım: gateway::elevenlabs OUTPUT_FORMAT mp3_44100_128→pcm_24000 (SDK'da mp3 decode bağımlılığı hiç eklenmedi, ASSUMED_TTS_BITRATE_BPS 384_000'e güncellendi). backend::relay::RelayTarget + sdk::rtmp::RelayTarget'a dub_language: Option<String> eklendi (yönlendirme anahtarı). KASITLI KAPSAM DIŞI: buluttan mux (ayrı görev, backend'e video-ingest + core::rtmp'in paylaşılan crate'e çıkarılması gerektiriyor), uzun gecikmede orijinal mikrofona düşme (kullanıcı kararıyla elendi — sessizlik sürer), ducking/crossfade, dashboard'da mux durum göstergesi, OBS bağlantı kopma/yeniden bağlanma döngüsü (run_target'ın bugünkü tek-seferlik doğasıyla tutarlı). -->
+- [ ] Metin → klonlanmış ses (2 sn altı) — self-hosted TTS motoruyla canlı doğrulama bekliyor.
+- [x] SDK'da video + klonlanmış ses birleştirme (cihazda mux) <!-- Dublaj sesi `Subtitle.dubbed_audio` üzerinden SDK'nın cihazdaki mux kuyruğuna yönlendirilir. Self-hosted TTS motoru bağlandığında PCM çıktısı bu sözleşmeyi kullanacaktır. -->
 - [x] Admin: yayıncı dil seçtiğinde o dil için hangi onaylı modelin kullanılacağının (kullanıcı, hedef dil) başına seçilmesi <!-- Claude 2026-07-06: voice_models::VoiceModelStore.set_active_for_language(model_id, lang) + POST /admin/voice/models/{id}/assign (AdminUser). Model onaylı değilse 422; single_to_single/multi_to_single zaten FARKLI bir dile atanmışsa 409 (bu modlar tek hedefe kilitli tasarım gereği — N hedef dil = N ayrı model); single_to_multi aynı anda birden fazla dile atanabilir (target_languages büyür). active_model_for(user_id,lang) admin modeli SONRADAN reddederse bile stale atamayı görmezden gelir (status=Approved filtresi, atama haritası ayrıca temizlenmez). /admin/voice-models sayfasına dil sütunu (language_mode+source→target özeti) + onaylı modeller için dil seçici+"Assign" butonu eklendi. -->
-- [x] TTS kota/kredi tüketimi — gerçek ses baytından hesaplanan saniye, STT ile PAYLAŞILAN aynı `UsageTracker` havuzuna (kullanıcı kararı: "saniye ama müşteriye saat başına fiyatlandırma") <!-- Claude 2026-07-06: gateway::elevenlabs artık output_format="mp3_44100_128" AÇIKÇA istiyor (tahmini karakter/saniye oranı DEĞİL, kesin bilinen bitrate) — pipeline bytes*8/128_000 ile gerçek süreyi hesaplar, indirimsiz uygular (cloud sağlayıcı tam maliyetli — STT'nin process_audio'sundaki 1.0 tarife mantığıyla aynı). Ayrıca limit kontrolü YAPILMIYOR burada — aynı havuzu paylaştığı için STT'nin bir sonraki tick'i zaten yakalıyor (bir tick gecikmeli ama doğru, yeni bir "session kapatma" yolu icat edilmedi). Yerel TTS (tts_source=local) kullanım tüketimi KALAN — gerçek motor yok (2.2b), backend'e ses/karakter hiç ulaşmıyor, ölçülecek bir "TTS anı" henüz yok. -->
+- [ ] TTS kota/kredi tüketimi — self-hosted motorun gerçek ses süresinden hesaplanacak.
 
-#### 2.2b TTS Kaynağı — Bulut (ElevenLabs) vs Yayıncı PC'si (Local XTTS-v2, Faz 3'ten taşındı)
+#### 2.2b TTS Kaynağı — Self-Hosted XTTS-v2
 > Kullanıcı kararı: XTTS-v2 yerel ses klonlama, STT'nin 2.6b'de kurduğu bulut/cihaz toggle desenine uyacak şekilde Faz 3'ten Faz 2'ye çekildi. Aynı mimari tekrar kullanılır: SDK'da opsiyonel yerel motor + donanım benchmark + watchdog + fallback, backend'de kaynak alanı + plan gating + kota teşviki, dashboard'da Bulut/Cihazında kartı.
 - [x] Protokole `tts_source: "cloud" | "local"` alanı ekle (`stream_start`'a, `stt_source` ile aynı desen) — local modda SDK'nın kendi XTTS-v2 motoru metin+dili alıp klonlanmış sesi lokalde üretir, backend'e ses göndermez <!-- Claude 2026-07-06: ws/protocol.rs TtsSource enum (SttSource ile birebir aynı, serde default=cloud) + StreamStart.tts_source; pipeline::StreamSession alanı+getter olarak taşıyor. Gerçek dispatch (hangi yolun ne yaptığı) Faz 2.2'nin işi — burada yalnız protokol+taşıma var. -->
 - [ ] SDK'ya gömülü local TTS motoru (XTTS-v2/Coqui, native bind) — model indirme + SHA-256 doğrulama (ses modeli STT'den büyük, ~2GB+) <!-- KALAN: whisper.cpp gibi native bind bu makinede cmake yokluğu nedeniyle ayrı oturuma bırakıldı. model_fetch.rs zaten jenerik (url+hash+dest) — TTS modeli için de doğrudan kullanılabilir, ek iş gerekmiyor. -->
 - [x] Donanım kontrolü + benchmark (RTF/latency ölçümü) ve runtime watchdog — STT'deki `stt_watchdog` deseninin TTS'e uyarlanması (yavaşlarsa buluta fallback + histerezis) <!-- Claude 2026-07-06: sdk core local_tts.rs (LocalTtsEngine trait — synthesize(text)->PCM, MockTtsEngine, run_benchmark: RTF artık ÇIKTI ses uzunluğuna göre — STT'nin girdi uzunluğuna göre ölçmesinin tersi) + tts_watchdog.rs (stt_watchdog.rs ile birebir aynı deterministik karar makinesi, TtsRoute::Local/CloudFallback). 12 test. Gerçek motora bağlanan tts_control.rs (stt_control.rs'in fetch_policy/report_benchmark/poll döngüsü eşdeğeri) KALAN — gerçek XTTS-v2 motoruyla birlikte ayrı iş. -->
 - [ ] Kullanıcının klonlanmış ses modeli local'de AES-256 ile şifreli saklanır, buluta hiç çıkmaz (gizlilik avantajı — pazarlama mesajı: "sesin hiç buluta gitmiyor") <!-- KALAN: gerçek native motor + model depolamasıyla birlikte. -->
 - [x] `GET /api/tts/policy` — SDK'nın çektiği sunucu-taraflı yerel TTS politikası (izin, donanım eşikleri, kota çarpanı) — `stt/policy` ile aynı desen <!-- Claude 2026-07-06: backend/src/tts_policy — stt_policy ile birebir aynı yapı (Requirements/Watchdog/policy_for_plan/get_policy), tts.local.* config anahtarlarından okur (watchdog_p95_ms seed'i 2000ms — roadmap 2.2'nin "2 sn altı" hedefiyle aynı). PUT /api/tts/mode + POST /api/tts/benchmark: backend/src/sdk_link'e TtsMode/UserTtsSettings/TtsSettingsStore/set_tts_mode/report_tts_benchmark eklendi (STT karşılıklarıyla birebir aynı, ayrı depo — STT ve TTS modları bağımsız). Komut kuyruğu STT ile PAYLAŞILIYOR (KNOWN_COMMANDS'e sadece "tts_benchmark" eklendi — zaten jenerikti). 5+ backend e2e testi (tests/tts_link_api.rs) + ws/protocol.rs testleri. -->
-- [x] Dashboard "Ses işleme" kartı: Bulut (ElevenLabs) / Cihazında (XTTS-v2, deneysel) seçimi, gereksinim tablosu, [Donanımımı test et] — STT'nin "Altyazı işleme" kartıyla aynı desen <!-- Claude 2026-07-06: tts-processing-panel.tsx (/dashboard/voice üstünde) — stt-processing-panel.tsx ile birebir aynı yapı, /api/tts/policy + /api/tts/mode + "tts_benchmark" komutuna bağlı. 9 sözleşme testi. -->
+- [x] Dashboard "Ses işleme" kartı: Cihazında (XTTS-v2, deneysel) seçimi, gereksinim tablosu, [Donanımımı test et].
 - [x] Admin: hangi planda hangi TTS kaynağının açık olduğu (`tts.local.plans` config anahtarı, `stt.local.plans` ile aynı desen) <!-- Claude 2026-07-06: config seed tts.local.plans="pro,streamer" (has_voice_clone ile aynı kilit). Özel admin panel UI'ı henüz yok — 2.6b'nin kendi notuyla aynı: "özel panel UI toggle'ı 1.6'daki admin toggle işiyle birlikte" (Faz 2.7, admin hibrit kontrol genişletme). -->
-- [x] Yerel TTS fiyat teşviki: kota çarpanı (ElevenLabs karakter/dakika maliyeti yüksek — local seçilirse kota indirimli sayılır, `stt.local.usage_multiplier` deseniyle aynı) <!-- Claude 2026-07-06: config seed tts.local.usage_multiplier=0.5 + tts_policy::usage_multiplier() (aynı muhafazakâr 0..=1 clamp). Gerçek KULLANIM anında düşülmesi (tick_usage benzeri) Faz 2.2'nin gerçek zamanlı TTS pipeline'ı kurulunca anlamlı olacak — o olmadan düşülecek bir "TTS kullanım anı" yok. -->
+- [x] Yerel TTS fiyat teşviki: kota çarpanı (`tts.local.usage_multiplier`).
 > Not: SDK/backend zaten senkron istek-cevap mimarisinde; local TTS de "adımı bulut yerine lokalde çalıştır" mantığına uyar, protokolü bozmaz.
 
 #### 2.3 İkili Yayın — SDK Relay'e Klonlanmış Ses Entegrasyonu
@@ -945,9 +947,10 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 
 #### 2.6 faster-whisper Geçişi (bulut)
 <!-- Otomatik aktivasyon + periyodik health-check + utterance birleştirme planı: bkz. docs/backend-hardening-captions-plan.md Bölge A/B (BH-13 feature-gate bağımlılığına dikkat) -->
+- [x] STT ürün kapsamı: yalnız self-hosted faster-whisper-large-v3, modelin 100 dil kapsamı; üçüncü taraf STT API'si yok  <!-- Codex 2026-07-18: mimari, workflow, operasyon ve roadmap dokümanları bu karara göre güncellendi. -->
 - [ ] GPU'lu VPS/VDS sunucu (sağlayıcıdan bağımsız — Hetzner/OVH/Vast.ai/kendi donanımı; "Hetzner GPU sunucu" maddesi 2026-07-08 kullanıcı kararıyla genelleştirildi) <!-- Claude 2026-07-08: backend/src/stt_servers (SttServerStore — RelayTargetStore şablonu, ssh-keygen'e shell-out ile ed25519 keypair üretimi, private key/API token AES-256-GCM şifreli, hiçbir JSON yanıtında düz metin dönmez) + provision.rs (Provisioner trait + FakeProvisioner — durum makinesi pending→provisioning→ready/error) + admin route'ları (POST/GET /admin/stt-servers, GET/DELETE /admin/stt-servers/{id}, POST /admin/stt-servers/{id}/provision — 202 + tokio::spawn arka plan). gateway/selfhosted_stt.rs: SttProvider impl'i SttServerStore::active_ready()'yi her çağrıda okur, "selfhosted" adıyla kayıtlı. stt-server/: faster-whisper (CTranslate2 large-v3-turbo, docs/local-stt-plan.md §2 kararıyla aynı model) saran FastAPI servisi + Dockerfile (NVIDIA CUDA runtime, healthcheck) + CI (pytest + GHCR image build/push). infra/stt-server/bootstrap.sh: idempotent kurulum script'i (nvidia-smi şartı, Docker+nvidia-container-toolkit, API token üretimi, docker compose up, /health poll, sonuç JSON'u). 19 yeni backend testi (unit + e2e) + 7 pytest, hepsi yeşil. KALAN: gerçek SshProvisioner (ssh/scp shell-out + TOFU fingerprint pinleme — FakeProvisioner'ın yerini alacak) + admin frontend paneli ("STT Sunucuları" — sunucu ekle/public key göster/kur/sil) + gerçek bir GPU kutusunda canlı smoke test. -->
 - [ ] TR dil kalite testi <!-- gerçek bir GPU VPS/VDS'te SshProvisioner ile kurulum bitmeden koşulamaz; bkz. yukarıdaki madde -->
-- [x] Admin toggle: Deepgram → Whisper <!-- Claude 2026-07-08: yeni bir config anahtarı gerekmedi — mevcut PUT /admin/config zaten stt.provider'ı whitelist'ten günceller (config.rs:69 seed "deepgram"), "selfhosted" da aynı whitelisted key'in geçerli bir değeri; Gateway routing/fallback zinciri (stt.provider/stt.fallback) değişmedi. -->
+- [x] Admin STT motoru: faster-whisper-large-v3 self-hosted worker seçimi
 
 #### 2.6b STT Kaynağı — Bulut vs Yayıncı PC'si (Faz 1'den taşındı)
 - [x] Protokole `transcript` mesajı ekle (SDK → Backend): local STT kullanan SDK, ses yerine zaten yazıya dökülmüş metni gönderir <!-- Claude 2026-07-05: backend ws/protocol.rs ClientMessage::Transcript{session_id,text,is_final(default true)} + ErrorCode::LocalSttRejected(4007); sdk core/cloud.rs Transcript + send_transcript(); docs/websocket-protocol.md transcript bölümü + 4007 tablo satırı. -->
@@ -959,11 +962,11 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [x] SDK komut kanalı + ayar senkronu — SDK tamamen arka planda (tray), tüm kumanda web panelde: panel komut bırakır (`POST /api/sdk/commands`), SDK yoklar (`GET`, pairing token, tek seferlik teslim), benchmark sonucunu raporlar (`POST /api/sdk/benchmark`); STT mod tercihi panelden yazılır SDK okur — bkz. docs/local-stt-plan.md §2/§5 <!-- Claude 2026-07-05: backend/src/sdk_link — SdkCommandQueue (bellek içi, whitelist=benchmark, 422 bilinmeyen komut) + SttSettingsStore (STT_SETTINGS_FILE düz JSON — secret yok; persist+reload testli) + PUT /api/stt/mode (local: plan izni 403 + geçen benchmark şartı 409; cloud şartsız). GET /api/stt/policy artık mode+benchmark da döner (SDK tek çağrı). .env.example+compose. 4 unit + 5 e2e test. -->
 - [x] Dashboard "Altyazı işleme" kartı: Bulut / Cihazında açık seçimi, gereksinim tablosu, [Donanımımı test et] sonucu, kota avantajı metni ("kotan yarı hızda tükenir"); fallback dipnotu zorunlu <!-- Claude 2026-07-05: frontend stt-processing-panel.tsx (/dashboard/captions üstünde) — GET /api/stt/policy canlı; iki mod kartı (Cloud=Default, On your device=Experimental rozet); local seçimi plan izni + geçen benchmark olmadan kilitli; Test my hardware → POST /api/sdk/commands + Check result yenilemesi; çarpan/vram policy değerlerinden şablonla doldurulur; fallback dipnotu sabit. stt-processing.test.ts 9 sözleşme testi (endpoint sabitleri + zorunlu dipnot + emoji yasağı). 89 test + lint + tsc + build yeşil. -->
 - [x] Admin: hangi planda hangi STT kaynağının açık olduğu (config-driven) <!-- Claude 2026-07-05: stt.local.plans config anahtarı (seed: tüm planlar — lokal STT bulut maliyetini düşürür; PUT /admin/config ile restart'sız daraltılır), stream_start stt_source=local'da plan_allowed enforce edilir (izinsiz → 4007 local_stt_not_allowed, cloud başlangıç etkilenmez). Ek koruma: stt.local.max_chars=500 (çeviri API maliyeti; aşım → 4007 transcript_too_long, session açık kalır). -->
-> Yayıncıdan yayıncıya donanım farkı riski nedeniyle Faz 1'den çıkarıldı, Faz 2'ye alındı. Local STT, mevcut senkron istek/cevap mimarisini BOZMAZ — çünkü yerel model de VAD ile bölünmüş bitmiş cümleyi gönderiyor (Deepgram'ın gerçek streaming WS'i gibi sürekli açık bağlantı gerektirmiyor); sadece "STT adımını bazen atla" mantığı eklenir.
+> Yayıncıdan yayıncıya donanım farkı riski nedeniyle Faz 1'den çıkarıldı, Faz 2'ye alındı. Local STT, mevcut senkron istek/cevap mimarisini BOZMAZ — yerel model de VAD ile bölünmüş bitmiş cümleyi gönderir; yalnız "STT adımını bazen atla" mantığı gerekir.
 
 #### 2.7 Admin — Hibrit Kontrol Genişletme
-- [ ] STT toggle (Deepgram ↔ Whisper ↔ SDK local)
-- [ ] TTS toggle (ElevenLabs ↔ Cartesia ↔ SDK local/XTTS-v2)
+- [ ] STT worker / SDK local faster-whisper seçimi
+- [ ] TTS toggle (XTTS-v2 ↔ StyleTTS2 ↔ Pocket-TTS)
 - [ ] Canlı maliyet göstergesi
 
 #### 2.8 SDK Dağıtım — Gerçek İndirme Akışı
@@ -996,14 +999,14 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 - [ ] Gerçek bir Google/Twitch hesabıyla uçtan uca canlı test (şu an sadece mock-server testli)
 
 **Faz 2 tamamlandığında:**
-İzleyici kendi dilini seçiyor. Yayıncı kendi sesiyle başka dilde konuşuyor (bulutta ElevenLabs veya cihazında XTTS-v2). Çeviri DeepL'in tam dil matrisiyle çalışıyor. STT maliyeti $1,032 → $80/ay. Yayıncı SDK'yı dashboard'dan indirip tek pairing koduyla eşleştirebiliyor.
+İzleyici kendi dilini seçiyor. Yayıncı kendi sesiyle başka dilde konuşuyor (self-hosted XTTS-v2). Çeviri DeepL'in tam dil matrisiyle çalışıyor. STT self-hosted GPU worker'da işleniyor. Yayıncı SDK'yı dashboard'dan indirip tek pairing koduyla eşleştirebiliyor.
 
 ---
 
 ## Faz 3 — Tam Bağımsızlık: Local AI + Premium Bulut Multistream
 
 **Hedef:** API bağımlılığını kır, tek paket sun, maliyet %82 düşür  
-**Mesaj:** "Artık ElevenLabs'a da, DeepL'e de, harici servise de ihtiyacın yok"  
+**Mesaj:** "STT ve TTS kendi altyapımızda çalışır."
 **Stack:** XTTS-v2 + HY-MT1.5 local + premium bulut multistream (opsiyonel)
 
 ### Görevler
@@ -1019,8 +1022,7 @@ Yayıncı ücretsiz hesap açar → SDK'yı kurar (kendi RTMP relay'i veya OBS i
 #### 3.2 XTTS-v2 Self-Hosted
 - [ ] Hetzner GPU'da kurulum
 - [ ] 17 dil testi (TR dahil)
-- [ ] Admin toggle: ElevenLabs → XTTS-v2
-- [ ] ElevenLabs yalnızca Streamer plan premium fallback
+- [ ] Admin TTS motor seçimi: XTTS-v2 ↔ StyleTTS2 ↔ Pocket-TTS
 
 #### 3.3 HY-MT1.5 Çeviri Geçişi
 - [ ] HY-MT1.5-7B local kurulum
@@ -1096,7 +1098,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 
 | Servis | Maliyet |
 |---|---|
-| Deepgram STT | $1,032 |
+| faster-whisper GPU worker | GPU altyapısı |
 | DeepL Çeviri | $150 |
 | Sunucu + Vault | $80 |
 | **Toplam** | **~$1,262/ay** |
@@ -1107,7 +1109,7 @@ Yayıncı tek abonelikle her şeyi alıyor. Harici servise ihtiyaç yok. Maliyet
 |---|---|
 | faster-whisper GPU | $80 |
 | DeepL (azalan) | $100 |
-| ElevenLabs TTS | $600 |
+| XTTS-v2 TTS | GPU altyapısı |
 | Sunucu (GPU + genel) | $150 |
 | **Toplam** | **~$930/ay** |
 
@@ -1165,7 +1167,7 @@ Bu yayıncılardan premium ücret alınır
 - İkili yayın için aynı IP'den iki hesap ban riski; SDK farklı bağlantı/profil yönetebilmeli.
 - Faz 1'de SDK gömülü RTMP relay asıl dağıtım yöntemidir; yayıncı isterse Streamlabs'ı da opsiyonel bağlayabilir.
 - Free plan ile kitle çekilmeden Pro planı zorlamak churn'ü artırır.
-- XTTS-v2 ElevenLabs'a kıyasla ~%10–15 kalite farkı; kullanıcıya şeffaf olunmalı.
+- XTTS-v2 kalitesi hedef dillerde canlı ölçülmeli; kullanıcıya şeffaf olunmalı.
 - Admin hibrit kontrol her fazda birlikte geliştirilmeli.
 - SDK temelden çok platformlu (Tauri+Rust) yazılır; Windows önce çıkar, Mac/Linux ses adaptörü hazır bekler, sonradan zorlanmadan aktive edilir.
 - Video yayıncının kendi internetinden dağıtılır (SDK relay) → senin Gbit sunucu maliyetin yok.
@@ -1255,7 +1257,7 @@ Faz 1-4'teki StreamDubber tamamen **yayıncı taraflı** bir üründür (SDK, RT
 | Ses yakalama | `navigator.mediaDevices.getDisplayMedia({video:true, audio:true})` (Chrome: "sekme sesini paylaş" seçeneğiyle) — saf tarayıcı JS, kurulum yok | SDK'daki `core/capture.rs` yerine tamamen web-native; SDK'ya gerek yok |
 | Ses → buluta akış | WebSocket üzerinden ses frame'leri | `backend/src/ws` + mevcut ses akışı protokolü (`docs/websocket-protocol.md`) — **aynen yeniden kullanılabilir** |
 | VAD / ön-işleme | Boş sesi filtrele | `sdk/src/core/vad.rs`, `preprocess.rs` mantığı — tarayıcıda WASM'a taşınabilir veya bulutta STT öncesi uygulanabilir |
-| STT + Çeviri | Gerçek zamanlı metne çevirip hedef dile çevirme | `backend/src/gateway` (Deepgram/AssemblyAI + DeepL/Google) — **birebir aynı pipeline** |
+| STT + Çeviri | Gerçek zamanlı metne çevirip hedef dile çevirme | `backend/src/gateway` (self-hosted faster-whisper + DeepL/Google) — **birebir aynı pipeline** |
 | Altyazı gösterimi | Kullanıcının ekranında overlay/widget | `backend/src/overlay` (OverlayHub, WS push) + `/o/[token]` sayfası — **aynı mekanizma**, sadece SDK yerine tarayıcı sekmesi üstüne floating widget olarak render edilir |
 | Kimlik/plan kontrolü | Hangi planda açık, kullanım limiti | Mevcut `plans::PlanRegistry` + `usage::UsageTracker` — config-driven, yeni plan/flag eklemek yeterli |
 
@@ -1320,7 +1322,7 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
 > alanları) Faz 2'ye (2.1/2.2) taşınıp hemen kodlanmasına karar verdi; bkz. 2.1'in yeni maddeleri ve
 > aşağıdaki "Faz 2'ye Taşınanlar" notu. Burada SADECE gerçekten ayrı bir faz/karar gerektiren kısım
 > kaldı: **gerçek Speech-to-Speech motoru** (metin ara katmanı olmadan, orijinal ses tonlaması
-> korunarak çalışan bir ses-dalgasından-ses-dalgasına model) + **ElevenLabs bağımlılığının
+> korunarak çalışan bir ses-dalgasından-ses-dalgasına model) + API TTS bağımlılığının
 > kaldırılıp kendi self-hosted klonlama/TTS/S2S motorumuza geçilmesi**. İkisi de native motor
 > derlemesi gerektirir — whisper.cpp'deki `cmake` blocker'ıyla AYNI kategori, kullanıcıyla AYRI
 > görüşülmeden koda dökülmemeli.
@@ -1338,7 +1340,7 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
   — bkz. 2.2.
 - TTS kota/kredi tüketimi (gerçek ses baytından hesaplanan saniye, STT ile paylaşılan `UsageTracker`
   havuzuna) — bkz. 2.2. Madde 6'nın "kredi sistemi tam admin-konfigüre edilebilir olmalı" isteği,
-  bugün TEK bir cloud sağlayıcı (ElevenLabs, sabit 1:1 oran) olduğu için basit tutuldu; birden fazla
+  bugün tek motor hedefi (self-hosted XTTS-v2) olduğu için basit tutuldu; birden fazla
   sağlayıcı/mod arasında gerçek bir oran karşılaştırması ancak self-hosted motor gelince anlamlı
   olacak (bkz. aşağıdaki "Kredi/kota" görevi).
 
@@ -1346,19 +1348,19 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
 1. **Yayıncı panelden seçebilmeli: "dublaj" (klonlanmış ses ile TTS) mı yoksa "kendi sesi" (orijinal
    sesin korunduğu S2S) mı kullanılsın.** Şema (`VoiceModel.mode`) hazır; UI ve gerçek S2S sentezi
    motor gelince eklenecek.
-2. **ElevenLabs'a bağımlılık kaldırılmalı** — kendi self-hosted klonlama+TTS/S2S modelimiz olmalı
+2. **Self-hosted klonlama+TTS/S2S modeli kullanılmalı** — API TTS bağımlılığı olmamalı
    (örn. XTTS-v2/Coqui, veya gerçek S2S için Seamless/StyleTTS2 ailesi).
-3. **Alternatif olarak "seçili sesler"den de kullanılabilsin** — yani ElevenLabs'in hazır ses
+3. **Alternatif olarak "seçili sesler"den de kullanılabilsin** — yerel ses
    kütüphanesi değil, **bizim kendi modelimizle** üretilmiş, önceden hazırlanmış hazır seslerden
    birini seçme opsiyonu da olmalı (klonlama yapmadan hızlı başlangıç için). Şema (`VoiceModel.source
    = Preset`) hazır, ama gerçek preset SESLERİ üretecek bir self-hosted model olmadan bu kaynaktan
    hiçbir model olamaz.
-4. **Self-hosted mod ElevenLabs'e göre daha az kredi/kota tüketmeli** — kendi altyapımızda çalıştığı
+4. **Self-hosted mod daha az kredi/kota tüketmeli** — kendi altyapımızda çalıştığı
    için birim maliyet düşük, bu avantaj kota mantığına yansıtılmalı.
 
 ### Bu, Şu Anki Mimariyi Nasıl Etkiliyor
 - **Yeni bir `TtsProvider`/`S2sProvider` implementasyonu** self-hosted motor için gerekiyor —
-  ElevenLabs'takiyle aynı trait deseni (`gateway::tts`), ama gerçek S2S modelin ses dalgasından
+  mevcut `gateway::tts` trait deseniyle, ama gerçek S2S modelin ses dalgasından
   ses dalgasına çalışması STT→çeviri→TTS zincirinden **farklı bir pipeline dalı** gerektirir
   (metin ara katmanı yok — bkz. önceki oturumda konuşulan S2ST/voice-conversion farkı).
 - **Native motor derlemesi gerekir** (whisper.cpp ile aynı blocker ailesi) — bu makinede `cmake`
@@ -1378,11 +1380,10 @@ Tamamen istemci taraflı bir iş — backend/EBS'e (`backend/src/ext_twitch`), J
       dashboard'da seçilebilir hâle gelir
 - [ ] "Seçili sesler" (bizim ürettiğimiz hazır ses kütüphanesi) — self-hosted motor çıktısından
       üretilir, `VoiceModel.source=Preset` UI'da seçilebilir hâle gelir
-- [ ] Kredi/kota: self-hosted mod için ElevenLabs'e göre daha düşük çarpan (`usage_multiplier`
+- [ ] Kredi/kota: self-hosted mod için daha düşük çarpan (`usage_multiplier`
       deseni) — admin panelden TAM konfigüre edilebilir (her mod/sağlayıcı için ayrı birim-kredi
       oranı, restart'sız, `config::get` üzerinden); birden fazla sağlayıcı olunca anlamlı
-- [ ] ElevenLabs bağımlılığının admin panelden opsiyonel/kaldırılabilir hale getirilmesi (fallback
-      zinciri: self-hosted → ElevenLabs, tersi değil — maliyet önceliği self-hosted'da)
+- [ ] API TTS fallback'i olmadan self-hosted motor health/fallback politikasının belirlenmesi
 
 > Bu bölüm SIRF tasarım/niyet notudur — self-hosted motor/gerçek S2S için hiçbir kod yazılmadı
 > (kasıtlı — cmake/motor seçimi kullanıcıyla ayrı görüşülmeli). `VoiceModel` şeması artık nihai

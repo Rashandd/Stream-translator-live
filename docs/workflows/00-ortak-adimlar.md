@@ -132,9 +132,9 @@ dolduysa (`error 4001`) SDK otomatik token yeniler ve yeniden bağlanır.
 **Arka planda:** `POST /api/sdk/commands` (panel yazar) → SDK `GET` ile
 yoklar (15 sn ping/pong ile bağlantı canlı tutulur, 30 sn cevapsızlıkta
 SDK yeniden bağlanır).
-**Sorun olursa:** STT/çeviri sağlayıcı geçici hata verirse (`4005`/`4006`)
-otomatik fallback devreye girer (Deepgram→AssemblyAI, DeepL→Google), altyazı
-akışı kesintiye uğramaz.
+**Sorun olursa:** STT worker veya çeviri sağlayıcısı geçici hata verirse
+(`4005`/`4006`) kullanıcıya açık hata gösterilir; çeviri için DeepL→Google
+fallback'i devrededir.
 
 > **Bilinen sınır:** `usage_update` mesajı bugün **periyodik gönderilmiyor**
 > — kullanım arka planda takip edilir ama saat limitine ulaşana kadar
@@ -175,12 +175,11 @@ plan yükseltip yeniden `stream_start` göndermen yeterli.
 > kendi cihaz seçeneği `03-dublaj-ses-klonlama.md`'de ayrıca anlatılır).
 > Her segment dokümanı bu bölüme link verir; anlatım tek yerde toplanır.
 
-**Bugün varsayılan yol her zaman bulut STT'dir** (Deepgram + AssemblyAI
-fallback). Kaynak dil kapsamının referansı
+**Varsayılan STT yolu self-hosted GPU worker'dır.** Kaynak dil kapsamının
+referansı
 [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3)
-modelidir (Whisper large-v3 ailesi, ~99 dil) — roadmap'in Faz 2 self-hosted
-STT hedefiyle aynı model ailesi (`streamdubber_roadmap_final.md` §"STT (Ses
-→ Metin)").
+modelidir (Whisper large-v3 ailesi, 100 dil). Bulut worker ve cihazdaki yerel
+mod aynı dil kapsamını kullanır.
 
 **"Cihazında (Yerel)" seçeneği ne sunar:** `/dashboard/captions` üstündeki
 "Altyazı işleme" kartında Bulut/Cihazında arasında seçim yapılabilir.

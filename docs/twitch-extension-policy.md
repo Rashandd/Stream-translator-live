@@ -278,7 +278,7 @@ Yasak:
 - Stream key.
 - JWT secret.
 - OAuth refresh/access token.
-- Deepgram/DeepL/ElevenLabs key.
+- DeepL key.
 - User private billing/plan details.
 
 Broadcaster configuration tamamlanmadan extension aktif olduğunda viewer'a karışık hata yerine basit "not configured" durumu gösterilir. Gerekirse Twitch Required Configuration alanı kullanılarak aktivasyon config tamamlanana kadar engellenir.

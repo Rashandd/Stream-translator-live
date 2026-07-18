@@ -35,7 +35,7 @@ Dockerfile), Railway **PostgreSQL** ve **Redis** eklentileri. Video buluta
 | `RELAY_FILE` | `/data/relay.enc` — SDK relay hedefleri (stream key) şifreli |
 | `RUST_LOG` | `info` |
 
-Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
+Sağlayıcı API key'lerini (`DEEPL_KEY`, Stripe, OAuth client
 kimlikleri...) env'e KOYMAK ZORUNDA DEĞİLSİN — deploy sonrası admin panelden
 girilir (aşağıda adım 4). Env'e koyarsan da çalışır; panel girişleri env'in
 önüne geçer.
@@ -79,7 +79,7 @@ kendi TLS dinleyicimizi gerektirdiğinde Hetzner'e (Faz 2) taşınır.
 ## 4. Deploy sonrası ilk kurulum (sıralı)
 
 1. `https://<frontend>/en/admin/login` → `ADMIN_EMAIL` + şifre ile gir.
-2. **Admin → Secrets**: Deepgram/DeepL (+ istersen AssemblyAI, Google,
+2. **Admin → Secrets**: DeepL (+ istersen Google,
    Stripe, Streamlabs/YouTube OAuth) key'lerini gir — restart gerekmez,
    değerler sadece maskeli okunur.
 3. Her key'i "Test" ile canlı doğrula (V5 sağlayıcı testi geldiğinde).

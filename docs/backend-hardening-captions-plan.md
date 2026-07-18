@@ -37,7 +37,7 @@ her iki planın içeriğini olduğu gibi koruyor.
 | 3 | **Paylaşılan hot path'ler:** `ws/mod.rs`'in `stream_start`/handshake bölümüne captions planından Bölge D ve E, hardening planından BH-07 (listener ayrımı) ve BH-09 (JWT/session) dokunuyor. `pipeline/mod.rs`'teki `process_audio`/gateway çağrı zincirine captions planından Bölge A3 (utterance assembler), hardening planından BH-10 (provider timeout + WS 4005/4006 hata sözleşmesi) dokunuyor. Hiçbiri diğerinden haberdar değildi. | Açık sıralama kuralı kondu: `stream_start` için BH-07 → BH-09 → Bölge D → Bölge E; `process_audio` için BH-10 → Bölge A2/A3. Aynı dosyaya iki ajan paralel atanmaz. Bkz. §8. |
 
 Bunların dışında **çakışma bulunmadı** — iki plan da usage/kota hesap algoritmasını ve
-gerçek streaming STT'yi (Deepgram WS) açıkça kapsam dışı bırakıyor ve birbirine dokunmuyor;
+gerçek zamanlı streaming STT'yi açıkça kapsam dışı bırakıyor ve birbirine dokunmuyor;
 Twitch Extension tarafında captions planı flag'i açmaya çalışmıyor (zaten `ext.twitch.enabled=false`),
 BH-13 ile çelişmiyor.
 
@@ -169,7 +169,7 @@ kullanıcı tarafından verilen görev sınırı uygulanır.
 Aşağıdaki dört kritik konu ayrı görev/PR olarak ele alınmalıdır:
 
 1. Backend Docker image'ın workspace üyesi eksikliği nedeniyle derlenememesi.
-2. Deepgram için gerçek streaming STT WebSocket pipeline'ı.
+2. Gerçek streaming STT WebSocket pipeline'ı.
 3. Usage süresinin frame başına yuvarlanması ve yanlış kota hesabı.
 4. Stripe webhook'un gerçek kullanıcı planını yükseltmemesi/düşürmemesi.
 
@@ -198,7 +198,7 @@ Bu plan bu alanlarla temas edebilir, fakat P0 davranışı aynı commit içinde 
 
 ### 2.4 Statik altyazı — kapsam dışı kalanlar
 
-- Gerçek zamanlı streaming STT (Deepgram WS / Voxtral — roadmap'te Faz 3 araştırma notu).
+- Gerçek zamanlı streaming STT (roadmap'te Faz 3 araştırma notu).
 - SDK'da Opus encode (PCM s16le kalır).
 - Dublaj/mux değişiklikleri (dub sink'lerin geç bağlanması dahil).
 - mTLS client-cert connector'ın SDK tarafı — **BH-07** bu işi zaten kapsıyor, burada
@@ -409,7 +409,7 @@ Hosted Test.
 1. **GPU worker otomatik aktifleşir — ama artık feature gate'in içinde (birleştirmede
    eklenen şart):** Provision "ready" olur olmaz, `feature.gpu_provisioning.enabled` VE
    `feature.self_hosted_stt.enabled` açıksa `stt.provider=selfhosted` otomatik set
-   edilir; `stt.fallback=deepgram` korunur. `stt.selfhosted.autoactivate` config'i
+   edilir; API tabanlı STT fallback'i kullanılmaz. `stt.selfhosted.autoactivate` config'i
    (seed `true`) bu iki flag açıkken anlamlıdır; flag'ler kapalıyken hiçbir etkisi
    yoktur. Production'da flag'lerin ikisi de varsayılan **kapalı** (BH-13).
 2. **Utterance birleştirme: SDK işaretler + backend tamponlar.** Latency gerekçesi:
@@ -810,8 +810,7 @@ fix: restrict public service config response
 > `config.rs` unit (`Environment` davranışı), `config_api.rs`/`plans_api.rs`
 > integration (422 sözleşmesi + DB-first testi `db_write_failure_leaves_memory_unchanged`,
 > gerçek Postgres gerektirdiği için `#[ignore]`). Mevcut `admin_update_is_visible_to_admin_readers`
-> testi "whisper" yerine gerçek bir sağlayıcı adına (`assemblyai`) güncellendi —
-> yeni enum validasyonu altında artık geçersiz bir değerdi. fmt/clippy/460+ test temiz.
+> test geçerli self-hosted sağlayıcı değerine göre güncellendi. fmt/clippy/460+ test temiz.
 
 ### Amaç
 
@@ -1955,7 +1954,7 @@ dönüş.
 
 **Bugün:** `provision_server` (`backend/src/stt_servers/mod.rs:634`) başarıda
 `pin_fingerprint` + `mark_ready(endpoint, token, gpu_name, vram_mb)` yapar;
-`stt.provider` değişmez (varsayılan `deepgram`, `backend/src/config.rs:69`). Gateway
+`stt.provider` değişmez; Ready worker olmadan STT başlatılmaz. Gateway
 seçim/fallback: `backend/src/gateway/mod.rs:77-103` (`stt.provider` → `stt.fallback`);
 `SelfHostedStt` her istekte `active_ready()` ile sunucu çözer
 (`backend/src/gateway/selfhosted_stt.rs:55`), yoksa `Unavailable` → fallback zaten
@@ -1967,7 +1966,7 @@ seçim/fallback: `backend/src/gateway/mod.rs:77-103` (`stt.provider` → `stt.fa
 - `mark_ready` başarısından sonra, `feature.self_hosted_stt.enabled` VE
   `stt.selfhosted.autoactivate` (yeni seed: `true`) ikisi de açıksa
   `service_config.set("stt.provider", "selfhosted")`. `stt.fallback` dokunulmaz
-  (deepgram kalır). Logger'a Info kaydı ("stt provider auto-activated: selfhosted").
+  (API fallback eklenmez). Logger'a Info kaydı ("stt provider auto-activated: selfhosted").
 - Not: provision `tokio::spawn` içinde koşuyor (`mod.rs:658`) — `ServiceConfig` Arc'ı
   task'a taşınmalı.
 
@@ -1988,7 +1987,7 @@ desenleri: `main.rs:622` shutdown watcher): her `stt.selfhosted.health_interval_
 → `last_health_check_at` güncelle, başarısızlık (N ardışık, örn. 3) → `status=Error` +
 `status_detail`. Store'a `record_health(id, ok, detail)` benzeri metod eklenir. Aktif
 provider selfhosted iken worker Error'a düşerse ek bir şey gerekmez — gateway
-`Unavailable` → Deepgram fallback zaten devrede; görünürlük panelde sağlanır.
+`Unavailable` → açık STT hatası döner; görünürlük panelde sağlanır.
 
 Doğrulama: Store metodu unit testleri; döngü mantığı (ardışık hata eşiği, Ready'e
 dönüş) mock HTTP ile test.

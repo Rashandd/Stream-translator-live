@@ -1,17 +1,17 @@
 # Self-Hosted GPU STT — Sunucu Provisioning Planı (Faz 2, roadmap 2.6)
 
-> Karar (2026-07-08): Deepgram maliyeti ölçeklenmediğinde admin **herhangi bir
-> sağlayıcıdan** (Hetzner, OVH, Vast.ai, kendi donanımı — fark etmez) GPU'lu
+> Karar (2026-07-18): STT için admin **herhangi bir sağlayıcıdan**
+> (Hetzner, OVH, Vast.ai, kendi donanımı — fark etmez) GPU'lu
 > bir VPS/VDS açar, admin panelden sadece bağlantı bilgilerini girer; backend
 > SSH ile bağlanıp gerekli yazılımı kurup sunucuyu "hazır" hale getirir.
 > Bu, `docs/local-stt-plan.md`'nin **yayıncının kendi cihazında** çalışan
 > yerel STT planından farklıdır — burası **bizim işlettiğimiz, bulut
-> tarafındaki** GPU sunucusu (Deepgram'ın doğrudan yerine geçer).
+> tarafındaki** GPU sunucusudur.
 
 ## 1. Neden bu tasarım
 
-Roadmap zaten bunu 2.6'da öngörmüştü: "STT: Deepgram API → faster-whisper
-(local), maliyet %92 ↓" (satır 176). Sorun: GPU sunucusu boşta bile pahalıdır
+Roadmap'in STT kararı self-hosted `faster-whisper-large-v3` modelidir. Sorun:
+GPU sunucusu boşta bile pahalıdır
 — müşteri gelmeden önce ödemeye başlamak istemiyoruz. Çözüm: provisioning'i
 **talep üzerine** admin panelden tetiklenebilir hale getirmek, VM'in kendisini
 değil kurulumu otomatikleştirmek.
@@ -62,7 +62,7 @@ Canlı yayın            →    Gateway::transcribe() → SelfHostedStt
                               - POST {endpoint}/transcribe (Bearer token)
                                                                     →  faster-whisper inference
                                                                     ←  {"text": ..., "is_final": true}
-                              Hiç Ready sunucu yoksa → stt.fallback (Deepgram)
+                              Hiç Ready sunucu yoksa → açık STT kullanılamıyor hatası
 ```
 
 ## 3. Bileşenler (dosya haritası)
@@ -123,5 +123,4 @@ servisi + Docker image + CI, `bootstrap.sh` kurulum script'i, admin
 frontend paneli ("STT Servers").
 
 Kalan: gerçek bir GPU VPS/VDS'te (hem Hetzner/OVH tipi hem Vast.ai container
-instance tipi için ayrı ayrı) canlı smoke test + TR kalite karşılaştırması
-(Deepgram vs kendi faster-whisper'ımız).
+instance tipi için ayrı ayrı) canlı smoke test + Türkçe kalite ölçümü.

@@ -37,21 +37,19 @@ mimarisi; ileride whisper.cpp bağlanacağı zaman (2.6b, local-STT) da bakılab
 - STT maliyetini ~%30-40 düşürür
 
 ## Latency Hedefi
-- STT: <300ms | Çeviri: <100ms | Toplam: <2sn
-- **Not (2026-07-12):** Bugünkü STT entegrasyonu VAD-kesiti başına prerecorded
-  REST'tir (`gateway::deepgram`, `/v1/listen`), gerçek zamanlı streaming
-  WebSocket DEĞİL — gerçek gecikme kesit uzunluğu + HTTP round-trip'e bağlıdır
-  ve HENÜZ canlı ölçülmedi (roadmap 1.9 "2 sn altı latency" hâlâ doğrulama
-  bekliyor). Streaming STT ayrı bir trait+pipeline değişikliği gerektirir,
-  planlı değil.
+- STT: <500ms | Çeviri: <100ms | Toplam: <2sn
+- STT, VAD ile tamamlanmış ses kesitlerini self-hosted GPU worker'a gönderir.
+  Gerçek gecikme kesit uzunluğu, GPU kapasitesi ve ağ round-trip'ine bağlıdır;
+  üretimde canlı ölçümle doğrulanmalıdır.
 
 ## STT Seçenekleri
-| Sağlayıcı | Tür | Latency | Maliyet (1000 kullanıcı/ay) | Faz |
+| Motor | Tür | Latency | Maliyet (1000 kullanıcı/ay) | Durum |
 |---|---|---|---|---|
-| Deepgram Nova-2 | API | <300ms | ~$1,032 | Faz 1 |
-| faster-whisper large-v3 | Local GPU | ~500ms | ~$80 sabit | Faz 2 |
-| AssemblyAI | API | ~400ms | ~$1,200 | Deepgram fallback |
-| whisper.cpp | Local CPU | ~800ms | ~$20 | Düşük maliyet yedek |
+| faster-whisper large-v3 | Self-hosted GPU | ~500ms hedef | GPU altyapısı | Tek STT motoru |
+
+Kaynak dil kapsamı, [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3)
+modelinin 100 dilidir. Uygulama, modelin kanonik Whisper dil kodlarını kullanır;
+sağlayıcıya özgü ayrı bir STT dil listesi bulunmaz.
 
 ## Çeviri Seçenekleri
 | Sağlayıcı | Tür | Dil | Maliyet (1000 kullanıcı/ay) | Faz |
@@ -62,14 +60,11 @@ mimarisi; ileride whisper.cpp bağlanacağı zaman (2.6b, local-STT) da bakılab
 | LibreTranslate | Local | 30+ | ~$0 | Faz 2 yedek |
 
 ## TTS / Ses Klonlama Seçenekleri
-| Sağlayıcı | Tür | Latency | Maliyet (1000 kullanıcı/ay) | Faz |
+| Motor | Tür | Latency | Maliyet | Durum |
 |---|---|---|---|---|
-| ElevenLabs | API | ~800ms | ~$600 | Faz 2 başlangıç |
-| Cartesia | API | ~200ms | ~$240 | Hız alternatifi |
-| PlayHT | API | ~500ms | ~$200 | Ucuz API |
-| Pocket TTS (Kyutai) | Local CPU / Python | ~200ms ilk chunk | CPU infra sabit | Ucuz self-hosted TTS alternatifi; Faz 3 araştırma |
-| XTTS-v2 (Coqui) | Local GPU | ~600ms | ~$80 sabit | Faz 3 |
-| StyleTTS2 | Local GPU | ~400ms | ~$80 sabit | Faz 3 araştırma |
+| Pocket TTS (Kyutai) | Local CPU / Python | ~200ms ilk chunk | CPU altyapısı | Faz 3 araştırma |
+| XTTS-v2 (Coqui) | Local GPU | ~600ms hedef | GPU altyapısı | Faz 3 |
+| StyleTTS2 | Local GPU | ~400ms hedef | GPU altyapısı | Faz 3 araştırma |
 
 Not: [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts)
 CPU'da çalışacak kadar küçük bir TTS motoru olarak değerlendirilmeli. Repo
@@ -79,8 +74,7 @@ dil desteği iddia ediyor. Faz 2'de API sağlayıcı maliyeti yükselirse, Faz 3
 self-hosted TTS hattı için XTTS-v2/StyleTTS2 yanında ucuz seçenek adayı.
 
 ## Admin Toggle Sırası
-Tüm sağlayıcılar config API'den (`PUT /admin/config`) restart'sız değiştirilir; ayrı
+Tüm motor seçimleri config API'den (`PUT /admin/config`) restart'sız değiştirilir; ayrı
 bir panel sayfası yok (eski `/admin/routing` kaldırıldı, commit `00a7c90` — örnek
 curl: `infra/deploy.md` §8b).
-Fallback: Deepgram → AssemblyAI (whisper.cpp planlı, henüz kayıtlı sağlayıcı değil —
-bkz. `docs/docker-config.md`)
+STT için tek çalışma yolu self-hosted faster-whisper large-v3 worker'ıdır.

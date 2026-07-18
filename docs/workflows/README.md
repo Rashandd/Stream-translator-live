@@ -57,11 +57,9 @@ Her adım şu 5 alanla yazılır (sihirbaz ekranlarına doğrudan eşlenebilsin 
 
 - **Kaynak dil (konuşma dili) kapsamı** referansı:
   [`Systran/faster-whisper-large-v3`](https://huggingface.co/Systran/faster-whisper-large-v3)
-  (Whisper large-v3 ailesi, ~99 dil). Roadmap'in kendi Faz 2 self-hosted STT
-  hedefiyle uyumlu (`streamdubber_roadmap_final.md` §"STT (Ses → Metin)").
-  Bugün canlı bulut STT sağlayıcısı Deepgram (+ AssemblyAI fallback)'tir;
-  bu model referansı hem self-hosted bulut GPU STT (roadmap 2.6) hem de
-  cihazda/yerel STT (2.6b) için dil-kapsamı kaynağıdır — detay için bkz.
+  (Whisper large-v3 ailesi, 100 dil). Bu, ürünün tek STT kapsamıdır;
+  self-hosted bulut GPU worker ve cihazda/yerel STT aynı kanonik dil
+  kodlarını kullanır — detay için bkz.
   `00-ortak-adimlar.md`'nin son bölümü.
 - **Hedef dil (çeviri/altyazı) kapsamı:** yayıncı, çeviri kataloğundaki
   **her dile** çevrilebilir (`backend/src/translate_languages.rs`, DeepL +

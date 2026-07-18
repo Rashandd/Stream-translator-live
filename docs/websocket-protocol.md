@@ -53,7 +53,8 @@ Bağlantı kurulunca ilk mesaj `auth` olmalı. 5 saniye içinde `auth` gelmezse 
 `sample_rate`: `16000` sabit (STT için yeterli, 48kHz gereksiz)
 
 `stt_source` (Faz 2.6b, opsiyonel — varsayılan `"cloud"`):
-- `"cloud"` → ses binary frame'lerle buluta gider, STT backend'de (Deepgram) çalışır
+- `"cloud"` → ses binary frame'lerle buluta gider, STT self-hosted
+  faster-whisper-large-v3 worker'ında çalışır
 - `"local"` → SDK sesi lokalde yazıya döker, ses yerine `transcript` mesajı gönderir;
   backend STT adımını atlayıp direkt çevirir. Hangi planların lokal STT
   kullanabileceği `stt.local.plans` config'iyle belirlenir (admin panel).
@@ -61,8 +62,8 @@ Bağlantı kurulunca ilk mesaj `auth` olmalı. 5 saniye içinde `auth` gelmezse 
   fallback'i) — tersi geçerli değildir (aşağıya bkz.).
 
 `tts_source` (Faz 2.2b, opsiyonel — varsayılan `"cloud"`):
-- `"cloud"` → final altyazı çevirisi ElevenLabs ile sentezlenir, `subtitle`
-  mesajının `dubbed_audio` alanında SDK'ya döner (bkz. aşağıda)
+- `"cloud"` → final altyazı çevirisi self-hosted TTS motoruyla sentezlenir,
+  `subtitle` mesajının `dubbed_audio` alanında SDK'ya döner (bkz. aşağıda)
 - `"local"` → SDK kendi XTTS-v2 motoruyla sentezler, backend ses baytı hiç
   üretmez/göndermez (`dubbed_audio` boş kalır)
 
@@ -189,11 +190,11 @@ key'le aynı güven modeli.
 }
 ```
 
-`is_final: false` → geçici (Deepgram interim result), SDK overlay'de italik gösterebilir  
+`is_final: false` → geçici STT sonucu, SDK overlay'de italik gösterebilir
 `is_final: true` → kesinleşmiş, overlay'e yaz  
 `sequence` → SDK sıra dışı gelen paketi algılar (drop etmez, sıraya koyar)  
 `dubbed_audio` (Faz 2.2, opsiyonel — yalnız `tts_source: "cloud"` ve final çeviri
-varsa dolu) → hedef dil başına sentezlenmiş dublaj sesi (ElevenLabs `mp3_44100_128`,
+varsa dolu) → hedef dil başına sentezlenmiş dublaj sesi (self-hosted TTS çıktısı,
 base64). Eski SDK'lar bu alanı yok sayar (serde default davranışı).
 
 ---
@@ -284,21 +285,20 @@ SDK                          Backend
 cloud STT (varsayılan):                local STT (Faz 2.6b):
 binary frame gelir (VAD kesiti)        transcript mesajı gelir (text)
   → header parse (magic, codec, len)     → session stt_source=local mi? değilse 4007
-  → Deepgram REST /v1/listen'e POST      → uzunluk sınırı (stt.local.max_chars)
-    (prerecorded — kesit tamamlanınca)     → STT adımı ATLANIR
-  → Deepgram → transcript JSON      ─────┘
+  → self-hosted faster-whisper'a POST     → uzunluk sınırı (stt.local.max_chars)
+    (kesit tamamlanınca)                    → STT adımı ATLANIR
+  → faster-whisper → transcript JSON ─────┘
   → DeepL API
   → subtitle mesajı paketle         ← iki yol da aynı Subtitle çıktısını üretir
   → SDK WebSocket'e + overlay'e gönder
 ```
 
 **Not:** STT bugün gerçek zamanlı streaming WebSocket değil, VAD-kesiti başına
-prerecorded REST çağrısıdır (`gateway::deepgram::DeepgramStt`). Gerçek zamanlı
-streaming STT ayrı bir trait+pipeline değişikliği gerektirir ve henüz planlı
-değil — gecikme kesit uzunluğu + HTTP round-trip'e bağlıdır, "<2sn" hedefi
-canlı ölçülene kadar doğrulanmamış sayılmalı.
+self-hosted faster-whisper worker çağrısıdır. Gecikme kesit uzunluğu, GPU
+kapasitesi ve ağ round-trip'ine bağlıdır; "<2sn" hedefi canlı ölçülene kadar
+doğrulanmamış sayılmalıdır.
 
-Deepgram ve DeepL çağrıları Tokio task'larıyla paralel — çeviri beklenirken STT bloklanmaz.
+STT worker ve DeepL çağrıları Tokio task'larıyla paralel — çeviri beklenirken STT bloklanmaz.
 Kullanım (plan saati) takibi iki yolda da duvar saatiyle işlenir; fark tarifededir:
 ses yolu 1.0×, transcript yolu `stt.local.usage_multiplier` (seed 0.5 — "kotan yarı
 hızda tükenir") ile indirimli. Çarpan yol bazlı uygulandığından bulut fallback

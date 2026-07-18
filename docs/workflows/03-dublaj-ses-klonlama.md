@@ -45,8 +45,8 @@ modeli oluşturursun.
 1. Mikrofonla kaydet veya ses dosyası yükle.
 2. Dil modunu seç (`single_to_single` / `multi_to_single` / `single_to_multi`).
 3. Gönder — model **onay bekliyor (pending_review)** durumuna geçer.
-**Arka planda:** `POST /api/voice/clone` (ElevenLabs, plan `has_voice_clone`
-şartı — Free/Starter'da 403), `GET /api/voice/models`.
+**Arka planda:** `POST /api/voice/clone` (plan `has_voice_clone` şartı —
+Free/Starter'da 403), `GET /api/voice/models`.
 **Sorun olursa:** Model onay kuyruğunda bekliyorsa admin onayını bekle
 (otomatik değil — bilinçli insan-onaylı kapı, rıza/kötüye kullanım riski
 için).
@@ -65,17 +65,16 @@ için).
 
 ### ADIM D-03 — TTS modunu seçme
 
-**Ne yapıyorsun:** Dublaj sesinin bulutta mı yoksa kendi cihazında mı
+**Ne yapıyorsun:** Dublaj sesinin hangi self-hosted motorla
 sentezleneceğini seçersin.
 **Nerede:** `/dashboard/voice` → Ses işleme kartı.
-**Nasıl:** **Bulut (ElevenLabs)** `[HAZIR]` — varsayılan ve bugün tek
-fiilen çalışan yol. **Cihazında (XTTS-v2)** `[YAKINDA]` — panelde seçenek
-ve donanım testi akışı görünür, ama gerçek yerel sentez motoru henüz
-kodlanmadı; seçilse bile bugün işlevsel bir fark yaratmaz.
+**Nasıl:** **Cihazında (XTTS-v2)** `[YAKINDA]` — hedeflenen varsayılan
+yoldur. Panelde seçenek ve donanım testi akışı görünür, ancak gerçek yerel
+sentez motoru henüz kodlanmadı; seçilse bile bugün işlevsel bir fark yaratmaz.
 **Arka planda:** `GET /api/tts/policy`, `PUT /api/tts/mode`,
 `POST /api/tts/benchmark`.
-**Sorun olursa:** Emin değilsen Bulut'ta kal — varsayılan ve tam
-doğrulanmış yoldur.
+**Sorun olursa:** Motor hazır değilse dublajı başlatma; API tabanlı TTS
+fallback'i ürün kapsamı dışındadır.
 
 ---
 
@@ -99,10 +98,9 @@ kodlanmadı.
 ### ADIM D-05 — Yayına çık `[HAZIR]`
 
 [`00-ortak-adimlar.md`](./00-ortak-adimlar.md) ADIM O-05 → O-07'yi takip et.
-**Arka planda:** Final çeviri → `subtitle.dubbed_audio` (ElevenLabs
-`mp3_44100_128`, base64) → SDK cihazda mux → ikinci RTMP hedefi. Bu zincir
-gerçek ffmpeg ile uçtan uca test edilmiştir; gerçek OBS + gerçek platform
-hesabıyla canlı doğrulama henüz kullanıcı tarafından yapılmadı.
+**Arka planda:** Final çeviri → `subtitle.dubbed_audio` (self-hosted TTS
+çıktısı, base64) → SDK cihazda mux → ikinci RTMP hedefi. Yerel TTS motoru
+bağlanana kadar bu uçtan uca yol canlı değildir.
 
 ## Platforma özel notlar
 

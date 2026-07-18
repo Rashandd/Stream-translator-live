@@ -131,7 +131,7 @@ sadece lokal dev içindir. Migration'lar backend açılışında otomatik uygula
 | `VOICE_SAMPLES_FILE` | `/data/voice-samples.enc` — ham ses örneği (2026-07-06 kararı) AES-256-GCM şifreli kalıcı; boşsa restart'ta kaybolur (dev/test kabul edilebilir, betada mutlaka set et) |
 | `RUST_LOG` | `info` |
 
-Sağlayıcı API key'lerini (`DEEPGRAM_KEY`, `DEEPL_KEY`, Stripe, OAuth client
+Sağlayıcı API key'lerini (`DEEPL_KEY`, Stripe, OAuth client
 kimlikleri...) env'e KOYMAK ZORUNDA DEĞİLSİN — deploy sonrası admin panelden
 girilir (adım 4). Env'e koyarsan da çalışır; panel girişleri env'in önüne geçer.
 
@@ -169,7 +169,7 @@ erişilir. Yönetilen DB'ye geçiş istenirse `DATABASE_URL`'i değiştirmek yet
 ## 4. Deploy sonrası ilk kurulum (sıralı)
 
 1. `https://strovak.com/en/admin/login` → `ADMIN_EMAIL` + şifre ile gir.
-2. **Admin → Secrets**: Deepgram/DeepL (+ istersen AssemblyAI, Google,
+2. **Admin → Secrets**: DeepL (+ istersen Google,
    Stripe, Streamlabs/YouTube OAuth, SMTP) key'lerini gir — restart gerekmez,
    değerler sadece maskeli okunur.
 3. Her key'i satırdaki **Test** butonuyla canlı doğrula; SMTP için
@@ -273,7 +273,7 @@ backend'e onu kullanmasının söylenmesidir.
 ### 8b. Backend'e worker'ı kullanmasını söyle (elle adım — otomatik değil)
 
 Worker `Ready` durumuna geçtikten sonra backend onu **otomatik kullanmaya
-başlamaz** — varsayılan `stt.provider=deepgram`'dır ve
+başlamaz** — `stt.provider=selfhosted` seçilmelidir ve
 `docs/backend-hardening-captions-plan.md`'de tarif edilen otomatik geçiş
 (`stt.selfhosted.autoactivate`) henüz implemente edilmedi. Eskiden bu
 anahtar **Admin → Service routing** panelinden değiştirilirdi; o sayfa
@@ -294,10 +294,8 @@ curl -fsS -X PUT https://api.strovak.com/admin/config \
   -d '{"key":"stt.provider","value":"selfhosted"}'
 ```
 
-`stt.fallback` (varsayılan `assemblyai`) worker çökerse devreye girer —
-o sağlayıcının key'i **Admin → Secrets**'te yoksa ve
-`providers.mock_fallback=false` ise (bkz. §4 adım 4) altyazı worker
-kesintisinde tamamen durur; kabul edilebilir bir MVP riski, ama bilerek.
+Worker çökerse STT isteği açık hatayla reddedilir; API tabanlı STT fallback'i
+ürün kapsamı dışındadır.
 
 ### 8c. Doğrulama
 

@@ -59,7 +59,7 @@ Worktree hazırlandıktan sonra hangi alandaysan onun regression testlerini çal
 ## Proje
 Yayıncıya altyazı + çeviri + ses klonlama + multistream sunan SaaS.
 Video buluta çıkmaz — sadece ses (~50-128 Kbps) buluta gider.
-Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel Streamlabs) ücretsiz altyazı.
+Faz 1 hedefi: self-hosted faster-whisper-large-v3 + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel Streamlabs) altyazı.
 
 ## Stack
 - Backend: Rust + Axum + Tokio (WebSocket ses pipeline)
@@ -69,7 +69,7 @@ Faz 1 hedefi: Deepgram + DeepL + kendi SDK multistream relay'iyle (+ opsiyonel S
 - Redis: rate limiter'lar (login/signup/pairing) `REDIS_URL` verilmişse Redis'i instance'lar arası paylaşımlı sayaç olarak kullanır (BH-04); yoksa bellek-içi (tek-instance). Diğer ephemeral state (OAuth CSRF, pairing/2FA kodları, SDK komut kuyruğu, overlay fan-out) hâlâ bellek-içi — BH-04'ün kalan kategorileri (bkz. `docs/backend-hardening-captions-plan.md`, `docs/adr/0001-production-state-ownership.md`)
 - Şifreleme: TLS 1.3 (ses akışı için yeterli, üstüne AES ekleme yok); mTLS (istemci sertifikası) ERTELENDİ — bkz. `docs/security.md`
 - Key yönetimi: admin panel (`SECRETS_FILE`, AES-256-GCM) — HashiCorp Vault opsiyonel taban store
-- STT: Deepgram (prerecorded REST) + AssemblyAI fallback → self-hosted faster-whisper (roadmap 2.6, elle aktive edilir)
+- STT: self-hosted faster-whisper-large-v3 (100 dil; tek STT motoru)
 - Çeviri: DeepL + Google fallback → (Faz 3: HY-MT1.5)
 - Altyapı: Frontend Vercel, Backend VPS (Docker) — bkz. `infra/deploy.md` (`infra/railway.md` ARŞİV, kullanılmıyor)
 
@@ -161,7 +161,7 @@ git diff
   ayrı bir "servis toggle" panel sayfası YOK (eski `/admin/routing` kaldırıldı, commit `00a7c90`)
 - Her ayar `service_config`'te saklanır: `config::get("stt.provider")` pattern kullan
 - Fiyat planları, limitler, özellikler de DB'den/`PlanRegistry`'den — koda gömme
-- Fallback kuralları config API'den: örn. `stt.fallback=assemblyai`
+- Fallback kuralları config API'den yönetilir; STT için API sağlayıcısı fallback'i yoktur
 
 ### SDK Mimarisi
 - `sdk/src/core/` → platform-bağımsız (her şey burada)
@@ -179,7 +179,7 @@ Aşağıdaki görev grupları birbirinden bağımsız — aynı anda paralel yü
 |---|---|---|
 | Backend (Rust/Axum) | Frontend (Next.js) | SDK (Tauri/Rust) |
 | WebSocket, JWT, API gateway | Dashboard sayfaları, UI | Ses yakalama, VAD |
-| Deepgram/DeepL entegrasyonu | Stripe entegrasyonu | OBS WebSocket |
+| self-hosted STT/DeepL entegrasyonu | Stripe entegrasyonu | OBS WebSocket |
 
 **Bağımlılıklar (sıralı olmak zorunda):**
 - Backend WebSocket API tamamlanmadan → SDK ses akışı test edilemez
@@ -196,7 +196,7 @@ Komut başarısız olursa ne yapılır:
 | `cargo test` başarısız | Testi geçir, workaround yazma |
 | `npm run lint` başarısız | Lint hatalarını düzelt |
 | Vault bağlantısı yok | Local dev için `.env` kullan, prod'a asla gömme |
-| Deepgram timeout | AssemblyAI fallback'e geç, log'a yaz |
+| faster-whisper worker hatası | Açık hata döndür, log'a yaz; API STT fallback'i kullanma |
 
 ## Multi-Agent Handoff Protokolü
 
@@ -225,7 +225,7 @@ yalnız paralel kullanımda değil **her görevde zorunludur**.
 Faz 1 çekirdeği (1.1–1.12) kod olarak tamam; gerçek launch kapısı roadmap'teki **"Faz 1 — MVP Öncesi Canlı
 Doğrulama Listesi"**dir (gerçek key/OAuth/Stripe/sertifika testleri) — bu liste bitmeden production'a açılmaz.
 
-Faz 2'nin büyük bölümü ZATEN KODLANDI (ses klonlama/ElevenLabs, SDK relay'e dub entegrasyonu, DeepL dil
+Faz 2'nin büyük bölümü ZATEN KODLANDI (ses klonlama altyapısı, SDK relay'e dub entegrasyonu, DeepL dil
 matrisi, local STT/TTS protokolü, Twitch Extension backend+overlay, Founding-5 beta) — bunları "Faz 1 dışı"
 diye reddetme, roadmap'i kontrol etmeden "Faz 1 dışı" sanma.
 

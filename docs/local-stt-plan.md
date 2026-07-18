@@ -75,7 +75,7 @@ Böylece "yerel seçip buluttan hizmet alma" kendiliğinden imkânsız: indirim 
 yerel işlenen dakikalara uygulanır. Plan saat tablosu değişmez (free 5 / starter 20 / pro 40 /
 streamer 100) — pazarlama "Cihazında modunda saatlerin 2 katına kadar gider" der.
 
-Maliyet notu (admin kararı): yerel mod Deepgram maliyetini sıfırlar ama DeepL çeviri maliyeti
+Maliyet notu (admin kararı): yerel mod ek STT altyapı maliyetini azaltır ama DeepL çeviri maliyeti
 karakter başına devam eder; 0.5 çarpanı 2× yayın süresi = 2× çeviri karakteri demektir.
 Çarpan bu yüzden config'tedir — marj sıkışırsa admin panelden 0.6–0.75'e çekilir (restart'sız).
 Faz 3'te HY-MT1.5 (lokal çeviri) devreye girince bu endişe kalkar, çarpan agresifleşebilir.
@@ -145,4 +145,4 @@ Tüm eşikler sunucu-taraflı: SDK sürümü yayınlamadan politika değiştiril
 > yoklama, tray döngüsü wiring'i ve Windows+RTX canlı smoke.
 
 Doğrulama: 1-2 mock/birim + e2e; 3 frontend sözleşme testleri; 4 gerçek Windows + RTX cihazında
-canlı smoke (user) — TR kalite karşılaştırması (aynı ses: Deepgram vs turbo) dahil.
+canlı smoke (user) — Türkçe kalite ve gecikme ölçümü dahil.

@@ -7,7 +7,7 @@ MVP'de ve muhtemelen sonrasında da gerek yok.
 
 ## Key Yönetimi
 - HashiCorp Vault self-hosted (bağımsızlık için)
-- Deepgram / DeepL / ElevenLabs key'leri Vault'tan runtime'da çekilir
+- DeepL key'i Vault'tan runtime'da çekilir
 - JWT secret, stream key'ler env var veya Vault — koda gömülmez
 - `.env` → .gitignore, `.env.example` → commit
 - Key rotasyonu periyodik otomatik

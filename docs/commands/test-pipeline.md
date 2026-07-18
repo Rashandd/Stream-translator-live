@@ -7,7 +7,7 @@ Ses pipeline'ını uçtan uca test et:
 
 1. Backend WebSocket sunucusu çalışıyor mu: `cargo run --bin backend`
 2. Test ses dosyası gönder: `cargo test integration::stt_pipeline`
-3. Deepgram yanıt süresi <300ms mı kontrol et
+3. faster-whisper-large-v3 worker yanıt süresi ve Türkçe transkripsiyon kalitesini kontrol et
 4. DeepL çeviri <100ms mı kontrol et
 5. Toplam latency <2sn mi kontrol et
 6. VAD boş ses engeli çalışıyor mu: sessiz ses gönder, buluta gitmemeli

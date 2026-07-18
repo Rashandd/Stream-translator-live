@@ -26,28 +26,26 @@ Tüm servisler `.env` dosyasından konfigüre edilir.
 ## Konfigürasyon Katmanı
 Admin panelden toggle edilebilen her şey DB'de `service_config` tablosunda:
 ```
-key: "stt.provider"     value: "deepgram"   # veya "whisper"
-key: "tts.provider"     value: "elevenlabs" # veya "xtts"
+key: "stt.provider"     value: "selfhosted"
+key: "tts.provider"     value: "xtts"
 key: "translate.provider" value: "deepl"    # veya "hy-mt1"
-key: "stt.fallback"     value: "assemblyai"
 ```
 Kod her zaman `config::get("stt.provider")` ile okur, restart gerektirmez.
 
 ## Fallback Kuralları (config API, `PUT /admin/config` — ayrı bir panel sayfası yok)
-Bugün implemente + kayıtlı (`backend/src/main.rs` gateway registration):
+Ürün kararıyla kullanılacak motorlar:
 ```
-STT:     deepgram → assemblyai   (+ selfhosted: elle `stt.provider=selfhosted`, roadmap 2.6)
+STT:     selfhosted faster-whisper-large-v3
 Çeviri:  deepl → google
-TTS:     elevenlabs               (tek sağlayıcı — cartesia/xtts henüz kayıtlı değil)
+TTS:     self-hosted XTTS-v2 (alternatif araştırma: Pocket TTS, StyleTTS2)
 ```
-Planlı, henüz kod yok: `whisper.cpp` (düşük maliyet STT yedek), `cartesia`
-(TTS hız alternatifi), `xtts-v2` self-hosted (Faz 3).
-Kural değişince (implemente edilenler için) anında devreye girer.
+TTS motoru henüz üretim hattına bağlı değil; API tabanlı TTS sağlayıcıları
+ürün kapsamı dışındadır. Kural değişince anında devreye girer.
 
 ## Env Var Listesi (hard-coded olmaması gerekenler)
 ```
 DATABASE_URL, REDIS_URL, VAULT_ADDR, VAULT_TOKEN
-DEEPGRAM_KEY, DEEPL_KEY, ELEVENLABS_KEY, ... (Vault'tan VEYA admin panelden)
+DEEPL_KEY, ... (Vault'tan VEYA admin panelden)
 HETZNER_API_KEY (VPS/GPU otomasyonu gerekirse)
 CORS_ALLOWED_ORIGINS (frontend origin listesi — Vercel↔VPS cross-origin)
 JWT_SECRET (env/Vault — panelden yönetilmez)

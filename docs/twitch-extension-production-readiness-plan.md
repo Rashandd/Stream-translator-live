@@ -124,8 +124,8 @@ SDK VAD-end ve backend assembler değişiklikleri merge edilmez.
 
 ### Workstream B — Anlamlı caption üretimi
 
-**Bağımlılık:** PR-02. Bu faz tamamlanmadan gerçek STT worker veya Deepgram ile
-caption kalitesi doğrulanmaz.
+**Bağımlılık:** PR-02. Bu faz tamamlanmadan gerçek STT worker ile caption
+kalitesi doğrulanmaz.
 
 1. **PR-04 — Utterance wire formatı ve SDK VAD sinyali**
    - İki parçaya ayrılır: Hardening P0'da `A1` audio header byte 5'i geriye uyumlu
