@@ -263,6 +263,7 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | SDK dağıtım (code signing, auto-update, release) | `docs/sdk-distribution.md` |
 | Twitch Extension policy + uygulama planı | `docs/twitch-extension-policy.md`, `docs/twitch-extension-plan.md`, `docs/twitch-extension-production-readiness-plan.md` |
 | Overlay builder (altyazı görünüm özelleştirme) | `docs/overlay-builder-plan.md` |
+| Müşteri segmenti (kullanım amacına göre) uçtan uca yayıncı iş akışları — onboarding sihirbazı içerik kaynağı | `docs/workflows/README.md` |
 
 ## Tekrarlayan Görevler
 Bu görevler için hazır iş akışları var — kullanmadan önce oku:
