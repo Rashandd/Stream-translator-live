@@ -271,3 +271,4 @@ Bu görevler için hazır iş akışları var — kullanmadan önce oku:
 - GitHub issue düzeltme: `docs/commands/fix-issue.md`
 - Deploy öncesi güvenlik kontrolü: `docs/commands/security-check.md`
 - Pipeline uçtan uca test: `docs/commands/test-pipeline.md`
+- Staging'i main ile güncelle ve deploy et: `docs/commands/deploy-staging.md`
