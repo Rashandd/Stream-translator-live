@@ -19,10 +19,19 @@ describe("AuthGuard", () => {
 
   it("stores a one-time notice and replaces the URL without auth query parameters", () => {
     expect(source).toContain('"session_expired" : "sign_in_required"');
-    expect(source).toContain('redirectToLogin("session_unavailable")');
+    expect(source).toContain('handleUnauthorized("session_unavailable")');
     expect(source).toContain("storeAuthNotice(reason)");
-    expect(source).toContain("window.location.replace(loginHref)");
+    expect(source).toContain("window.location.replace(loginHref as string)");
     expect(source).not.toContain("auth_error");
-    expect(source).toContain("if (!authorized) {\n    return null;\n  }");
+    expect(source).toContain("if (authorized) {\n    return <>{children}</>;\n  }");
+  });
+
+  it("in modal mode surfaces a login popup instead of navigating away", () => {
+    // Modal dalı yönlendirme yapmaz: notice'i state'e yazar, arkada LoginModal açar.
+    expect(source).toContain("if (isModal) {");
+    expect(source).toContain("setNoticeCode(reason)");
+    expect(source).toContain("<LoginModal noticeCode={noticeCode} open {...props.modalConfig} />");
+    // storeAuthNotice/replace yalnız redirect dalında; modal dalı bunları çağırmamalı.
+    expect(source).toContain('props.mode === "modal" ? null : props.loginHref');
   });
 });

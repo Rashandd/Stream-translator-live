@@ -23,11 +23,31 @@ type Props = {
   dashboardHref: string;
   /** Admin kimliğiyle girilirse gidilecek yol (locale'li admin). */
   adminHref: string;
-  /** 2FA kodu maillendiyse gidilecek doğrulama sayfası (locale'li). */
-  verifyHref: string;
+  /**
+   * 2FA kodu maillendiyse gidilecek doğrulama sayfası (locale'li). `onTwoFactor`
+   * verildiğinde (modal) kullanılmaz, o yüzden opsiyoneldir.
+   */
+  verifyHref?: string;
+  /**
+   * Modal içinde kullanıldığında (login-modal.tsx) tam sayfa navigasyon yerine
+   * bu callback'ler çağrılır. Verilmezse (login sayfası) mevcut
+   * `window.location.assign(...)` davranışı korunur.
+   */
+  onBroadcaster?: () => void;
+  onAdmin?: () => void;
+  onTwoFactor?: () => void;
 };
 
-export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verifyHref }: Props) {
+export function LoginForm({
+  labels,
+  forgotHref,
+  dashboardHref,
+  adminHref,
+  verifyHref,
+  onBroadcaster,
+  onAdmin,
+  onTwoFactor,
+}: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -40,13 +60,16 @@ export function LoginForm({ labels, forgotHref, dashboardHref, adminHref, verify
     const outcome = await login(email, password);
     switch (outcome.kind) {
       case "broadcaster":
-        window.location.assign(dashboardHref);
+        if (onBroadcaster) onBroadcaster();
+        else window.location.assign(dashboardHref);
         return;
       case "admin":
-        window.location.assign(adminHref);
+        if (onAdmin) onAdmin();
+        else window.location.assign(adminHref);
         return;
       case "twofactor":
-        window.location.assign(verifyHref);
+        if (onTwoFactor) onTwoFactor();
+        else if (verifyHref) window.location.assign(verifyHref);
         return;
       case "unavailable":
         setError(labels.errorUnavailable);

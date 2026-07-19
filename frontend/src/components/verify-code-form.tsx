@@ -21,13 +21,20 @@ type Props = {
   labels: Labels;
   dashboardHref: string;
   adminHref: string;
+  /**
+   * Modal içinde (login-modal.tsx) tam sayfa navigasyon yerine çağrılır.
+   * Verilmezse (login/verify sayfası) mevcut `window.location.assign(...)`
+   * davranışı korunur.
+   */
+  onBroadcaster?: () => void;
+  onAdmin?: () => void;
 };
 
 /**
  * Ortak broadcaster/admin 2FA formu. Pending identity yalnız HttpOnly
  * `sd_auth_challenge` cookie'sindedir; body yalnız 6 haneli kodu taşır.
  */
-export function VerifyCodeForm({ labels, dashboardHref, adminHref }: Props) {
+export function VerifyCodeForm({ labels, dashboardHref, adminHref, onBroadcaster, onAdmin }: Props) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [resending, setResending] = useState(false);
@@ -49,11 +56,13 @@ export function VerifyCodeForm({ labels, dashboardHref, adminHref }: Props) {
       if (response.ok) {
         const data = (await response.json()) as { authenticated?: boolean; role?: string };
         if (data.authenticated && data.role === "admin") {
-          window.location.assign(adminHref);
+          if (onAdmin) onAdmin();
+          else window.location.assign(adminHref);
           return;
         }
         if (data.authenticated && data.role === "broadcaster") {
-          window.location.assign(dashboardHref);
+          if (onBroadcaster) onBroadcaster();
+          else window.location.assign(dashboardHref);
           return;
         }
       }
