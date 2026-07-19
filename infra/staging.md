@@ -21,6 +21,18 @@ after those surfaces pass direct-origin health checks.
 
 ## First deployment
 
+Create public DNS records before the normal release gate:
+
+- `dev.strovak.com` A -> the VPS IPv4
+- `dev.api.strovak.com` A -> the VPS IPv4
+- `ext-staging.strovak.com` A -> the VPS IPv4
+
+Do not publish an AAAA record unless the host has a global IPv6 address. If a
+CDN proxy stays enabled, its edge certificate must explicitly cover all three
+names; a one-label wildcard such as `*.strovak.com` does not cover the nested
+name `dev.api.strovak.com`. The CDN-to-origin mode must be full certificate
+validation, never plaintext/flexible TLS.
+
 From the isolated staging worktree, with all changes committed:
 
 ```bash
@@ -28,6 +40,19 @@ sudo infra/staging-host-bootstrap.sh
 sudo infra/staging-deploy.sh
 sudo /srv/streamdubber/current/infra/staging-status.sh
 ```
+
+If a DNS or CDN edge-certificate change is still pending, the origin can be
+installed and fully checked without treating that external state as a failed
+application rollback:
+
+```bash
+sudo infra/staging-deploy.sh --origin-only
+```
+
+This mode still requires valid origin TLS and runs the HTTPS redirect, HSTS,
+noindex, CORS, WebSocket, EBS restriction, and preserved-site checks. It skips
+only the three public DNS lookups. The normal `staging-status.sh` remains the
+release gate and must pass after DNS/TLS is corrected.
 
 The bootstrap creates the `streamdubber` system user, private directories,
 firewall units, backup timer, and `/etc/streamdubber/staging.env`. Generated

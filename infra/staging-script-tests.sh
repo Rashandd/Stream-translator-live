@@ -130,4 +130,12 @@ assert_contains 'STAGING_BACKUP_SKIP_BACKEND_RESTART' "$backup_script"
 assert_contains 'STAGING_BACKUP_SKIP_BACKEND_RESTART=1' "$deploy_script"
 assert_contains "Active staging backend is unhealthy" "$deploy_script"
 
+# A pending DNS/CDN edge-certificate change must not block installing and
+# fully checking the origin. --origin-only skips only the three public
+# DNS lookups; every other health check still runs.
+health_script=$(<"$root/infra/staging-health.sh")
+assert_contains '--origin-only' "$deploy_script"
+assert_contains '--origin-only' "$health_script"
+assert_contains 'check_public' "$health_script"
+
 echo "Staging script regression tests passed."

@@ -5,6 +5,16 @@ if [ "$(id -u)" -ne 0 ]; then
   exec sudo -- "$(readlink -f "$0")" "$@"
 fi
 
+origin_only=0
+if [ "${1:-}" = "--origin-only" ]; then
+  origin_only=1
+  shift
+fi
+if [ "$#" -ne 0 ]; then
+  echo "Usage: $0 [--origin-only]" >&2
+  exit 2
+fi
+
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source_root=$(cd "$script_dir/.." && pwd)
 # shellcheck source=infra/staging-common.sh
@@ -202,7 +212,11 @@ if [ "$nginx_was_active" -eq 1 ]; then
   systemctl stop nginx
 fi
 staging_compose "$release" up -d --force-recreate --wait --wait-timeout 240 caddy
-"$release/infra/staging-health.sh" --retry
+health_args=(--retry)
+if [ "$origin_only" -eq 1 ]; then
+  health_args+=(--origin-only)
+fi
+"$release/infra/staging-health.sh" "${health_args[@]}"
 
 # Caddy now owns 80/443. Prevent a reboot race for those ports before changing
 # release links; recover() restores both the captured links and Nginx state if
@@ -224,4 +238,7 @@ staging_set_symlink "$STAGING_BASE/current" "$release"
 deployment_succeeded=1
 trap - ERR INT TERM
 staging_compose "$release" ps
+if [ "$origin_only" -eq 1 ]; then
+  echo "WARNING: public DNS/TLS checks were skipped; run staging-status.sh after the external DNS/edge change." >&2
+fi
 echo "Activated immutable staging release $commit."

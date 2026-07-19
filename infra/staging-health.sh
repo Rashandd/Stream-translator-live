@@ -2,9 +2,27 @@
 set -euo pipefail
 
 attempts=1
-if [ "${1:-}" = "--retry" ]; then
-  attempts=60
-fi
+check_public=1
+
+usage() {
+  echo "Usage: $0 [--retry] [--origin-only]" >&2
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --retry)
+      attempts=60
+      ;;
+    --origin-only)
+      check_public=0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=infra/staging-common.sh
@@ -119,12 +137,18 @@ retry check_websocket_upgrade
 retry check_dashboard_cors
 retry check_extension_surface_restricted
 
-for host_path in \
-  'dev.api.strovak.com /health' \
-  'dev.strovak.com /' \
-  'ext-staging.strovak.com /health'; do
-  read -r host path <<<"$host_path"
-  retry public_get "$host" "$path"
-done
+if [ "$check_public" -eq 1 ]; then
+  for host_path in \
+    'dev.api.strovak.com /health' \
+    'dev.strovak.com /' \
+    'ext-staging.strovak.com /health'; do
+    read -r host path <<<"$host_path"
+    retry public_get "$host" "$path"
+  done
+fi
 
-echo "HTTPS, headers, redirects, CORS, restricted EBS, public routing, and WSS checks passed."
+if [ "$check_public" -eq 1 ]; then
+  echo "HTTPS, headers, redirects, CORS, restricted EBS, public routing, and WSS checks passed."
+else
+  echo "Origin HTTPS, headers, redirects, CORS, restricted EBS, and WSS checks passed; public DNS/TLS was intentionally not checked."
+fi

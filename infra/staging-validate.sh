@@ -23,6 +23,11 @@ for script in "${scripts[@]}"; do
   bash -n "$root/infra/$script"
 done
 
+if "$root/infra/staging-health.sh" --not-a-real-option > /dev/null 2>&1; then
+  echo "staging-health.sh accepted an unknown option" >&2
+  exit 1
+fi
+
 "$root/infra/staging-script-tests.sh"
 
 cat > "$tmp_dir/staging.env" <<'EOF'
@@ -161,6 +166,8 @@ assert ".predeploy-backup" in deploy
 assert "STAGING_BACKUP_SKIP_BACKEND_RESTART" in backup
 assert "STAGING_BACKUP_SKIP_BACKEND_RESTART=1" in deploy
 assert "Active staging backend is unhealthy" in deploy
+assert "--origin-only" in deploy and "--origin-only" in health
+assert "check_public" in health
 assert "CONFIRM_ROLLBACK_DATA" in rollback
 assert "STAGING_RESTORE_SKIP_AUTOMATIC_BACKUP" in restore and "STAGING_RESTORE_START_RELEASE" in restore
 assert "CONFIRM_ROLLBACK_DATA" in docs
