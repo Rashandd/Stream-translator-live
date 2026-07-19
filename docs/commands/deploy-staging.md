@@ -6,9 +6,9 @@ description: main'in en güncel halini staging'e (dev.strovak.com / dev.api.stro
 Staging'i main ile güncelle ve deploy et:
 
 1. YENİ bir worktree/branch AÇMA. Tek staging deploy branch/worktree'si vardır:
-   branch `chore/development-full-vps`, worktree `streamdubber-development-full-vps`
-   (bkz. `CLAUDE.md` "İstisna — staging deploy"). O worktree'ye geç, güncel
-   `origin/main`'i fetch edip bu branch'e merge et.
+   branch `development-vps`, worktree `streamdubber-development-full-vps`
+   (bkz. `CLAUDE.md` "İstisna — staging deploy"). O worktree'ye geç, `development`
+   branch'ini güncel `origin/main`'e göre güncelleyip `development-vps`'e merge et.
 2. Merge sonrası bu branch'in `infra/` altında main'de olmayan commit'i var mı kontrol et: `git log --oneline origin/main..HEAD -- infra/`. Staging'e özel bir infra düzeltmesi (ör. kalıcı bir altyapı kararı) main'e henüz merge edilmemişse onu main'e ayrıca PR'la — bu branch'teki infra farkını main'e kaybettirme. Çakışma çıkarsa DURDUR, kullanıcıya sor.
 3. `bash infra/staging-validate.sh` ile ön kontrolü geç (disk, config, caddy syntax).
 4. `sudo infra/staging-deploy.sh` ile deploy et. Bu script nginx/eski release'i devralıp Caddy ile cutover yapar; kesinti minimum olmalı.

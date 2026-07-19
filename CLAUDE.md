@@ -24,17 +24,25 @@ cd ../streamdubber-<konu>
 - Branch adı görev kapsamını anlatmalı ve `feat/`, `fix/`, `docs/`, `test/` veya
   `chore/` prefix'lerinden birini kullanmalı.
 
-**İstisna — staging deploy:** `dev.strovak.com` / `dev.api.strovak.com` için TEK
-staging deploy branch'i ve worktree'si vardır: branch `chore/development-full-vps`,
-worktree `streamdubber-development-full-vps`. Staging'e deploy edecek veya
-staging altyapısını (`infra/`) değiştirecek bir görev için YENİ bir
-`chore/staging-deploy-*` branch/worktree AÇMA — yukarıdaki genel kural burada
-uygulanmaz, var olan branch/worktree kullanılır. Akış: staging'e alınacak
-değişiklikler önce `origin/main`'den bu branch'e merge edilir, bu worktree'den
-`sudo infra/staging-deploy.sh` ile test edilir; doğrulandıktan sonra bu
-branch'ten main'e PR/merge açılır (push/merge yalnız kullanıcı onayıyla).
-Yanlışlıkla ikinci bir staging branch'i/worktree'si açılırsa silinir — tek
-staging branch'i budur.
+**İstisna — staging deploy:** İki kalıcı branch var, ikisi de prefix kuralının
+dışında (isimleri sabit, değiştirilmez):
+
+- `development`: `origin/main`'in entegrasyon branch'i. Main'e gitmeden önce
+  feature branch'leri burada birleşip test edilir. VPS'e bağlı değildir,
+  `infra/` altında staging'e özel hiçbir şey taşımaz.
+- `development-vps` (worktree: `streamdubber-development-full-vps`): TEK
+  staging deploy branch'idir. `dev.strovak.com` / `dev.api.strovak.com`
+  buradan deploy edilir. `development`'ı içine alır, üstüne staging'e özel
+  `infra/` farklarını taşır.
+
+Staging'e deploy edecek veya staging altyapısını (`infra/`) değiştirecek bir
+görev için YENİ bir `chore/staging-deploy-*` branch/worktree AÇMA — yukarıdaki
+genel kural burada uygulanmaz, var olan `development-vps` branch/worktree'si
+kullanılır. Akış: `development` güncellenir → `development-vps`'e merge edilir
+→ bu worktree'den `sudo infra/staging-deploy.sh` ile test edilir →
+doğrulandıktan sonra main'e PR/merge açılır (push/merge yalnız kullanıcı
+onayıyla). Yanlışlıkla ikinci bir staging branch'i/worktree'si açılırsa
+silinir — tek staging branch'i `development-vps`'tir.
 
 Worktree kökünde agent'a özel, gitignore'lu çalışma notunu oluştur:
 
