@@ -66,7 +66,18 @@ export default async function DashboardLayout({ children, params }: DashboardLay
         </div>
       </header>
 
-      <AuthGuard loginHref={localizePath(locale, "/login")} tokenKind="user">
+      <AuthGuard
+        mode="modal"
+        modalConfig={{
+          locale,
+          labels: config.auth,
+          dashboardHref: localizePath(locale, "/dashboard"),
+          adminHref: localizePath(locale, "/admin"),
+          forgotHref: localizePath(locale, "/login/reset"),
+          signupHref: localizePath(locale, "/signup"),
+        }}
+        tokenKind="user"
+      >
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:flex lg:gap-8 lg:px-8">
           <aside className="border-b border-hairline lg:border-b-0">
             <DashboardNav

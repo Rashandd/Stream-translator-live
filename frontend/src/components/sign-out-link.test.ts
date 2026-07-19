@@ -37,7 +37,12 @@ describe("SignOutLink", () => {
 
 describe("dashboard and admin layouts gate protected content behind AuthGuard", () => {
   it("dashboard layout wraps its nav/content in an AuthGuard for the broadcaster token", () => {
-    expect(dashboardLayoutSource).toContain('<AuthGuard loginHref={localizePath(locale, "/login")} tokenKind="user">');
+    // Yayıncı paneli oturumsuz erişimde /login'e atmaz, sayfa içi login modal'ı açar.
+    expect(dashboardLayoutSource).toContain("<AuthGuard");
+    expect(dashboardLayoutSource).toContain('mode="modal"');
+    expect(dashboardLayoutSource).toContain('tokenKind="user"');
+    expect(dashboardLayoutSource).toContain("labels: config.auth");
+    expect(dashboardLayoutSource).not.toContain('<AuthGuard loginHref={localizePath(locale, "/login")} tokenKind="user">');
   });
 
   it("admin layout wraps its nav/content in an AuthGuard for the admin token", () => {
