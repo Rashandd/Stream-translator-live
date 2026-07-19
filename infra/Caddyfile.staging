@@ -18,6 +18,9 @@
 dev.strovak.com {
 	import staging_tls
 	import staging_headers
+	basic_auth {
+		{$STAGING_BASIC_AUTH_USER} {$STAGING_BASIC_AUTH_HASH}
+	}
 	encode zstd gzip
 	reverse_proxy frontend:3000
 }

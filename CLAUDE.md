@@ -24,6 +24,18 @@ cd ../streamdubber-<konu>
 - Branch adı görev kapsamını anlatmalı ve `feat/`, `fix/`, `docs/`, `test/` veya
   `chore/` prefix'lerinden birini kullanmalı.
 
+**İstisna — staging deploy:** `dev.strovak.com` / `dev.api.strovak.com` için TEK
+staging deploy branch'i ve worktree'si vardır: branch `chore/development-full-vps`,
+worktree `streamdubber-development-full-vps`. Staging'e deploy edecek veya
+staging altyapısını (`infra/`) değiştirecek bir görev için YENİ bir
+`chore/staging-deploy-*` branch/worktree AÇMA — yukarıdaki genel kural burada
+uygulanmaz, var olan branch/worktree kullanılır. Akış: staging'e alınacak
+değişiklikler önce `origin/main`'den bu branch'e merge edilir, bu worktree'den
+`sudo infra/staging-deploy.sh` ile test edilir; doğrulandıktan sonra bu
+branch'ten main'e PR/merge açılır (push/merge yalnız kullanıcı onayıyla).
+Yanlışlıkla ikinci bir staging branch'i/worktree'si açılırsa silinir — tek
+staging branch'i budur.
+
 Worktree kökünde agent'a özel, gitignore'lu çalışma notunu oluştur:
 
 - Codex: `codex.md`

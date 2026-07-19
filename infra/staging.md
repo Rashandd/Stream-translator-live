@@ -85,6 +85,31 @@ rejects an unquoted hash instead of silently starting with a broken login.
 After editing the env file, apply it with `sudo infra/staging-deploy.sh` (same
 commit deploys idempotently and force-recreates the backend when needed).
 
+## Edge Basic Auth (dev.strovak.com)
+
+`dev.strovak.com` is not indexed (`X-Robots-Tag: noindex`) but is otherwise
+reachable by anyone with the URL. Caddy gates the frontend host with HTTP
+Basic Auth ahead of the application's own admin login. This applies only to
+`dev.strovak.com`; `dev.api.strovak.com` stays open so the SDK and browser API
+calls keep working, and `ext-staging.strovak.com` stays open for Twitch's
+Hosted Test fetcher.
+
+Add these two values to `/etc/streamdubber/staging.env`:
+
+```dotenv
+STAGING_BASIC_AUTH_USER=chosen-username
+STAGING_BASIC_AUTH_HASH='$2b$10$single-quoted-bcrypt-value'
+```
+
+Caddy's `basic_auth` directive only accepts bcrypt hashes. Generate one with
+`caddy hash-password --plaintext '<password>'` (from any machine with the
+`caddy` binary, or the `caddy:2.11.4-alpine` image: `docker run --rm
+caddy:2.11.4-alpine caddy hash-password --plaintext '<password>'`). Never pass
+the password as a bare shell argument on a shared or logged host; prefer
+running it interactively. Keep the hash in single quotes in `staging.env` for
+the same reason as `ADMIN_PASSWORD_HASH` above. Apply with `sudo
+infra/staging-deploy.sh`.
+
 ## Deployment safeguards
 
 Deploy, backup, restore, and rollback share the root-owned flock at
