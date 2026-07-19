@@ -15,7 +15,8 @@ use streamdubber_backend::{
     auth::jwt::{Claims, Jwt},
     config::ServiceConfig,
     gateway::{stt::MockStt, translate::MockTranslate, Gateway},
-    secrets::{ManagedSecrets, MemorySecretStore},
+    integrations::{token_store::TokenVault, Integrations},
+    secrets::{ManagedSecrets, MemorySecretStore, SecretStore},
     state::AppState,
 };
 
@@ -28,7 +29,16 @@ async fn spawn_server() -> SocketAddr {
     gateway.register_translate(Arc::new(MockTranslate::new("deepl")));
 
     let mut state = AppState::skeleton(Jwt::new(SECRET), Arc::clone(&service_config), gateway);
-    state.secrets = Arc::new(ManagedSecrets::new(Box::new(MemorySecretStore::new()), "env"));
+    let secrets = Arc::new(ManagedSecrets::new(
+        Box::new(MemorySecretStore::new()),
+        "env",
+    ));
+    let secret_store: Arc<dyn SecretStore> = secrets.clone();
+    state.integrations = Arc::new(Integrations::from_secrets(
+        secret_store,
+        Arc::new(TokenVault::in_memory()),
+    ));
+    state.secrets = secrets;
     let state = state;
 
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -37,6 +47,44 @@ async fn spawn_server() -> SocketAddr {
         axum::serve(listener, app::router(state)).await.expect("serve");
     });
     addr
+}
+
+#[tokio::test]
+async fn twitch_profile_becomes_configured_after_admin_enters_connect_credentials() {
+    let addr = spawn_server().await;
+    let admin = token("admin");
+
+    for (name, value) in [
+        ("TWITCH_CONNECT_CLIENT_ID", "twitch-client-id"),
+        ("TWITCH_CONNECT_CLIENT_SECRET", "twitch-client-secret"),
+    ] {
+        let (status, body) = http(
+            addr,
+            &request(
+                "PUT",
+                &format!("/admin/secrets/{name}"),
+                Some(&admin),
+                Some(&format!(r#"{{"value":"{value}"}}"#)),
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{name} was rejected: {body}");
+    }
+
+    let (status, body) = http(
+        addr,
+        &request("GET", "/admin/setup/status", Some(&admin), None),
+    )
+    .await;
+    assert_eq!(status, 200, "body: {body}");
+    let parsed: serde_json::Value = serde_json::from_str(&body).expect("json");
+    let twitch = parsed["providers"]
+        .as_array()
+        .expect("providers")
+        .iter()
+        .find(|provider| provider["name"] == "twitch")
+        .expect("twitch profile");
+    assert_eq!(twitch["configured"], true);
 }
 
 fn token(role: &str) -> String {
@@ -129,11 +177,34 @@ async fn reports_expected_checks_and_providers() {
     assert!(names.contains(&"stripe"));
     assert!(names.contains(&"youtube"));
     assert!(names.contains(&"streamlabs"));
+    assert!(
+        names.contains(&"twitch"),
+        "Twitch account-connect provider profile missing: {names:?}"
+    );
 
     let youtube = providers.iter().find(|p| p["name"] == "youtube").unwrap();
     assert_eq!(youtube["kind"], "oauth");
     assert_eq!(youtube["connect_path"], "/admin/integrations/youtube/authorize");
     assert_eq!(youtube["configured"], false);
+
+    let twitch = providers.iter().find(|p| p["name"] == "twitch").unwrap();
+    assert_eq!(twitch["kind"], "oauth");
+    assert_eq!(
+        twitch["secret_names"],
+        serde_json::json!([
+            "TWITCH_CONNECT_CLIENT_ID",
+            "TWITCH_CONNECT_CLIENT_SECRET"
+        ])
+    );
+    assert_eq!(
+        twitch["connect_path"],
+        "/admin/integrations/twitch/authorize"
+    );
+    assert_eq!(
+        twitch["callback_url"],
+        "http://localhost:8080/api/integrations/twitch/callback"
+    );
+    assert_eq!(twitch["configured"], false);
 
     let deepgram = providers.iter().find(|p| p["name"] == "deepgram").unwrap();
     assert_eq!(deepgram["kind"], "api_key");

@@ -170,7 +170,7 @@ erişilir. Yönetilen DB'ye geçiş istenirse `DATABASE_URL`'i değiştirmek yet
 
 1. `https://strovak.com/en/admin/login` → `ADMIN_EMAIL` + şifre ile gir.
 2. **Admin → Secrets**: Deepgram/DeepL (+ istersen AssemblyAI, Google,
-   Stripe, Streamlabs/YouTube OAuth, SMTP) key'lerini gir — restart gerekmez,
+   Stripe, Streamlabs/YouTube/Twitch Connect OAuth, SMTP) key'lerini gir — restart gerekmez,
    değerler sadece maskeli okunur.
 3. Her key'i satırdaki **Test** butonuyla canlı doğrula; SMTP için
    **Admin → Production Setup**/mail testi kullan. SMTP girildiği anda
@@ -227,19 +227,33 @@ hem de viewer fan-out maliyetini ayrı ölçmek için:
 | Ortam | Hostname | Not |
 |---|---|---|
 | Production | `ext.strovak.com` | Twitch allowlist: `https://ext.strovak.com` + `wss://ext.strovak.com` |
-| Staging | `ext-staging.strovak.com` | İç test |
+| Staging | `ext-staging.strovak.com` | Twitch allowlist: `https://ext-staging.strovak.com` + `wss://ext-staging.strovak.com` |
 | Hosted Test | `ext-test.strovak.com` | Twitch Hosted Test CSP doğrulaması |
 
 Uygulama: aynı backend servisi (route ailesi `/ext/twitch/*`); VPS'te Caddy'ye
 ek bir site bloğu (`ext.strovak.com { reverse_proxy 127.0.0.1:8080 }`) ve DNS
 A kaydı yeterli — ayrı deploy gerekmez. `extension/js/shared.js` içindeki
-`EBS_BASE_PRODUCTION` sabiti ve Twitch console allowlist'i birlikte
-güncellenmelidir (her version submission'da birebir aynı olmak zorunda).
+production sabiti ve Twitch console allowlist'i birlikte doğrulanmalıdır (her
+version submission'da birebir aynı olmak zorunda). Review paketlerini elle
+zip'leme; sabit dosya allowlist'i ve normalize metadata kullanan deterministik
+komutlar şunlardır:
+
+```bash
+cd extension
+npm test
+npm run package:staging     # EBS ext-staging, dashboard dev.strovak.com/en/dashboard
+npm run package:production  # EBS ext.strovak.com
+```
+
+Paketleyici yalnız review edilmiş `staging`/`production` profillerini kabul
+eder; arbitrary hosted URL override yoktur.
 
 Kurulum sırası (Faz 2 aktivasyonu):
 1. Admin → Secrets: `TWITCH_EXT_SECRET` (Twitch console'daki base64 secret).
-2. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
-3. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.
+2. Twitch hesap bağlama için Admin → Secrets:
+   `TWITCH_CONNECT_CLIENT_ID` + `TWITCH_CONNECT_CLIENT_SECRET`.
+3. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
+4. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.
 
 ## 8. GPU worker (self-hosted STT) — OBS overlay için 3. makine
 

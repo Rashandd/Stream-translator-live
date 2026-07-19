@@ -112,16 +112,30 @@ aynı izolasyon ilkesi):
 | Ortam | Hostname | Not |
 |---|---|---|
 | Production | `ext.strovak.com` | Twitch allowlist: `https://ext.strovak.com` + `wss://ext.strovak.com` |
-| Staging | `ext-staging.strovak.com` | İç test |
+| Staging | `ext-staging.strovak.com` | Twitch allowlist: `https://ext-staging.strovak.com` + `wss://ext-staging.strovak.com` |
 | Hosted Test | `ext-test.strovak.com` | Twitch Hosted Test CSP doğrulaması |
 
 Uygulama: aynı backend servisi (route ailesi `/ext/twitch/*`), Railway'de ek
 custom domain olarak bağlanır — ayrı deploy gerekmez; ölçüm domain bazında
-yapılır. DNS bu hostname'lere işaret edene kadar `extension/js/shared.js`
-içindeki `EBS_BASE_PRODUCTION` sabiti ve Twitch console allowlist'i birlikte
-güncellenmelidir (her version submission'da birebir aynı olmak zorunda).
+yapılır. DNS bu hostname'lere işaret edene kadar Twitch console allowlist'i ve
+deterministik paket hedefi birlikte doğrulanmalıdır (her version submission'da
+birebir aynı olmak zorunda):
+
+```bash
+cd extension
+npm test
+npm run package:staging
+npm run package:production
+```
+
+Staging paketi `https://ext-staging.strovak.com` EBS ve
+`https://dev.strovak.com/en/dashboard` dashboard originlerini; production
+paketi `https://ext.strovak.com` EBS originini sabit taşır. Paketleyici URL
+override almaz.
 
 Kurulum sırası (Faz 2 aktivasyonu):
 1. Admin → Secrets: `TWITCH_EXT_SECRET` (Twitch console'daki base64 secret).
-2. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
-3. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.
+2. Twitch hesap bağlama için Admin → Secrets:
+   `TWITCH_CONNECT_CLIENT_ID` + `TWITCH_CONNECT_CLIENT_SECRET`.
+3. Admin → Config: `ext.twitch.enabled` → `true` (restart yok).
+4. Rotasyonda eski secret `TWITCH_EXT_SECRET_PREVIOUS`'a taşınır.

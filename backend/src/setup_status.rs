@@ -36,6 +36,11 @@ const OAUTH_PROVIDERS: &[(&str, &str, &str)] = &[
         names::YOUTUBE_CLIENT_ID,
         names::YOUTUBE_CLIENT_SECRET,
     ),
+    (
+        "twitch",
+        names::TWITCH_CONNECT_CLIENT_ID,
+        names::TWITCH_CONNECT_CLIENT_SECRET,
+    ),
 ];
 
 /// Bir kontrolün durumu — frontend bunu yeşil/sarı/kırmızı pill olarak çizer.

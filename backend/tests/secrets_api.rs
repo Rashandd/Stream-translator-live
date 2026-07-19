@@ -95,6 +95,14 @@ async fn admin_lists_managed_secrets_masked() {
         .collect();
     assert!(names.contains(&"DEEPGRAM_KEY"), "names: {names:?}");
     assert!(names.contains(&"STRIPE_SECRET_KEY"));
+    assert!(
+        names.contains(&"TWITCH_CONNECT_CLIENT_ID"),
+        "Twitch account-connect client ID must be manageable from admin: {names:?}"
+    );
+    assert!(
+        names.contains(&"TWITCH_CONNECT_CLIENT_SECRET"),
+        "Twitch account-connect client secret must be manageable from admin: {names:?}"
+    );
     // JWT_SECRET panelden yönetilmez — listede olmamalı.
     assert!(!names.contains(&"JWT_SECRET"));
 
@@ -103,6 +111,42 @@ async fn admin_lists_managed_secrets_masked() {
         assert_eq!(item["configured"], false);
         assert_eq!(item["source"], "unset");
         assert!(item["masked"].is_null());
+    }
+}
+
+#[tokio::test]
+async fn admin_can_store_twitch_account_connect_credentials() {
+    let addr = spawn_server().await;
+    let admin = token("admin");
+
+    for (name, value) in [
+        ("TWITCH_CONNECT_CLIENT_ID", "twitch-connect-client-1234"),
+        (
+            "TWITCH_CONNECT_CLIENT_SECRET",
+            "twitch-connect-secret-5678",
+        ),
+    ] {
+        let (status, body) = http(
+            addr,
+            &request(
+                "PUT",
+                &format!("/admin/secrets/{name}"),
+                Some(&admin),
+                Some(&format!(r#"{{"value":"{value}"}}"#)),
+            ),
+        )
+        .await;
+
+        assert_eq!(status, 200, "{name} was rejected: {body}");
+        assert!(!body.contains(value), "full credential leaked: {body}");
+        let items: serde_json::Value = serde_json::from_str(&body).expect("json");
+        let stored = items
+            .as_array()
+            .expect("secret list")
+            .iter()
+            .find(|item| item["name"] == name)
+            .unwrap_or_else(|| panic!("{name} missing from response"));
+        assert_eq!(stored["configured"], true, "{name} was not configured");
     }
 }
 

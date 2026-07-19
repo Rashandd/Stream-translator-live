@@ -11,7 +11,7 @@ ID'leri, relay hedefleri ve testler admin panelden yürütülür.
 Kod yazmaz, sunucuya SSH ile girmez, secret dosyası düzenlemez.
 
 - Admin paneline girer.
-- Provider hesaplarını açar: Google, Stripe, Deepgram, DeepL, Streamlabs.
+- Provider hesaplarını açar: Google, Twitch, Stripe, Deepgram, DeepL, Streamlabs.
 - Admin > Secrets ekranına key/client bilgilerini girer.
 - Her sağlayıcı için Test butonuna basar.
 - Stripe price ID'lerini admin config'e girer.
@@ -39,7 +39,7 @@ Production'da üç ayrı profil düşünülür:
 | Profil | Nerede tutulur | Kim yönetir | Amaç |
 | --- | --- | --- | --- |
 | Deploy profile | VPS env (`infra/deploy.md`) | Operator ilk deploy'da girer | Uygulamanın açılması |
-| Provider profile | Admin > Secrets + Admin Config | Operator | Google, Stripe, Deepgram, DeepL, Streamlabs |
+| Provider profile | Admin > Secrets + Admin Config | Operator | Google, Twitch, Stripe, Deepgram, DeepL, Streamlabs |
 | Broadcaster profile | Yayıncı paneli | Yayıncı/operator | RTMP hedefleri, stream key, overlay, dil seçimi |
 
 ### Deploy Profile
@@ -70,10 +70,10 @@ Her provider için tek düzen:
 
 | Alan | Örnek |
 | --- | --- |
-| Provider | `youtube`, `google_translate`, `stripe`, `deepl`, `deepgram` |
+| Provider | `youtube`, `twitch`, `google_translate`, `stripe`, `deepl`, `deepgram` |
 | Environment | `production` |
-| Secret names | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` |
-| Callback URL | `https://api.strovak.com/api/integrations/youtube/callback` |
+| Secret names | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` veya `TWITCH_CONNECT_CLIENT_ID`, `TWITCH_CONNECT_CLIENT_SECRET` |
+| Callback URL | `https://api.strovak.com/api/integrations/{provider}/callback` |
 | Status | `unset`, `configured`, `tested`, `connected`, `failed` |
 | Last tested at | Admin panel Provider Test zamanı |
 | Owner | Hangi hesap/proje ile açıldı |
@@ -352,6 +352,31 @@ STREAMLABS_CLIENT_SECRET
 4. Yayıncı panelinden Streamlabs Connect smoke yapılır.
 5. Token'ın `connected` durumuna geçtiği, diskte düz token yazılmadığı ve
    gerçek Streamlabs API çağrısının çalıştığı doğrulanır.
+
+## Twitch Hesap Bağlama
+
+Bu client, `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` login client'ından ve
+`TWITCH_EXT_SECRET` Extension EBS shared secret'ından bilinçli olarak ayrıdır.
+
+1. Twitch Developer Console'da hesap/kanal bağlama için uygulama oluştur.
+2. OAuth callback URL'ini birebir kaydet:
+
+```text
+https://api.strovak.com/api/integrations/twitch/callback
+```
+
+3. Admin > Secrets'tan gir (env veya sunucu dosyası düzenlemek gerekmez):
+
+```text
+TWITCH_CONNECT_CLIENT_ID
+TWITCH_CONNECT_CLIENT_SECRET
+```
+
+4. Admin > Production Setup'ta `twitch` OAuth provider profilinin configured
+   olduğunu ve Connect yolunun `/admin/integrations/twitch/authorize` olduğunu
+   doğrula.
+5. Gerçek Twitch hesabıyla authorize/callback akışını çalıştır; bağlı kanalın
+   doğru Twitch kimliğiyle kaydedildiğini doğrula.
 
 ## Provider Key Smoke
 
