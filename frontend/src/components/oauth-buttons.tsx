@@ -1,5 +1,5 @@
 /**
- * "Continue with YouTube/Twitch" — plain links, not fetch. OAuth needs a
+ * "Continue with Google/Twitch" — plain links, not fetch. OAuth needs a
  * real browser navigation to the provider; the browser goes straight to the
  * backend (`API_URL`), same direct-to-backend rule as every other panel
  * request (see src/lib/api.ts).
@@ -14,11 +14,11 @@ type Labels = {
 };
 
 /**
- * `intent` login butonunu signup'tan ayırır: login bilinmeyen kimlik için
- * sessizce hesap AÇMAZ (backend `account_not_found` döner), yalnız signup açar
- * (A-03). `locale` start isteğine taşınır ki callback locale-safe bir yola
- * (`/{locale}/login/oauth-complete`) dönebilsin — locale taşınmazsa backend
- * `auth.default_locale`'e düşer.
+ * `intent` yalnız buton kopyası/analitik içindir: login ve signup butonu artık
+ * aynı davranır — bilinmeyen kimlik + e-posta çakışması yoksa backend yeni
+ * hesap açar (login = signup). `locale` start isteğine taşınır ki callback
+ * locale-safe bir yola (`/{locale}/login/oauth-complete`) dönebilsin — locale
+ * taşınmazsa backend `auth.default_locale`'e düşer.
  */
 type Props = {
   labels: Labels;
@@ -44,7 +44,7 @@ export function OAuthButtons({ labels, locale, intent }: Props) {
           className="flex h-11 items-center justify-center gap-2 rounded-lg border border-border text-sm font-semibold text-ink transition hover:bg-canvas"
           href={startHref("google", locale, intent)}
         >
-          <BrandMark brand="youtube" className="h-5 w-5" />
+          <BrandMark brand="google" className="h-5 w-5" />
           {labels.google}
         </a>
         <a

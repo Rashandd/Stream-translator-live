@@ -77,6 +77,7 @@ $99.99/200sa, founding $0/50sa (kapalı beta — bkz. roadmap "Founding 5").
 CREATE TABLE users (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email             TEXT NOT NULL UNIQUE,
+    display_name      TEXT,                        -- OAuth profil görünen adı: Google `name` / Twitch `display_name`; şifreli signup'ta NULL (0011)
     password_hash     TEXT,                        -- argon2id; OAuth-only hesaplarda NULL (0004)
     plan_id           UUID NOT NULL REFERENCES plans(id),
     role              TEXT NOT NULL DEFAULT 'broadcaster', -- 'broadcaster' | 'admin'

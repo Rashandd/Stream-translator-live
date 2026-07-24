@@ -17,8 +17,9 @@
 //! e-posta zaten (şifreli veya başka bir sağlayıcıyla) kayıtlıysa
 //! **reddedilir** — otomatik bağlama yok, hesap ele geçirme riskini sıfırlar
 //! (sağlayıcı e-postayı doğrulanmış saysa bile: Twitch/Kick bunu garanti
-//! etmez). Hiçbiri değilse (yalnız signup niyetiyle) yeni OAuth-only hesap
-//! açılır. Başarı, şifre/2FA login'iyle birebir aynı HttpOnly cookie
+//! etmez). Hiçbiri değilse (login veya signup butonu farketmez) yeni
+//! OAuth-only hesap açılır — profil görünen adı (`display_name`) ve e-posta
+//! DB'ye kaydedilir. Başarı, şifre/2FA login'iyle birebir aynı HttpOnly cookie
 //! session'ı kurar ([`crate::auth::session::attach_new_browser_session`]);
 //! browser'a token URL fragment'ıyla İLETİLMEZ (Faz 2) — access/refresh/csrf
 //! çerezleri callback redirect'ine iliştirilir, token loglara/erişim
@@ -62,10 +63,11 @@ use crate::state::AppState;
 use crate::users::UserStore;
 use crate::users::{signup_consents, user_principal, ConsentRecord, OAuthIdentityInfo, UserError};
 
-/// OAuth başlatma niyeti — `state`'e gömülür ve callback davranışını belirler
-/// (A-03). Login butonu bilinmeyen kimlik için sessizce hesap AÇMAZ; yalnız
-/// signup butonu hesap oluşturabilir. Link, girişli kullanıcının ek sağlayıcı
-/// bağlaması içindir.
+/// OAuth başlatma niyeti — `state`'e gömülür ve callback davranışını belirler.
+/// Login ve Signup butonu artık aynı davranır: bilinmeyen kimlik + e-posta
+/// çakışması yoksa yeni hesap açar (kullanıcı isteği: "Google/Twitch ile giriş
+/// = otomatik hesap"). Fark yalnızca buton kopyası seviyesindedir. Link,
+/// girişli kullanıcının ek sağlayıcı bağlaması içindir (yeni hesap açmaz).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OAuthIntent {
     Login,
@@ -306,7 +308,10 @@ impl LoginProviders {
             .get("auth.oauth_redirect_base")
             .unwrap_or_else(|| "http://localhost:8080/api/auth/oauth".to_string());
         let redirect_uri = format!("{base}/{provider_name}/callback");
-        let consent_snapshot = (intent == OAuthIntent::Signup)
+        // Login de artık bilinmeyen kimlik için hesap açtığından (signup ile
+        // aynı davranış), consent snapshot'ı Link dışındaki her niyet için
+        // üretilir; yalnız Link (mevcut hesaba ek sağlayıcı) yeni hesap açmaz.
+        let consent_snapshot = (intent != OAuthIntent::Link)
             .then(|| signup_consents(cfg, false, &format!("{provider_name}_signup")));
         let state = self.states.issue(LoginState {
             provider: provider_name.to_string(),
@@ -410,12 +415,12 @@ impl LoginProviders {
             return Err(OAuthLoginError::EmailExists);
         }
 
-        // Bilinmeyen kimlik + e-posta çakışması yok. Login butonu buradan
-        // sessizce hesap AÇMAZ (A-03) — yalnız signup niyeti oluşturur.
-        if st.intent == OAuthIntent::Login {
-            return Err(OAuthLoginError::AccountNotFound);
-        }
-
+        // Bilinmeyen kimlik + e-posta çakışması yok → hem login hem signup
+        // butonu buradan yeni bir OAuth-only hesap açar (kullanıcı isteği:
+        // "Google/Twitch ile giriş = otomatik hesap"). E-posta zaten bir
+        // hesaba aitse yukarıda EmailExists ile reddedildiği için sessiz hesap
+        // birleştirme/ele geçirme riski yok. Link niyeti bu noktaya hiç gelmez
+        // (yukarıda ayrı ele alındı).
         let plan = app
             .service_config
             .get("auth.default_plan")
@@ -427,6 +432,7 @@ impl LoginProviders {
                 provider_name,
                 &identity.external_id,
                 &identity.email,
+                identity.display_name.clone(),
                 &plan,
                 consents,
             )
@@ -469,6 +475,15 @@ enum OAuthOutcome {
 struct OAuthIdentity {
     external_id: String,
     email: String,
+    /// Sağlayıcı profilindeki görünen ad (Google `name`, Twitch
+    /// `display_name`). Boş/eksikse `None` (bkz. `normalize_display_name`).
+    display_name: Option<String>,
+}
+
+/// Sağlayıcıdan gelen görünen adı normalize eder: kırpar, boş kaldıysa `None`.
+/// DB'ye anlamsız boş string yerine gerçek `NULL` yazılsın diye.
+fn normalize_display_name(raw: Option<String>) -> Option<String> {
+    raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
 /// Sağlayıcının "ben kimim" uç noktasından kimlik çeker. Sağlayıcı başına
@@ -490,6 +505,11 @@ async fn fetch_identity(
                 sub: String,
                 #[serde(default)]
                 email: Option<String>,
+                /// Google `name` — ad soyad birleşik görünen ad; `given_name`/
+                /// `family_name` ayrı gelse de tek `display_name` alanına yazdığımız
+                /// için birleşik `name` yeterli.
+                #[serde(default)]
+                name: Option<String>,
             }
             let info: GoogleUserInfo = http
                 .get(userinfo_url)
@@ -506,6 +526,7 @@ async fn fetch_identity(
             Ok(OAuthIdentity {
                 external_id: info.sub,
                 email,
+                display_name: normalize_display_name(info.name),
             })
         }
         "twitch" => {
@@ -514,6 +535,9 @@ async fn fetch_identity(
                 id: String,
                 #[serde(default)]
                 email: Option<String>,
+                /// Twitch yalnız tek bir `display_name` verir (ad/soyad ayrımı yok).
+                #[serde(default)]
+                display_name: Option<String>,
             }
             #[derive(Debug, Deserialize)]
             struct TwitchUsersResponse {
@@ -541,6 +565,7 @@ async fn fetch_identity(
             Ok(OAuthIdentity {
                 external_id: user.id,
                 email,
+                display_name: normalize_display_name(user.display_name),
             })
         }
         other => Err(OAuthLoginError::UnknownProvider(other.to_string())),
@@ -562,8 +587,6 @@ enum OAuthLoginError {
     Identity(String),
     #[error("an account with this email already exists — sign in with your password")]
     EmailExists,
-    #[error("no account is linked to this identity — sign up first")]
-    AccountNotFound,
     #[error("account error: {0}")]
     Account(#[from] UserError),
 }
@@ -575,7 +598,6 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
         OAuthLoginError::InvalidState => StatusCode::BAD_REQUEST,
         OAuthLoginError::Exchange(_) | OAuthLoginError::Identity(_) => StatusCode::BAD_GATEWAY,
         OAuthLoginError::EmailExists => StatusCode::CONFLICT,
-        OAuthLoginError::AccountNotFound => StatusCode::NOT_FOUND,
         OAuthLoginError::Account(UserError::OAuthIdentityTaken | UserError::AlreadyLinked) => {
             StatusCode::CONFLICT
         }
@@ -591,7 +613,6 @@ fn oauth_login_status(err: &OAuthLoginError) -> StatusCode {
 /// dictionary'sinden gelir.
 fn oauth_error_code(err: &OAuthLoginError) -> &'static str {
     match err {
-        OAuthLoginError::AccountNotFound => "account_not_found",
         OAuthLoginError::EmailExists
         | OAuthLoginError::Account(UserError::OAuthIdentityTaken)
         | OAuthLoginError::Account(UserError::AlreadyLinked) => "email_exists",
@@ -1015,7 +1036,7 @@ mod tests {
         async fn userinfo(
             axum::extract::State(email): axum::extract::State<String>,
         ) -> axum::Json<serde_json::Value> {
-            axum::Json(serde_json::json!({ "sub": "g-123", "email": email }))
+            axum::Json(serde_json::json!({ "sub": "g-123", "email": email, "name": "Ada Lovelace" }))
         }
         let app = Router::new()
             .route("/token", post(token))
@@ -1072,6 +1093,8 @@ mod tests {
             .expect("account created");
         assert_eq!(principal.sub, user.id);
         assert_eq!(user.email, "streamer@example.com");
+        // Profil görünen adı (Google `name`) DB'ye yazıldı.
+        assert_eq!(user.display_name.as_deref(), Some("Ada Lovelace"));
         assert!(user.password_hash.is_none());
         assert!(user.email_verified);
         assert_eq!(user.consents.len(), 6);
@@ -1538,6 +1561,17 @@ mod tests {
     // --- Faz 1 davranış testleri (locale-safe + opaque callback) ---
 
     #[test]
+    fn normalize_display_name_trims_and_drops_empty() {
+        assert_eq!(
+            normalize_display_name(Some("  Ada Lovelace ".to_string())),
+            Some("Ada Lovelace".to_string())
+        );
+        assert_eq!(normalize_display_name(Some("   ".to_string())), None);
+        assert_eq!(normalize_display_name(Some(String::new())), None);
+        assert_eq!(normalize_display_name(None), None);
+    }
+
+    #[test]
     fn sanitize_locale_accepts_simple_tags_and_rejects_path_injection() {
         assert_eq!(sanitize_locale(Some("en"), "en"), "en");
         assert_eq!(sanitize_locale(Some("tr"), "en"), "tr");
@@ -1591,10 +1625,6 @@ mod tests {
     #[test]
     fn oauth_error_code_maps_to_the_a02_allowlist_only() {
         assert_eq!(
-            oauth_error_code(&OAuthLoginError::AccountNotFound),
-            "account_not_found"
-        );
-        assert_eq!(
             oauth_error_code(&OAuthLoginError::EmailExists),
             "email_exists"
         );
@@ -1617,21 +1647,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn login_intent_does_not_silently_create_an_account() {
+    async fn login_intent_creates_an_account_when_none_exists() {
         let base = spawn_google_mock("newcomer@example.com").await;
         let providers = providers_with(&base, true);
-        // Login button (not signup) for an identity that does not exist yet.
+        // Login button for an identity that does not exist yet — now the login
+        // button auto-creates too (login = signup for unknown OAuth identities).
         let state_param = begin_and_capture_state(&providers, OAuthIntent::Login).await;
 
         let app = skeleton_state(UserStore::in_memory(), providers);
-        let err = app
+        let outcome = app
             .oauth_login
             .complete(&app, "google", "code-1", &state_param)
             .await
-            .unwrap_err();
-        assert!(matches!(err, OAuthLoginError::AccountNotFound));
-        // No account was created — the login button must route to signup instead.
-        assert!(app.users.find_by_oauth("google", "g-123").is_none());
+            .expect("login auto-creates an account for an unknown identity");
+        let OAuthOutcome::LoggedIn { principal, .. } = outcome else {
+            panic!("expected a login outcome")
+        };
+        let user = app
+            .users
+            .find_by_oauth("google", "g-123")
+            .expect("account created via the login button");
+        assert_eq!(principal.sub, user.id);
+        assert_eq!(user.email, "newcomer@example.com");
+        assert_eq!(user.display_name.as_deref(), Some("Ada Lovelace"));
+        assert!(user.password_hash.is_none());
+        // Consent ledger is recorded even though the user came via the login button.
+        assert_eq!(user.consents.len(), 6);
     }
 
     #[tokio::test]
