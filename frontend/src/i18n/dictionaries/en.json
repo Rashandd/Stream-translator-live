@@ -1401,7 +1401,7 @@
   "auth": {
     "social": {
       "dividerLabel": "or",
-      "google": "Continue with YouTube",
+      "google": "Continue with Google",
       "twitch": "Continue with Twitch"
     },
     "oauthComplete": {

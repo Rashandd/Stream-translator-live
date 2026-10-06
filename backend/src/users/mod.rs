@@ -61,6 +61,12 @@ const MIN_PASSWORD_LEN: usize = 8;
 pub struct UserRecord {
     pub id: String,
     pub email: String,
+    /// Sağlayıcı profilinden çekilen görünen ad (Google `name`, Twitch
+    /// `display_name`). Şifreli signup'ta ve `display_name` kolonu eklenmeden
+    /// önceki eski kayıtlarda `None` olur — bu yüzden `#[serde(default)]`
+    /// (geriye dönük uyumlu dosya deposu).
+    #[serde(default)]
+    pub display_name: Option<String>,
     pub password_hash: Option<String>,
     pub plan: String,
     pub email_verified: bool,
@@ -240,6 +246,7 @@ impl UserStore {
         let record = UserRecord {
             id: uuid::Uuid::new_v4().to_string(),
             email: email.to_string(),
+            display_name: None,
             password_hash: Some(hash_password(password)?),
             plan: plan.to_string(),
             email_verified: false,
@@ -261,6 +268,7 @@ impl UserStore {
         provider: &str,
         external_id: &str,
         email: &str,
+        display_name: Option<String>,
         plan: &str,
         consents: Vec<ConsentRecord>,
     ) -> Result<UserRecord, UserError> {
@@ -271,6 +279,7 @@ impl UserStore {
         let record = UserRecord {
             id: uuid::Uuid::new_v4().to_string(),
             email: email.to_string(),
+            display_name: display_name.clone(),
             password_hash: None,
             plan: plan.to_string(),
             email_verified: true,
@@ -284,7 +293,14 @@ impl UserStore {
             self.cache_record(record.clone())?;
             return Ok(record);
         }
-        self.create_oauth_user_with_consents(provider, external_id, email, plan, record.consents)
+        self.create_oauth_user_with_consents(
+            provider,
+            external_id,
+            email,
+            display_name,
+            plan,
+            record.consents,
+        )
     }
 
     pub async fn persistent_get(&self, email: &str) -> Result<Option<UserRecord>, UserError> {
@@ -454,6 +470,7 @@ impl UserStore {
         let record = UserRecord {
             id: uuid::Uuid::new_v4().to_string(),
             email: email.to_string(),
+            display_name: None,
             password_hash: Some(hash_password(password)?),
             plan: plan.to_string(),
             email_verified: false,
@@ -490,7 +507,7 @@ impl UserStore {
         email: &str,
         plan: &str,
     ) -> Result<UserRecord, UserError> {
-        self.create_oauth_user_with_consents(provider, external_id, email, plan, Vec::new())
+        self.create_oauth_user_with_consents(provider, external_id, email, None, plan, Vec::new())
     }
 
     pub fn create_oauth_user_with_consents(
@@ -498,6 +515,7 @@ impl UserStore {
         provider: &str,
         external_id: &str,
         email: &str,
+        display_name: Option<String>,
         plan: &str,
         consents: Vec<ConsentRecord>,
     ) -> Result<UserRecord, UserError> {
@@ -508,6 +526,7 @@ impl UserStore {
         let record = UserRecord {
             id: uuid::Uuid::new_v4().to_string(),
             email: email.to_string(),
+            display_name,
             password_hash: None,
             plan: plan.to_string(),
             // Login akışının kendisi provider hesabına erişimi kanıtlıyor;
@@ -972,6 +991,9 @@ mod repository {
                 .map_err(|_| UserError::Database)?
                 .to_string(),
             email: row.try_get("email").map_err(|_| UserError::Database)?,
+            display_name: row
+                .try_get("display_name")
+                .map_err(|_| UserError::Database)?,
             password_hash: row
                 .try_get("password_hash")
                 .map_err(|_| UserError::Database)?,
@@ -1021,13 +1043,13 @@ mod repository {
         map_user(row, consents(pool, id).await?)
     }
 
-    const USER_SELECT: &str = "SELECT u.id, u.email, u.password_hash, p.name AS plan, u.email_verified, u.created_at, u.oauth_provider, u.oauth_external_id FROM users u JOIN plans p ON p.id = u.plan_id";
+    const USER_SELECT: &str = "SELECT u.id, u.email, u.display_name, u.password_hash, p.name AS plan, u.email_verified, u.created_at, u.oauth_provider, u.oauth_external_id FROM users u JOIN plans p ON p.id = u.plan_id";
 
     pub async fn create_user(pool: &PgPool, record: &UserRecord) -> Result<(), UserError> {
         let mut tx = pool.begin().await.map_err(|_| UserError::Database)?;
-        let inserted = sqlx::query("INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id) VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4 AND is_active), 'broadcaster', $5, $6, $7)")
+        let inserted = sqlx::query("INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id, display_name) VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4 AND is_active), 'broadcaster', $5, $6, $7, $8)")
             .bind(&record.id).bind(record.email.to_lowercase()).bind(&record.password_hash).bind(&record.plan)
-            .bind(record.email_verified).bind(&record.oauth_provider).bind(&record.oauth_external_id)
+            .bind(record.email_verified).bind(&record.oauth_provider).bind(&record.oauth_external_id).bind(&record.display_name)
             .execute(&mut *tx).await.map_err(|err| if err.as_database_error().is_some_and(|db| db.is_unique_violation()) { UserError::EmailTaken } else { UserError::Database })?;
         if inserted.rows_affected() != 1 {
             return Err(UserError::Database);
@@ -1232,14 +1254,15 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     .await?;
 
     sqlx::query(
-        "INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id)
-         VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4), 'broadcaster', $5, $6, $7)
+        "INSERT INTO users (id, email, password_hash, plan_id, role, email_verified, oauth_provider, oauth_external_id, display_name)
+         VALUES ($1::uuid, $2, $3, (SELECT id FROM plans WHERE name = $4), 'broadcaster', $5, $6, $7, $8)
          ON CONFLICT (email) DO UPDATE SET
              password_hash = EXCLUDED.password_hash,
              plan_id = EXCLUDED.plan_id,
              email_verified = EXCLUDED.email_verified,
              oauth_provider = EXCLUDED.oauth_provider,
              oauth_external_id = EXCLUDED.oauth_external_id,
+             display_name = EXCLUDED.display_name,
              updated_at = NOW()",
     )
     .bind(&record.id)
@@ -1249,6 +1272,7 @@ async fn upsert_user(pool: &sqlx::PgPool, record: &UserRecord) -> Result<(), sql
     .bind(record.email_verified)
     .bind(&record.oauth_provider)
     .bind(&record.oauth_external_id)
+    .bind(&record.display_name)
     .execute(pool)
     .await?;
     for consent in &record.consents {

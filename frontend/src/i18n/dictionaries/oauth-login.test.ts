@@ -28,7 +28,7 @@ describe("Google/Twitch login wiring", () => {
   it("has non-empty copy for the social buttons and the oauth-complete step", () => {
     const { social, oauthComplete } = en.auth;
     expect(social.dividerLabel).toBeTruthy();
-    expect(social.google).toContain("YouTube");
+    expect(social.google).toContain("Google");
     expect(social.twitch).toBeTruthy();
     expect(oauthComplete.title).toBeTruthy();
     expect(oauthComplete.backLabel).toBeTruthy();
@@ -49,7 +49,7 @@ describe("Google/Twitch login wiring", () => {
     expect(oauthButtonsSource).toContain("locale");
   });
 
-  it("login sends intent=login (no silent signup) and signup sends intent=signup", () => {
+  it("login sends intent=login and signup sends intent=signup (both auto-create on unknown identity)", () => {
     expect(loginPageSource).toContain('intent="login"');
     expect(signupPageSource).toContain('intent="signup"');
   });
@@ -62,7 +62,7 @@ describe("Google/Twitch login wiring", () => {
   });
 
   it("renders brand marks for the visible social buttons", () => {
-    expect(oauthButtonsSource).toContain('brand="youtube"');
+    expect(oauthButtonsSource).toContain('brand="google"');
     expect(oauthButtonsSource).toContain('brand="twitch"');
   });
 
