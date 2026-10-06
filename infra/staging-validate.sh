@@ -178,6 +178,8 @@ assert "STAGING_BASIC_AUTH_USER=" in bootstrap and "STAGING_BASIC_AUTH_HASH=" in
 assert "staging_nginx_unit_exists" in common and "staging_nginx_unit_exists" in deploy
 assert "check_frontend_gate" in health
 assert caddyfile.count("import staging_errors") == 3
+assert "vps-from-zero.md" in docs
+assert (root / "infra/vps-from-zero.md").is_file()
 
 retired_text = "\n".join(
     (

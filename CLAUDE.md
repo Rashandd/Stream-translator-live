@@ -275,6 +275,8 @@ Aşağıdaki dosyalar ilgili göreve başlamadan önce okunmalıdır:
 | Frontend görsel dil / DESIGN sistemi | `DESIGN.md` (repo kökü) |
 | Docker yapısı, env var listesi | `docs/docker-config.md` |
 | Cloud deploy (Vercel + VPS) rehberi | `infra/deploy.md` |
+| Sıfır VPS'ten staging kurulumu (operatör hesabı → paketler → clone → bootstrap → deploy) | `infra/vps-from-zero.md` |
+| Staging işletimi (deploy, status, backup/restore/rollback, OAuth callback tablosu) | `infra/staging.md` |
 | WebSocket protokol (SDK ↔ Backend mesaj formatları) | `docs/websocket-protocol.md` |
 | PostgreSQL şeması + migration stratejisi | `docs/schema.md` |
 | Backend hardening + statik altyazı birleşik plan (Postgres/Redis/mTLS sertleştirme + GPU worker → YouTube CC / Twitch ext / Kick overlay) | `docs/backend-hardening-captions-plan.md` |

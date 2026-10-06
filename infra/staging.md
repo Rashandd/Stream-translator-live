@@ -21,6 +21,9 @@ after those surfaces pass direct-origin health checks.
 
 ## First deployment
 
+Starting from a blank VPS (no operator account, packages, or clone yet)?
+Follow `infra/vps-from-zero.md` first; it ends where this section starts.
+
 Create public DNS records before the normal release gate:
 
 - `dev.strovak.com` A -> the VPS IPv4
@@ -94,11 +97,14 @@ Basic Auth ahead of the application's own admin login. This applies only to
 calls keep working, and `ext-staging.strovak.com` stays open for Twitch's
 Hosted Test fetcher.
 
-Add these two values to `/etc/streamdubber/staging.env`:
+The bootstrap writes both keys to `/etc/streamdubber/staging.env` empty; fill
+them before the first deploy. They are required: with either value blank Caddy
+still starts but answers 401 to every request, so `staging-deploy.sh` refuses
+to start a build until both are set.
 
 ```dotenv
 STAGING_BASIC_AUTH_USER=chosen-username
-STAGING_BASIC_AUTH_HASH='$2b$10$single-quoted-bcrypt-value'
+STAGING_BASIC_AUTH_HASH='$2a$14$single-quoted-bcrypt-value'
 ```
 
 Caddy's `basic_auth` directive only accepts bcrypt hashes. Generate one with
@@ -109,6 +115,13 @@ the password as a bare shell argument on a shared or logged host; prefer
 running it interactively. Keep the hash in single quotes in `staging.env` for
 the same reason as `ADMIN_PASSWORD_HASH` above. Apply with `sudo
 infra/staging-deploy.sh`.
+
+Because the gate sits in front of the whole host, `staging-health.sh` treats an
+unauthenticated `401` with a `WWW-Authenticate: Basic` challenge from
+`dev.strovak.com` as the healthy answer and checks the frontend upstream
+separately from inside the Caddy container. A `2xx` without credentials means
+the gate is off and fails the check. Error responses (that 401, an upstream
+502) carry the same security headers as normal responses via `handle_errors`.
 
 ## Deployment safeguards
 
