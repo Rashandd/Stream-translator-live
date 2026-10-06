@@ -138,4 +138,41 @@ assert_contains '--origin-only' "$deploy_script"
 assert_contains '--origin-only' "$health_script"
 assert_contains 'check_public' "$health_script"
 
+# The frontend gate must be configured before a deploy starts building: with a
+# blank user or a hash Compose would mangle, Caddy answers 401 to everyone.
+STAGING_ENV_FILE="$tmp_dir/gate.env"
+gate_hash="\$2a\$14\$$(printf 'a%.0s' $(seq 1 53))"
+printf '%s\n' 'STAGING_BASIC_AUTH_USER=' 'STAGING_BASIC_AUTH_HASH=' > "$STAGING_ENV_FILE"
+if staging_require_edge_gate 2>"$tmp_dir/gate-error"; then
+  fail "blank frontend gate credentials were accepted"
+fi
+assert_contains 'STAGING_BASIC_AUTH_USER' "$(<"$tmp_dir/gate-error")"
+printf '%s\n' 'STAGING_BASIC_AUTH_USER=operator' "STAGING_BASIC_AUTH_HASH=$gate_hash" > "$STAGING_ENV_FILE"
+if staging_require_edge_gate 2>"$tmp_dir/gate-error"; then
+  fail "an unquoted frontend gate hash was accepted"
+fi
+assert_contains 'single-quoted bcrypt' "$(<"$tmp_dir/gate-error")"
+printf '%s\n' 'STAGING_BASIC_AUTH_USER=operator' "STAGING_BASIC_AUTH_HASH='$gate_hash'" > "$STAGING_ENV_FILE"
+staging_require_edge_gate || fail "valid frontend gate credentials were rejected"
+
+# A blank host has no Nginx unit. The deploy must skip disabling it instead of
+# failing on systemctl's missing-unit error after the new edge is healthy.
+systemctl() {
+  [ "$1" = cat ] && [ "$STAGING_TEST_NGINX_UNIT" = present ]
+}
+STAGING_TEST_NGINX_UNIT=absent
+if staging_nginx_unit_exists; then
+  fail "a missing Nginx unit was reported as installed"
+fi
+STAGING_TEST_NGINX_UNIT=present
+staging_nginx_unit_exists || fail "an installed Nginx unit was not detected"
+unset -f systemctl
+assert_contains $'if staging_nginx_unit_exists; then\n  systemctl disable nginx' "$deploy_script"
+
+# The gated frontend answers unauthenticated requests with 401, so the health
+# check must expect the challenge rather than fetch the page with --fail.
+assert_contains 'retry check_frontend_gate --resolve' "$health_script"
+assert_contains 'retry check_frontend_upstream' "$health_script"
+[[ "$health_script" != *"'dev.strovak.com /'"* ]] || fail "gated frontend is still fetched with --fail"
+
 echo "Staging script regression tests passed."

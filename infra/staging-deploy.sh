@@ -21,6 +21,7 @@ source_root=$(cd "$script_dir/.." && pwd)
 source "$script_dir/staging-common.sh"
 
 staging_require_env
+staging_require_edge_gate
 staging_acquire_operation_lock
 git_safe=(git -c "safe.directory=$source_root" -C "$source_root")
 commit=$("${git_safe[@]}" rev-parse --verify HEAD)
@@ -221,8 +222,10 @@ fi
 # Caddy now owns 80/443. Prevent a reboot race for those ports before changing
 # release links; recover() restores both the captured links and Nginx state if
 # any promotion step fails.
-systemctl disable nginx >/dev/null
-systemctl stop nginx >/dev/null
+if staging_nginx_unit_exists; then
+  systemctl disable nginx >/dev/null
+  systemctl stop nginx >/dev/null
+fi
 if systemctl is-enabled --quiet nginx || systemctl is-active --quiet nginx; then
   echo "Nginx still competes for the Caddy edge ports." >&2
   false

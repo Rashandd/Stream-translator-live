@@ -15,9 +15,20 @@
 	}
 }
 
+# Errors (the Basic Auth 401, an upstream 502) are written outside the header
+# directive above, so without this they would leave without the staging
+# headers and with the Server header intact.
+(staging_errors) {
+	handle_errors {
+		import staging_headers
+		respond "{err.status_code} {err.status_text}"
+	}
+}
+
 dev.strovak.com {
 	import staging_tls
 	import staging_headers
+	import staging_errors
 	basic_auth {
 		{$STAGING_BASIC_AUTH_USER} {$STAGING_BASIC_AUTH_HASH}
 	}
@@ -28,6 +39,7 @@ dev.strovak.com {
 dev.api.strovak.com {
 	import staging_tls
 	import staging_headers
+	import staging_errors
 	encode zstd gzip
 	reverse_proxy backend:8080
 }
@@ -35,6 +47,7 @@ dev.api.strovak.com {
 ext-staging.strovak.com {
 	import staging_tls
 	import staging_headers
+	import staging_errors
 
 	handle /health {
 		reverse_proxy backend:8080

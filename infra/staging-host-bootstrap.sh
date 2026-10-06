@@ -95,6 +95,8 @@ if [ ! -f "$env_file" ]; then
     printf 'STAGING_PUBLIC_IPV4=%s\n' "$staging_public_ipv4"
     printf '%s\n' 'ADMIN_EMAIL='
     printf '%s\n' 'ADMIN_PASSWORD_HASH='
+    printf '%s\n' 'STAGING_BASIC_AUTH_USER='
+    printf '%s\n' 'STAGING_BASIC_AUTH_HASH='
   } > "$env_tmp"
   unset postgres_password redis_password jwt_secret secrets_enc_key staging_public_ipv4
   chown root:streamdubber "$env_tmp"

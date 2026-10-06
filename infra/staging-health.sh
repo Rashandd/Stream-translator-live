@@ -29,6 +29,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/staging-common.sh"
 staging_require_env
 staging_public_ipv4=$(sed -n 's/^STAGING_PUBLIC_IPV4=//p' "$STAGING_ENV_FILE")
+release_root=$(cd "$script_dir/.." && pwd)
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -73,6 +74,39 @@ check_staging_headers() {
       --resolve "$host:443:$staging_public_ipv4" "https://$host/"
   grep -Eiq '^strict-transport-security:.*max-age=' "$headers"
   grep -Eiq '^x-robots-tag:[[:space:]]*noindex, nofollow' "$headers"
+}
+
+# dev.strovak.com answers every unauthenticated request with a Basic Auth
+# challenge, and this script holds only the bcrypt hash. The 401 challenge is
+# therefore the healthy answer: it proves the edge, its certificate, and the
+# gate. Any other status fails; a 2xx would mean the gate is off. Extra
+# arguments are passed to curl (the origin check pins the address).
+check_frontend_gate() {
+  local headers="$tmp_dir/frontend-gate.headers"
+  local code
+  code=$(curl --silent --show-error --output /dev/null --dump-header "$headers" \
+    --write-out '%{http_code}' --connect-timeout 5 --max-time 20 "$@" \
+    'https://dev.strovak.com/') &&
+    [ "$code" = 401 ] &&
+    grep -Eiq '^www-authenticate:[[:space:]]*basic' "$headers"
+}
+
+check_frontend_gate_headers() {
+  local headers="$tmp_dir/frontend-gate.origin.headers"
+  curl --silent --show-error --output /dev/null --dump-header "$headers" \
+    --connect-timeout 5 --max-time 20 \
+    --resolve "dev.strovak.com:443:$staging_public_ipv4" 'https://dev.strovak.com/' &&
+    grep -Eiq '^strict-transport-security:.*max-age=' "$headers" &&
+    grep -Eiq '^x-robots-tag:[[:space:]]*noindex, nofollow' "$headers"
+}
+
+# The gate hides the frontend from this script, so reach it from inside the
+# Caddy container: the same network path and upstream that reverse_proxy uses.
+check_frontend_upstream() {
+  local caddy
+  caddy=$(staging_compose "$release_root" ps -q caddy) &&
+    [ -n "$caddy" ] &&
+    docker exec "$caddy" wget -q -T 10 -O /dev/null http://frontend:3000/
 }
 
 check_http_redirect() {
@@ -121,14 +155,15 @@ check_extension_surface_restricted() {
 
 for host_path in \
   'dev.api.strovak.com /health' \
-  'dev.strovak.com /' \
   'ext-staging.strovak.com /health'; do
   read -r host path <<<"$host_path"
   retry origin_get "$host" "$path"
 done
+retry check_frontend_gate --resolve "dev.strovak.com:443:$staging_public_ipv4"
+retry check_frontend_upstream
 
 retry check_staging_headers dev.api.strovak.com
-retry check_staging_headers dev.strovak.com
+retry check_frontend_gate_headers
 retry check_staging_headers ext-staging.strovak.com
 retry check_http_redirect dev.strovak.com
 retry check_http_redirect dev.api.strovak.com
@@ -140,15 +175,15 @@ retry check_extension_surface_restricted
 if [ "$check_public" -eq 1 ]; then
   for host_path in \
     'dev.api.strovak.com /health' \
-    'dev.strovak.com /' \
     'ext-staging.strovak.com /health'; do
     read -r host path <<<"$host_path"
     retry public_get "$host" "$path"
   done
+  retry check_frontend_gate
 fi
 
 if [ "$check_public" -eq 1 ]; then
-  echo "HTTPS, headers, redirects, CORS, restricted EBS, public routing, and WSS checks passed."
+  echo "HTTPS, headers, redirects, CORS, frontend gate, restricted EBS, public routing, and WSS checks passed."
 else
-  echo "Origin HTTPS, headers, redirects, CORS, restricted EBS, and WSS checks passed; public DNS/TLS was intentionally not checked."
+  echo "Origin HTTPS, headers, redirects, CORS, frontend gate, restricted EBS, and WSS checks passed; public DNS/TLS was intentionally not checked."
 fi

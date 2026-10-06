@@ -131,6 +131,26 @@ staging_require_env() {
   fi
 }
 
+# dev.strovak.com is gated by Caddy Basic Auth. With either value missing Caddy
+# still starts, but answers 401 to every request, so the frontend is unusable.
+# Catch that before a long image build rather than after it.
+staging_require_edge_gate() {
+  if ! grep -Eq '^STAGING_BASIC_AUTH_USER=[^[:space:]]+$' "$STAGING_ENV_FILE"; then
+    echo "$STAGING_ENV_FILE is missing a non-empty STAGING_BASIC_AUTH_USER value; see infra/staging.md (Edge Basic Auth)." >&2
+    return 1
+  fi
+  if ! grep -Eq "^STAGING_BASIC_AUTH_HASH='[$]2[aby][$][0-9]{2}[$][./A-Za-z0-9]{53}'$" "$STAGING_ENV_FILE"; then
+    echo "STAGING_BASIC_AUTH_HASH must be a single-quoted bcrypt value from 'caddy hash-password'; see infra/staging.md (Edge Basic Auth)." >&2
+    return 1
+  fi
+}
+
+# A host that never had Nginx installed has no unit to disable or stop, and
+# systemctl reports a missing unit as a failure.
+staging_nginx_unit_exists() {
+  systemctl cat nginx.service >/dev/null 2>&1
+}
+
 staging_compose() {
   local release_root=$1
   shift

@@ -173,6 +173,11 @@ assert "check_public" in health
 assert "CONFIRM_ROLLBACK_DATA" in rollback
 assert "STAGING_RESTORE_SKIP_AUTOMATIC_BACKUP" in restore and "STAGING_RESTORE_START_RELEASE" in restore
 assert "CONFIRM_ROLLBACK_DATA" in docs
+assert "staging_require_edge_gate" in common and "staging_require_edge_gate" in deploy
+assert "STAGING_BASIC_AUTH_USER=" in bootstrap and "STAGING_BASIC_AUTH_HASH=" in bootstrap
+assert "staging_nginx_unit_exists" in common and "staging_nginx_unit_exists" in deploy
+assert "check_frontend_gate" in health
+assert caddyfile.count("import staging_errors") == 3
 
 retired_text = "\n".join(
     (
